@@ -7,6 +7,18 @@ import { scales as existingScales } from '@/data/scales';
 import styles from './ScaleRegistrationForm.module.css';
 
 const SHIFT_OPTIONS = ['Manha', 'Tarde', 'Noite'];
+const FUNCTION_OPTIONS = [
+  'Vocal',
+  'Back Vocal',
+  'Guitarra',
+  'Violao',
+  'Baixo',
+  'Teclado',
+  'Bateria',
+  'Percussao',
+  'Midia',
+  'Sonoplastia'
+];
 
 function formatDate(date) {
   if (!date) {
@@ -66,6 +78,7 @@ export default function ScaleRegistrationForm() {
   const [playlist, setPlaylist] = useState([]);
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [missingFunctionIds, setMissingFunctionIds] = useState([]);
 
   const selectedComponents = useMemo(
     () => componentOptions.filter((component) => selectedComponentIds.includes(component.id)),
@@ -89,6 +102,8 @@ export default function ScaleRegistrationForm() {
           delete nextFunctions[componentId];
           return nextFunctions;
         });
+
+        setMissingFunctionIds((currentMissingIds) => currentMissingIds.filter((id) => id !== componentId));
       }
 
       return nextIds;
@@ -100,6 +115,7 @@ export default function ScaleRegistrationForm() {
       ...currentFunctions,
       [componentId]: value
     }));
+    setMissingFunctionIds((currentMissingIds) => currentMissingIds.filter((id) => id !== componentId));
   };
 
   const isPlaylistDuplicate = (videoId) => playlist.some((playlistItem) => getVideoId(playlistItem) === videoId);
@@ -268,7 +284,10 @@ export default function ScaleRegistrationForm() {
 
     const missingFunctions = selectedComponents.filter((component) => !functionsByComponent[component.id]?.trim());
     if (missingFunctions.length) {
-      validationErrors.push('Preencha a funcao de cada componente selecionado.');
+      validationErrors.push('Selecione a funcao de cada componente selecionado.');
+      setMissingFunctionIds(missingFunctions.map((component) => component.id));
+    } else {
+      setMissingFunctionIds([]);
     }
 
     if (validationErrors.length) {
@@ -406,15 +425,24 @@ export default function ScaleRegistrationForm() {
                     </button>
 
                     {isSelected ? (
-                      <label className={styles.functionField}>
+                      <label
+                        className={`${styles.functionField} ${
+                          missingFunctionIds.includes(component.id) ? styles.functionFieldError : ''
+                        }`}
+                      >
                         <span className={styles.fieldLabel}>Funcao na escala</span>
-                        <input
+                        <select
                           className={styles.textInput}
-                          type="text"
                           value={functionsByComponent[component.id] || ''}
                           onChange={(event) => updateFunction(component.id, event.target.value)}
-                          placeholder={`Ex: ${component.role || 'lideranca'}`}
-                        />
+                        >
+                          <option value="">Selecione uma funcao</option>
+                          {FUNCTION_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                     ) : null}
                   </article>
@@ -424,7 +452,7 @@ export default function ScaleRegistrationForm() {
 
             <div className={styles.selectionSummary}>
               <span>{selectedComponents.length} componente(s) selecionado(s)</span>
-              <span>{selectedFunctionsCount} funcao(oes) preenchida(s)</span>
+              <span>{selectedFunctionsCount} funcao(oes) selecionada(s)</span>
             </div>
           </section>
         </div>

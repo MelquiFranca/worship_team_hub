@@ -259,6 +259,11 @@
   gap: 8px;
 }
 
+.functionFieldError .textInput {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+}
+
 .textInput,
 .searchInput {
   min-height: 48px;
