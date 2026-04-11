@@ -40,12 +40,24 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
+.scaleCardExpanded {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
 .cardHeader {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
   border-bottom: 1px solid #efefef;
+}
+
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .headerAvatar {
@@ -72,6 +84,30 @@
 .headerMeta span {
   color: #737373;
   font-size: 0.86rem;
+}
+
+.toggleButton {
+  border: 1px solid #d4d4d8;
+  background: #fff;
+  color: #18181b;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggleButton:hover {
+  background: #f8fafc;
+}
+
+.cardDetails {
+  display: grid;
+}
+
+.cardDetails[hidden] {
+  display: none;
 }
 
 .cardBody {
@@ -260,6 +296,17 @@
   cursor: pointer;
 }
 
+.notifyButton {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
 .actionButtonActive {
   background: #eef2ff;
   border-color: #c7d2fe;
@@ -272,19 +319,30 @@
   border-color: #111827;
 }
 
+.notifyButton:hover,
+.actionButton:hover,
+.editButton:hover:enabled,
+.toggleButton:hover,
+.dot:hover {
+  filter: brightness(0.97);
+}
+
 .editButton:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.actionButton:hover,
-.editButton:hover:enabled,
-.dot:hover {
-  filter: brightness(0.97);
+.cardNotice {
+  margin: 0;
+  padding: 0 12px 12px;
+  color: #1d4ed8;
+  font-size: 0.84rem;
 }
 
 .actionButton:focus-visible,
 .editButton:focus-visible,
+.notifyButton:focus-visible,
+.toggleButton:focus-visible,
 .navButton:focus-visible,
 .dot:focus-visible {
   outline: 3px solid #93c5fd;
@@ -296,6 +354,14 @@
     border-radius: 0;
     border-left: 0;
     border-right: 0;
+  }
+
+  .cardHeader {
+    align-items: flex-start;
+  }
+
+  .toggleButton {
+    white-space: nowrap;
   }
 
   .cardFooter {
@@ -310,9 +376,16 @@
 
   .leftActions {
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .rightActions {
-    justify-content: flex-end;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .notifyButton,
+  .editButton {
+    flex: 1 1 140px;
   }
 }

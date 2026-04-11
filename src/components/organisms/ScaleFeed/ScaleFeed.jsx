@@ -174,71 +174,113 @@ function PlaylistPanel({ playlist }) {
   );
 }
 
-function ScaleCard({ scale, onEdit }) {
+function makeDomId(value) {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+function ScaleCard({ scale, isExpanded, onToggleExpand, onEdit }) {
   const [activeView, setActiveView] = useState(COMPONENTS_VIEW);
+  const [notifyFeedback, setNotifyFeedback] = useState('');
+  const scaleDate = scale?.date || 'Data nao informada';
+  const scaleShift = scale?.shift || 'Turno nao informado';
+  const detailsId = `scale-card-${makeDomId(scale?.id || `${scaleDate}-${scaleShift}`)}-details`;
+
+  const handleNotify = () => {
+    setNotifyFeedback(`Notificacao enviada para ${scaleDate} (${scaleShift}).`);
+  };
 
   return (
-    <article className={styles.scaleCard}>
+    <article className={`${styles.scaleCard} ${isExpanded ? styles.scaleCardExpanded : ''}`}>
       <header className={styles.cardHeader}>
-        <div className={styles.headerAvatar} aria-hidden="true">
-          {scale.shift.slice(0, 1)}
+        <div className={styles.headerContent}>
+          <div className={styles.headerAvatar} aria-hidden="true">
+            {scaleShift.slice(0, 1)}
+          </div>
+          <div className={styles.headerMeta}>
+            <strong>{scaleDate}</strong>
+            <span>Turno: {scaleShift}</span>
+          </div>
         </div>
-        <div className={styles.headerMeta}>
-          <strong>{scale.date}</strong>
-          <span>Turno: {scale.shift}</span>
-        </div>
+
+        <button
+          type="button"
+          className={styles.toggleButton}
+          onClick={onToggleExpand}
+          aria-expanded={isExpanded}
+          aria-controls={detailsId}
+          aria-label={`${isExpanded ? 'Recolher' : 'Expandir'} escala de ${scaleDate} (${scaleShift})`}
+        >
+          {isExpanded ? 'Recolher' : 'Expandir'}
+        </button>
       </header>
 
-      <section className={styles.cardBody}>
-        {activeView === COMPONENTS_VIEW ? (
-          <ComponentsPanel members={scale.members} />
-        ) : (
-          <PlaylistPanel playlist={scale.playlist} />
-        )}
-      </section>
+      <div className={styles.cardDetails} id={detailsId} hidden={!isExpanded} aria-hidden={!isExpanded}>
+        <section className={styles.cardBody}>
+          {activeView === COMPONENTS_VIEW ? (
+            <ComponentsPanel members={scale.members} />
+          ) : (
+            <PlaylistPanel playlist={scale.playlist} />
+          )}
+        </section>
 
-      <footer className={styles.cardFooter}>
-        <div className={styles.leftActions}>
-          <button
-            type="button"
-            className={`${styles.actionButton} ${
-              activeView === COMPONENTS_VIEW ? styles.actionButtonActive : ''
-            }`}
-            onClick={() => setActiveView(COMPONENTS_VIEW)}
-            aria-pressed={activeView === COMPONENTS_VIEW}
-          >
-            Componentes
-          </button>
-          <button
-            type="button"
-            className={`${styles.actionButton} ${
-              activeView === PLAYLIST_VIEW ? styles.actionButtonActive : ''
-            }`}
-            onClick={() => setActiveView(PLAYLIST_VIEW)}
-            aria-pressed={activeView === PLAYLIST_VIEW}
-          >
-            Playlist
-          </button>
-        </div>
+        <footer className={styles.cardFooter}>
+          <div className={styles.leftActions}>
+            <button
+              type="button"
+              className={`${styles.actionButton} ${
+                activeView === COMPONENTS_VIEW ? styles.actionButtonActive : ''
+              }`}
+              onClick={() => setActiveView(COMPONENTS_VIEW)}
+              aria-pressed={activeView === COMPONENTS_VIEW}
+            >
+              Componentes
+            </button>
+            <button
+              type="button"
+              className={`${styles.actionButton} ${
+                activeView === PLAYLIST_VIEW ? styles.actionButtonActive : ''
+              }`}
+              onClick={() => setActiveView(PLAYLIST_VIEW)}
+              aria-pressed={activeView === PLAYLIST_VIEW}
+            >
+              Playlist
+            </button>
+          </div>
 
-        <div className={styles.rightActions}>
-          <button
-            type="button"
-            className={styles.editButton}
-            onClick={() => onEdit(scale)}
-            disabled={!scale.canEdit}
-            aria-label={`Editar escala de ${scale.date} ${scale.shift}`}
-          >
-            Editar escala
-          </button>
-        </div>
-      </footer>
+          <div className={styles.rightActions}>
+            <button
+              type="button"
+              className={styles.notifyButton}
+              onClick={handleNotify}
+              aria-label={`Notificar equipe da escala de ${scaleDate} (${scaleShift})`}
+            >
+              Notificar
+            </button>
+            <button
+              type="button"
+              className={styles.editButton}
+              onClick={() => onEdit(scale)}
+              disabled={!scale.canEdit}
+              aria-label={`Editar escala de ${scaleDate} ${scaleShift}`}
+            >
+              Editar escala
+            </button>
+          </div>
+        </footer>
+
+        {notifyFeedback ? (
+          <p className={styles.cardNotice} role="status" aria-live="polite">
+            {notifyFeedback}
+          </p>
+        ) : null}
+      </div>
     </article>
   );
 }
 
 export default function ScaleFeed({ scales }) {
   const [feedback, setFeedback] = useState('');
+  const [expandedScaleIds, setExpandedScaleIds] = useState({});
 
   const handleEdit = (scale) => {
     if (!scale.canEdit) {
@@ -263,9 +305,23 @@ export default function ScaleFeed({ scales }) {
       ) : null}
 
       <div className={styles.feedList}>
-        {scales.map((scale) => (
-          <ScaleCard key={scale.id} scale={scale} onEdit={handleEdit} />
-        ))}
+        {scales.map((scale, index) => {
+          const scaleId = scale?.id || `${scale?.date || 'sem-data'}-${scale?.shift || 'sem-turno'}-${index}`;
+          return (
+          <ScaleCard
+            key={scaleId}
+            scale={scale}
+            isExpanded={Boolean(expandedScaleIds[scaleId])}
+            onToggleExpand={() =>
+              setExpandedScaleIds((current) => ({
+                ...current,
+                [scaleId]: !current[scaleId]
+              }))
+            }
+            onEdit={handleEdit}
+          />
+          );
+        })}
       </div>
     </section>
   );
