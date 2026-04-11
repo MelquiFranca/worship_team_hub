@@ -3,22 +3,12 @@
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import Calendar from '@/components/molecules/Calendar/Calendar';
+import { useGroupSettings } from '@/context/GroupSettingsContext';
+import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
 import { scales as existingScales } from '@/data/scales';
 import styles from './ScaleRegistrationForm.module.css';
 
 const SHIFT_OPTIONS = ['Manha', 'Tarde', 'Noite'];
-const FUNCTION_OPTIONS = [
-  'Vocal',
-  'Back Vocal',
-  'Guitarra',
-  'Violao',
-  'Baixo',
-  'Teclado',
-  'Bateria',
-  'Percussao',
-  'Midia',
-  'Sonoplastia'
-];
 
 function formatDate(date) {
   if (!date) {
@@ -62,6 +52,7 @@ function isSupportedYouTubeUrl(rawUrl) {
 }
 
 export default function ScaleRegistrationForm() {
+  const { settings, availableFunctionOptions } = useGroupSettings();
   const componentOptions = useMemo(() => normalizeComponentPool(existingScales), []);
   const [scaleDate, setScaleDate] = useState(null);
   const [shift, setShift] = useState('');
@@ -88,6 +79,16 @@ export default function ScaleRegistrationForm() {
   const selectedFunctionsCount = selectedComponents.filter((component) =>
     Boolean(functionsByComponent[component.id]?.trim())
   ).length;
+  const functionSelectOptions = useMemo(() => {
+    const configuredIds = new Set(settings.availableFunctions);
+    const configuredLabels = availableFunctionOptions
+      .filter((option) => configuredIds.has(option.id))
+      .map((option) => option.label);
+
+    return configuredLabels.length
+      ? configuredLabels
+      : GROUP_FUNCTION_OPTIONS.map((option) => option.label);
+  }, [availableFunctionOptions, settings.availableFunctions]);
 
   const toggleComponent = (componentId) => {
     setSelectedComponentIds((currentIds) => {
@@ -437,7 +438,7 @@ export default function ScaleRegistrationForm() {
                           onChange={(event) => updateFunction(component.id, event.target.value)}
                         >
                           <option value="">Selecione uma funcao</option>
-                          {FUNCTION_OPTIONS.map((option) => (
+                          {functionSelectOptions.map((option) => (
                             <option key={option} value={option}>
                               {option}
                             </option>

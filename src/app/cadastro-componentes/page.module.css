@@ -1,7 +1,15 @@
 .page {
   min-height: 100vh;
   background: #fafafa;
+  background: var(--app-background, #fafafa);
+  background-image: linear-gradient(
+    180deg,
+    var(--app-background, #fafafa) 0%,
+    var(--app-background-alt, #eef3f9) 100%
+  );
   padding: 32px 16px 48px;
+  color: #0f172a;
+  color: var(--app-text, #0f172a);
 }
 
 .container {
@@ -18,11 +26,14 @@
 .header h1 {
   margin: 0;
   font-size: 1.8rem;
+  color: #0f172a;
+  color: var(--app-text, #0f172a);
 }
 
 .header p {
   margin-top: 4px;
   color: #65676b;
+  color: var(--app-text-muted, #65676b);
   line-height: 1.5;
 }
 
