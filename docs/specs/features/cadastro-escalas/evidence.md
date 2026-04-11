@@ -14,7 +14,7 @@
 
 - Tela de cadastro com identidade visual consistente com escalas.
 - Multipla selecao de componentes.
-- Definicao de funcao por componente selecionado.
+- Definicao de funcao por componente selecionado via `select` com opcoes pre-definidas.
 - Escolha de data via calendario reutilizavel.
 - Escolha de turno da escala.
 - Busca YouTube com pre-visualizacao de resultados.

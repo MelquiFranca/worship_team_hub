@@ -19,7 +19,7 @@ Implementar a tela de cadastro de escalas com identidade visual da tela de escal
 
 - Criar rota de cadastro de escalas com identidade visual alinhada a tela de escalas.
 - Permitir multipla selecao de componentes para a escala.
-- Permitir definir a funcao individual de cada componente selecionado.
+- Permitir definir a funcao individual de cada componente selecionado por meio de `select` com opcoes pre-definidas.
 - Permitir escolha da data com componente de calendario reutilizavel sem biblioteca externa.
 - Permitir escolha do turno da escala.
 - Implementar busca de musicas no YouTube.
@@ -52,7 +52,7 @@ Use formato passa/falha.
 | --- | --- | --- | --- |
 | AC-01 | A tela de cadastro de escalas segue a identidade visual da tela de escalas existente. | Revisao manual comparativa. | Alta |
 | AC-02 | Sistema permite selecionar multiplos componentes na mesma escala. | Teste de integracao da selecao multipla. | Alta |
-| AC-03 | Para cada componente selecionado, e possivel definir/alterar funcao individualmente. | Teste de integracao do formulario dinamico. | Alta |
+| AC-03 | Para cada componente selecionado, e possivel definir/alterar funcao individualmente via `select` com opcoes pre-definidas. | Teste de integracao do formulario dinamico + validacao das opcoes do select. | Alta |
 | AC-04 | Campo de data utiliza o calendario reutilizavel (sem biblioteca externa). | Teste manual + componente. | Alta |
 | AC-05 | Usuario consegue selecionar turno da escala entre opcoes validas. | Teste manual + integracao. | Alta |
 | AC-06 | Busca de musicas consulta YouTube e retorna lista com metadados minimos (titulo, canal, thumbnail). | Teste de integracao com mock/API route. | Alta |
@@ -74,7 +74,7 @@ Use formato passa/falha.
 | Caso | Condicao | Resposta esperada |
 | --- | --- | --- |
 | ER-01 | Usuario tenta salvar sem componentes selecionados | Bloquear submit e exibir mensagem de validacao. |
-| ER-02 | Componente selecionado sem funcao definida | Destacar item pendente e bloquear submit. |
+| ER-02 | Componente selecionado sem funcao definida no `select` | Destacar item pendente e bloquear submit. |
 | ER-03 | Falha na busca YouTube (rede/chave/limite) | Exibir estado de erro com opcao de tentar novamente. |
 | ER-04 | Usuario tenta adicionar musica duplicada na playlist | Ignorar duplicata e exibir feedback informativo. |
 | ER-05 | Nenhum resultado de busca | Exibir estado vazio claro sem quebrar layout. |

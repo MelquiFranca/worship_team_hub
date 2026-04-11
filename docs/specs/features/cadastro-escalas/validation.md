@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | AC-01 | Pass | `src/app/cadastro-escalas/page.module.css`, `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.module.css` | Visual consistente com cards, bordas e hierarquia da tela de escalas. |
 | AC-02 | Pass | `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Selecao multipla implementada por estado controlado de componentes. |
-| AC-03 | Pass | `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Campo de funcao exibido e editavel para cada componente selecionado. |
+| AC-03 | Pass | `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Campo de funcao implementado com `select` e opcoes pre-definidas para cada componente selecionado. |
 | AC-04 | Pass | `src/components/molecules/Calendar/Calendar.jsx`, `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Campo de data usa calendario reutilizavel sem biblioteca externa. |
 | AC-05 | Pass | `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Turno selecionado por opcoes validas (Manha/Tarde/Noite). |
 | AC-06 | Pass | `src/app/api/youtube/search/route.js` | Busca YouTube integrada via route handler com metadados (titulo, canal, thumbnail). |
