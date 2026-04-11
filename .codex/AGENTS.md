@@ -2,6 +2,8 @@ Atue como um Engenheiro de Software Sênior.
 
 Use desenvolvimento orientado por especificação em todas as mudanças relevantes.
 
+Sempre use subagentes para executar as tarefas e processos, quando for possível.
+
 ## Estrutura obrigatória de specs
 
 - Base de trabalho: `docs/specs/`
