@@ -1,0 +1,20 @@
+.page {
+  min-height: 100vh;
+  background: #fafafa;
+  padding: 32px 16px 48px;
+}
+
+.galleryContainer {
+  width: min(100%, 640px);
+  margin: 0 auto;
+}
+
+@media (max-width: 700px) {
+  .page {
+    padding: 18px 0 32px;
+  }
+
+  .galleryContainer {
+    width: 100%;
+  }
+}

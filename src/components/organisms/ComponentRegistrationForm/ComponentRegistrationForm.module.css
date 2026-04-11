@@ -1,0 +1,215 @@
+.card {
+  background: #fff;
+  border: 1px solid #dbdbdb;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.feedback {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #d9dee6;
+  border-radius: 10px;
+  background: #f0f6ff;
+  color: #1d4ed8;
+  font-size: 0.92rem;
+}
+
+.photoArea {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #efefef;
+}
+
+.photoPreview {
+  width: 96px;
+  height: 96px;
+}
+
+.photoImage,
+.photoFallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+}
+
+.photoImage {
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+}
+
+.photoFallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(120deg, #ff7a00, #ff0169);
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.photoCopy {
+  display: grid;
+  gap: 6px;
+}
+
+.photoCopy strong {
+  font-size: 1rem;
+}
+
+.photoCopy p {
+  margin: 0;
+  color: #65676b;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.fileButton {
+  width: fit-content;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #18181b;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.fileButton:hover {
+  background: #f4f4f5;
+}
+
+.fileButton:focus-visible,
+.submitButton:focus-visible,
+.passwordToggle:focus-visible,
+.field input:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.helpText,
+.error {
+  font-size: 0.8rem;
+}
+
+.helpText {
+  color: #6b7280;
+}
+
+.error {
+  color: #dc2626;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.field input {
+  width: 100%;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  padding: 11px 12px;
+  font: inherit;
+}
+
+.field input:hover {
+  background: #fafafa;
+}
+
+.field input::placeholder {
+  color: #9ca3af;
+}
+
+.passwordWrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.passwordToggle {
+  border: 1px solid #e4e4e7;
+  background: #fff;
+  color: #27272a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.passwordToggle:hover {
+  background: #f4f4f5;
+}
+
+.submitButton {
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(120deg, #ff7a00, #ff0169);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  padding: 13px 16px;
+  cursor: pointer;
+}
+
+.submitButton:hover {
+  filter: brightness(1.02);
+}
+
+@media (max-width: 560px) {
+  .card {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    padding: 14px 12px 16px;
+  }
+
+  .photoArea {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .photoPreview {
+    width: 88px;
+    height: 88px;
+  }
+
+  .passwordWrap {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,195 @@
+.calendarField {
+  display: grid;
+  gap: 8px;
+  position: relative;
+}
+
+.label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.controlWrap {
+  position: relative;
+}
+
+.trigger {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.trigger:hover {
+  background: #fafafa;
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+  background: #f8fafc;
+}
+
+.triggerError {
+  border-color: #fca5a5;
+}
+
+.trigger:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.triggerValue {
+  color: #111827;
+}
+
+.triggerPlaceholder {
+  color: #9ca3af;
+}
+
+.triggerIcon {
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(100%, 320px);
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.14);
+  padding: 12px;
+}
+
+.popoverHeader {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.monthLabel {
+  text-align: center;
+  text-transform: capitalize;
+  font-size: 0.92rem;
+}
+
+.navButton {
+  border: 1px solid #e4e4e7;
+  background: #fff;
+  color: #27272a;
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.navButton:hover:not(:disabled) {
+  background: #f4f4f5;
+}
+
+.navButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.navButton:focus-visible,
+.dayButton:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.weekdays,
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.weekdays {
+  margin-bottom: 6px;
+}
+
+.weekdays span {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6b7280;
+  padding: 4px 0;
+}
+
+.grid {
+  align-items: stretch;
+}
+
+.dayButton,
+.emptyCell {
+  height: 38px;
+  border-radius: 10px;
+}
+
+.dayButton {
+  border: 1px solid transparent;
+  background: #f8fafc;
+  color: #0f172a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  display: grid;
+  place-items: center;
+}
+
+.dayButton:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.dayButton:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.dayButtonSelected {
+  background: linear-gradient(120deg, #ff7a00, #ff0169);
+  color: #fff;
+  font-weight: 700;
+}
+
+.emptyCell {
+  visibility: hidden;
+}
+
+.helper {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #dc2626;
+}
+
+@media (max-width: 560px) {
+  .popover {
+    width: min(100vw - 32px, 320px);
+  }
+}

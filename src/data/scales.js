@@ -45,12 +45,12 @@ export const scales = [
       {
         id: 'p1',
         title: 'Aquieta Minh\'alma',
-        videoUrl: 'https://www.youtube.com/watch?v=p4z6nA4qJGE'
+        videoUrl: 'https://youtu.be/KS44J5wDxUc?si=T7Vi5aum2BfzzBGU'
       },
       {
         id: 'p2',
         title: 'Grandes Coisas',
-        videoUrl: 'https://youtu.be/4A6L5xgR7k4'
+        videoUrl: 'https://youtu.be/Ks2lsoQxuXY?si=VzqzFzD_VokYfVp3'
       },
       {
         id: 'p3',
@@ -91,12 +91,12 @@ export const scales = [
       {
         id: 'p4',
         title: 'Lugar Secreto',
-        videoUrl: 'https://www.youtube.com/watch?v=lyx4xJx6Nf8'
+        videoUrl: 'https://youtu.be/Ks2lsoQxuXY?si=VzqzFzD_VokYfVp3'
       },
       {
         id: 'p5',
         title: 'Ele Vem',
-        videoUrl: 'https://youtu.be/gWZf2x8j5v4'
+        videoUrl: 'https://youtu.be/KS44J5wDxUc?si=T7Vi5aum2BfzzBGU'
       }
     ]
   }
