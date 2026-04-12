@@ -1,0 +1,124 @@
+.page {
+  min-height: 100vh;
+  padding: 32px 16px 48px;
+  display: grid;
+  place-items: center;
+  background: var(--app-page-gradient, linear-gradient(180deg, #f7fbff 0%, #eef3f9 100%));
+  color: var(--app-text, #0f172a);
+}
+
+.card {
+  width: min(100%, 720px);
+  display: grid;
+  gap: 22px;
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--app-shadow, 0 14px 36px rgba(15, 23, 42, 0.08));
+}
+
+.avatar {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 28px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--app-accent, #f97316), var(--app-accent-strong, #ff0169));
+  color: #ffffff;
+}
+
+.avatarImage {
+  object-fit: cover;
+}
+
+.avatarFallback {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.content {
+  display: grid;
+  gap: 8px;
+}
+
+.kicker {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  line-height: 1.05;
+}
+
+.description {
+  margin: 0;
+  max-width: 58ch;
+  color: var(--app-text-muted, #4b5563);
+  line-height: 1.7;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.primaryAction,
+.secondaryAction {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.primaryAction {
+  background: linear-gradient(135deg, var(--app-accent, #f97316), var(--app-accent-strong, #ff0169));
+  color: #ffffff;
+}
+
+.secondaryAction {
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--app-text, #0f172a);
+}
+
+.primaryAction:hover,
+.secondaryAction:hover {
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 20px 12px 40px;
+  }
+
+  .card {
+    padding: 20px;
+    gap: 18px;
+    border-radius: 22px;
+  }
+
+  .avatar {
+    width: 76px;
+    height: 76px;
+    border-radius: 24px;
+  }
+}
