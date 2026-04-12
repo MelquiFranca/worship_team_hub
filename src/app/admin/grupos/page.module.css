@@ -1,0 +1,131 @@
+.page {
+  min-height: 100vh;
+  padding: 28px 20px 120px;
+  display: grid;
+  gap: 18px;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.9), transparent 30%),
+    var(--app-page-gradient, linear-gradient(180deg, #f7fbff 0%, #eef3f9 100%));
+}
+
+.headerCard {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 22px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--app-shadow, 0 14px 36px rgba(15, 23, 42, 0.08));
+}
+
+.kicker {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.headerCard h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: var(--app-text-muted, #4b5563);
+  line-height: 1.6;
+  max-width: 58ch;
+}
+
+.callout {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--app-info-soft, #eff6ff);
+  color: var(--app-info, #1d4ed8);
+  font-weight: 700;
+}
+
+.listSection {
+  display: grid;
+  gap: 14px;
+}
+
+.groupCard {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--app-shadow-soft);
+}
+
+.groupMedia {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--app-accent-gradient);
+}
+
+.groupImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.groupInfo {
+  min-width: 0;
+}
+
+.groupInfo h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.groupInfo p {
+  margin: 6px 0 0;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.statusBadge {
+  min-width: 84px;
+  justify-self: end;
+  text-align: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.statusActive {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.statusInactive {
+  background: rgba(107, 114, 128, 0.12);
+  color: #374151;
+}
+
+@media (max-width: 700px) {
+  .page {
+    padding-inline: 16px;
+    padding-bottom: 132px;
+  }
+
+  .groupCard {
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+  }
+
+  .statusBadge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
