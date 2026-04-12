@@ -4,8 +4,7 @@
   background:
     radial-gradient(circle at top left, var(--app-accent-soft, rgba(249, 115, 22, 0.12)), transparent 22%),
     radial-gradient(circle at top right, rgba(37, 99, 235, 0.1), transparent 24%),
-    linear-gradient(135deg, #f8fbff, #eef4fb);
-  color: #0f172a;
+    linear-gradient(135deg, var(--app-surface-elevated, #f8fbff), var(--app-background-alt, #eef3f9));
   color: var(--app-text, #0f172a);
 }
 

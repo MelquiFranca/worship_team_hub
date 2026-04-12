@@ -1,9 +1,9 @@
 .card {
-  background: #fff;
-  border: 1px solid #dbdbdb;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border-strong, #d4d4d8);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--app-shadow-soft);
   padding: 16px;
   display: grid;
   gap: 16px;
@@ -12,10 +12,10 @@
 .feedback {
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid #d9dee6;
+  border: 1px solid var(--app-info-strong-soft, #dbeafe);
   border-radius: 10px;
-  background: #f0f6ff;
-  color: #1d4ed8;
+  background: var(--app-info-soft, #eff6ff);
+  color: var(--app-info, #1d4ed8);
   font-size: 0.92rem;
 }
 
@@ -25,7 +25,7 @@
   gap: 14px;
   align-items: center;
   padding-bottom: 16px;
-  border-bottom: 1px solid #efefef;
+  border-bottom: 1px solid var(--app-border-subtle, #e5e7eb);
 }
 
 .photoPreview {
@@ -42,14 +42,14 @@
 
 .photoImage {
   object-fit: cover;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
 }
 
 .photoFallback {
   display: grid;
   place-items: center;
-  background: linear-gradient(120deg, #ff7a00, #ff0169);
-  color: #fff;
+  background: var(--app-accent-gradient-compact);
+  color: var(--app-on-accent);
   font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -66,17 +66,17 @@
 
 .photoCopy p {
   margin: 0;
-  color: #65676b;
+  color: var(--app-text-muted, #4b5563);
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
 .fileButton {
   width: fit-content;
-  border: 1px solid #d4d4d8;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
   border-radius: 8px;
-  background: #fff;
-  color: #18181b;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #0f172a);
   font-size: 0.84rem;
   font-weight: 600;
   padding: 8px 10px;
@@ -84,14 +84,14 @@
 }
 
 .fileButton:hover {
-  background: #f4f4f5;
+  background: var(--app-surface-muted, #f1f5f9);
 }
 
 .fileButton:focus-visible,
 .submitButton:focus-visible,
 .passwordToggle:focus-visible,
 .field input:focus-visible {
-  outline: 3px solid #93c5fd;
+  outline: 3px solid var(--app-focus, #93c5fd);
   outline-offset: 1px;
 }
 
@@ -113,11 +113,11 @@
 }
 
 .helpText {
-  color: #6b7280;
+  color: var(--app-text-soft, #64748b);
 }
 
 .error {
-  color: #dc2626;
+  color: var(--app-danger, #b91c1c);
 }
 
 .form {
@@ -133,25 +133,25 @@
 .field label {
   font-size: 0.88rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--app-text, #0f172a);
 }
 
 .field input {
   width: 100%;
-  border: 1px solid #d4d4d8;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
   border-radius: 10px;
-  background: #fff;
-  color: #111827;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #0f172a);
   padding: 11px 12px;
   font: inherit;
 }
 
 .field input:hover {
-  background: #fafafa;
+  background: var(--app-surface-elevated, #f8fbff);
 }
 
 .field input::placeholder {
-  color: #9ca3af;
+  color: var(--app-text-soft, #64748b);
 }
 
 .passwordWrap {
@@ -162,9 +162,9 @@
 }
 
 .passwordToggle {
-  border: 1px solid #e4e4e7;
-  background: #fff;
-  color: #27272a;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #0f172a);
   border-radius: 8px;
   padding: 10px 12px;
   cursor: pointer;
@@ -173,14 +173,14 @@
 }
 
 .passwordToggle:hover {
-  background: #f4f4f5;
+  background: var(--app-surface-muted, #f1f5f9);
 }
 
 .submitButton {
   border: 0;
   border-radius: 10px;
-  background: linear-gradient(120deg, #ff7a00, #ff0169);
-  color: #fff;
+  background: var(--app-accent-gradient-compact);
+  color: var(--app-on-accent);
   font: inherit;
   font-weight: 700;
   padding: 13px 16px;

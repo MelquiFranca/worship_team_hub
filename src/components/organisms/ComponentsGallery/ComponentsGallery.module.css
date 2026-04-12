@@ -14,7 +14,7 @@
 
 .galleryHeader p {
   margin-top: 4px;
-  color: #65676b;
+  color: var(--app-text-muted, #4b5563);
 }
 
 .grid {
@@ -24,10 +24,10 @@
 }
 
 .componentBlock {
-  background: #fff;
-  border: 1px solid #dbdbdb;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border-strong, #d4d4d8);
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--app-shadow-soft);
   padding: 12px;
   display: grid;
   gap: 10px;
@@ -52,8 +52,8 @@
 .photoFallback {
   display: grid;
   place-items: center;
-  background: linear-gradient(120deg, #ff7a00, #ff0169);
-  color: #fff;
+  background: var(--app-accent-gradient-compact);
+  color: var(--app-on-accent);
   font-size: 2rem;
   font-weight: 700;
 }
@@ -67,10 +67,10 @@
 .emptyState {
   margin: 0;
   padding: 16px;
-  border: 1px dashed #d4d4d8;
+  border: 1px dashed var(--app-border-strong, #d4d4d8);
   border-radius: 10px;
   text-align: center;
-  color: #71717a;
+  color: var(--app-text-soft, #64748b);
   font-size: 0.9rem;
 }
 

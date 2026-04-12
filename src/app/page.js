@@ -47,8 +47,8 @@ export default function HomePage() {
               overflow: 'hidden',
               display: 'grid',
               placeItems: 'center',
-              background: 'linear-gradient(135deg, var(--app-accent, #f97316), var(--app-accent-strong, #ff0169))',
-              color: '#ffffff',
+              background: 'var(--app-accent-gradient)',
+              color: 'var(--app-on-accent)',
               fontSize: '1.6rem',
               fontWeight: 800,
               letterSpacing: '0.04em',
@@ -83,8 +83,8 @@ export default function HomePage() {
               minHeight: '44px',
               padding: '0 16px',
               borderRadius: '999px',
-              background: 'linear-gradient(135deg, var(--app-accent, #f97316), var(--app-accent-strong, #ff0169))',
-              color: '#ffffff',
+              background: 'var(--app-accent-gradient)',
+              color: 'var(--app-on-accent)',
               textDecoration: 'none',
               fontWeight: 700
             }}

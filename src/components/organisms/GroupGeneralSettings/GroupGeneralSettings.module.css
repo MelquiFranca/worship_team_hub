@@ -398,7 +398,7 @@
 
 .primaryButton {
   background: var(--group-primary);
-  color: #ffffff;
+  color: var(--group-on-primary, #ffffff);
   box-shadow: 0 16px 28px color-mix(in srgb, var(--group-primary) 22%, transparent);
 }
 

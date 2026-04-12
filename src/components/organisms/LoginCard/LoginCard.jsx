@@ -1,17 +1,21 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './LoginCard.module.css';
+
+const GROUP_NAME = 'Ministério de Louvor Avivah';
+const GROUP_PHOTO_URL = 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=320&q=80';
+const GROUP_INITIALS = 'MA';
 
 function fakeAuthRequest(identifier, password) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
-      if (identifier.toLowerCase() === 'demo@instagram.com' && password === '123456') {
+      if (identifier.toLowerCase() === 'avivah@ministerio.com' && password === '123456') {
         resolve({ ok: true });
         return;
       }
 
-      reject(new Error('Invalid credentials.'));
+      reject(new Error('Credenciais inválidas.'));
     }, 1100);
   });
 }
@@ -28,19 +32,50 @@ export default function LoginCard() {
   const [formSuccess, setFormSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasPhotoError, setHasPhotoError] = useState(false);
+  const [isPhotoLoaded, setIsPhotoLoaded] = useState(false);
+
+  useEffect(() => {
+    let isActive = true;
+
+    if (!GROUP_PHOTO_URL) {
+      setHasPhotoError(true);
+      return undefined;
+    }
+
+    const preloadedImage = new window.Image();
+
+    preloadedImage.onload = () => {
+      if (isActive) {
+        setIsPhotoLoaded(true);
+      }
+    };
+
+    preloadedImage.onerror = () => {
+      if (isActive) {
+        setHasPhotoError(true);
+      }
+    };
+
+    preloadedImage.src = GROUP_PHOTO_URL;
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const validateFields = () => {
     let valid = true;
 
     if (!identifier.trim()) {
-      setIdentifierError('Enter your username, phone number or email.');
+      setIdentifierError('Informe seu e-mail, telefone ou usuário.');
       valid = false;
     } else {
       setIdentifierError('');
     }
 
     if (!password.trim()) {
-      setPasswordError('Enter your password.');
+      setPasswordError('Informe sua senha.');
       valid = false;
     } else {
       setPasswordError('');
@@ -93,26 +128,48 @@ export default function LoginCard() {
 
     try {
       await fakeAuthRequest(identifier.trim(), password);
-      setFormSuccess('Login successful. Redirecting...');
+      setFormSuccess('Login realizado com sucesso. Redirecionando...');
     } catch (error) {
-      setFormError(error?.message || 'Unable to log in. Please try again.');
+      setFormError(error?.message || 'Não foi possível entrar. Tente novamente.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <section className={styles.loginCard} aria-label="Account access">
+    <section className={styles.loginCard} aria-labelledby="login-title">
       <header className={styles.brandBlock}>
-        <h1 id="login-title" className={styles.brand}>
-          Instagram
-        </h1>
+        <div className={styles.groupIdentity}>
+          <div className={styles.avatar} role="img" aria-label={`Foto do grupo ${GROUP_NAME}`}>
+            {!hasPhotoError && isPhotoLoaded ? (
+              <span
+                className={styles.avatarImage}
+                style={{ backgroundImage: `url(${GROUP_PHOTO_URL})` }}
+                aria-hidden="true"
+              />
+            ) : (
+              <span className={styles.avatarFallback} aria-hidden="true">
+                {GROUP_INITIALS}
+              </span>
+            )}
+          </div>
+
+          <div className={styles.brandCopy}>
+            <p className={styles.kicker}>Acesso ao grupo</p>
+            <h1 id="login-title" className={styles.brand}>
+              {GROUP_NAME}
+            </h1>
+            <p className={styles.supportingCopy}>
+              Entre para acessar escalas, comunicados e informações do ministério.
+            </p>
+          </div>
+        </div>
       </header>
 
       <form className={styles.loginForm} onSubmit={handleSubmit} noValidate>
         <div className={styles.fieldGroup}>
-          <label className={styles.srOnly} htmlFor="identifier">
-            Phone number, username or email address
+          <label className={styles.fieldLabel} htmlFor="identifier">
+            E-mail, telefone ou usuário
           </label>
           <input
             ref={identifierRef}
@@ -120,7 +177,7 @@ export default function LoginCard() {
             name="identifier"
             type="text"
             autoComplete="username"
-            placeholder="Phone number, username or email address"
+            placeholder="Digite seu e-mail, telefone ou usuário"
             value={identifier}
             onChange={(event) => {
               const nextValue = event.target.value;
@@ -139,8 +196,8 @@ export default function LoginCard() {
         </div>
 
         <div className={styles.fieldGroup}>
-          <label className={styles.srOnly} htmlFor="password">
-            Password
+          <label className={styles.fieldLabel} htmlFor="password">
+            Senha
           </label>
           <div className={styles.passwordWrap}>
             <input
@@ -149,7 +206,7 @@ export default function LoginCard() {
               name="password"
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
-              placeholder="Password"
+              placeholder="Digite sua senha"
               value={password}
               onChange={(event) => {
                 const nextValue = event.target.value;
@@ -165,12 +222,12 @@ export default function LoginCard() {
             <button
               type="button"
               className={styles.togglePassword}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
               aria-controls="password"
               aria-pressed={showPassword}
               onClick={handleTogglePassword}
             >
-              {showPassword ? 'HIDE' : 'SHOW'}
+              {showPassword ? 'OCULTAR' : 'MOSTRAR'}
             </button>
           </div>
           <p id="password-error" className={styles.errorText} aria-live="polite">
@@ -178,12 +235,12 @@ export default function LoginCard() {
           </p>
         </div>
 
-        <a className={styles.forgotLink} href="#" aria-label="Forgot password">
-          Forgotten password?
+        <a className={styles.forgotLink} href="#" aria-label="Recuperar senha">
+          Esqueceu a senha?
         </a>
 
         <button className={styles.submitBtn} type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Logging in...' : 'Log In'}
+          {isSubmitting ? 'Entrando...' : 'Entrar'}
         </button>
 
         <p className={`${styles.formMessage} ${styles.formError}`} role="alert" aria-live="assertive">
@@ -194,22 +251,22 @@ export default function LoginCard() {
         </p>
       </form>
 
-      <div className={styles.divider} role="separator" aria-label="or">
+      <div className={styles.divider} role="separator" aria-label="ou">
         <span className={styles.line} aria-hidden="true" />
-        <span className={styles.or}>OR</span>
+        <span className={styles.or}>OU</span>
         <span className={styles.line} aria-hidden="true" />
       </div>
 
-      <button className={styles.facebookBtn} type="button" aria-label="Log in with Facebook">
+      <button className={styles.facebookBtn} type="button" aria-label="Entrar com o Facebook">
         <span className={styles.fbIcon} aria-hidden="true">
           f
         </span>
-        <span>Log in with Facebook</span>
+        <span>Entrar com o Facebook</span>
       </button>
 
       <footer className={styles.signupFooter}>
         <p>
-          Don&apos;t have an account? <a href="#">Sign Up</a>
+          Não tem uma conta? <a href="#">Cadastre-se</a>
         </p>
       </footer>
     </section>

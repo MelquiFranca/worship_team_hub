@@ -5,18 +5,45 @@
   --app-main-nav-space: calc(var(--app-main-nav-height) + env(safe-area-inset-bottom, 0px));
   --app-background: #eef3f9;
   --app-background-alt: #dce7f5;
+  --app-page-gradient: linear-gradient(180deg, #f7fbff 0%, #eef3f9 100%);
+  --app-hero-gradient: linear-gradient(135deg, #f7fbff 0%, #edf3fb 52%, #dce7f5 100%);
   --app-surface: #ffffff;
   --app-surface-elevated: #f8fbff;
+  --app-surface-muted: #f1f5f9;
+  --app-surface-pressed: #eef2ff;
+  --app-surface-glass: rgba(255, 255, 255, 0.78);
+  --app-surface-glass-strong: rgba(248, 251, 255, 0.94);
   --app-text: #0f172a;
   --app-text-muted: #4b5563;
+  --app-text-soft: #64748b;
   --app-border: #d9e2ef;
+  --app-border-subtle: #e5e7eb;
+  --app-border-strong: #d4d4d8;
   --app-accent: #f97316;
   --app-accent-strong: #ff0169;
+  --app-accent-gradient: linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-strong) 100%);
+  --app-accent-gradient-compact: linear-gradient(120deg, var(--app-accent) 0%, var(--app-accent-strong) 100%);
   --app-accent-soft: rgba(249, 115, 22, 0.12);
+  --app-accent-soft-strong: rgba(255, 1, 105, 0.12);
+  --app-info: #1d4ed8;
+  --app-info-soft: #eff6ff;
+  --app-info-strong-soft: #dbeafe;
+  --app-success: #166534;
+  --app-success-soft: #f0fdf4;
+  --app-success-border: #bbf7d0;
+  --app-danger: #b91c1c;
+  --app-danger-soft: #fef2f2;
+  --app-danger-border: #fecaca;
+  --app-warning: #c2410c;
+  --app-warning-soft: #fff7ed;
   --app-focus: #93c5fd;
+  --app-on-accent: #ffffff;
+  --app-overlay: rgba(15, 23, 42, 0.04);
+  --app-overlay-strong: rgba(249, 115, 22, 0.1);
   --app-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
-  --app-hero-gradient: linear-gradient(135deg, #f7fbff 0%, #edf3fb 52%, #dce7f5 100%);
-  --app-page-gradient: linear-gradient(180deg, #f7fbff 0%, #eef3f9 100%);
+  --app-shadow-soft: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --app-shadow-raised: 0 18px 40px rgba(15, 23, 42, 0.14);
+  --app-shadow-floating: 0 16px 30px rgba(15, 23, 42, 0.14);
 }
 
 * {
@@ -28,7 +55,7 @@ body {
   min-height: 100vh;
   padding-bottom: var(--app-main-nav-space);
   background: var(--app-background, #eef3f9);
-  background-image: var(--app-page-gradient, linear-gradient(180deg, #f7fbff 0%, #eef3f9 100%));
+  background-image: var(--app-page-gradient);
   color: var(--app-text, #0f172a);
 }
 
@@ -52,7 +79,7 @@ p {
 code {
   padding: 2px 6px;
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.08);
+  background: var(--app-overlay);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
 }

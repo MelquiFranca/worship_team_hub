@@ -1,58 +1,122 @@
 .loginCard {
-  width: min(100%, 604px);
-  min-height: 790px;
-  border-radius: 24px;
-  background: linear-gradient(155deg, #4f57d8 6%, #c3268f 56%, #ff8a17 100%);
-  box-shadow: 0 20px 32px rgba(0, 0, 0, 0.24);
+  width: min(100%, 620px);
+  border-radius: 28px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background:
+    radial-gradient(circle at top right, var(--app-accent-soft, rgba(249, 115, 22, 0.12)), transparent 28%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--app-shadow, 0 14px 36px rgba(15, 23, 42, 0.08));
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 122px 40px 0;
-  position: relative;
-  overflow: hidden;
-  color: #fff;
-  font-family: 'Nunito Sans', 'Segoe UI', sans-serif;
+  gap: 24px;
+  padding: 28px;
+  color: var(--app-text, #0f172a);
+  backdrop-filter: blur(10px);
 }
 
 .brandBlock {
-  margin-bottom: 32px;
+  padding-bottom: 8px;
+}
+
+.groupIdentity {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 26px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--app-accent, #f97316), var(--app-accent-strong, #ff0169));
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background-position: center;
+  background-size: cover;
+}
+
+.avatarFallback {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.brandCopy {
+  min-width: 0;
+}
+
+.kicker {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #4b5563);
 }
 
 .brand {
   margin: 0;
-  font-family: 'Grand Hotel', cursive;
-  font-size: clamp(58px, 6vw, 68px);
-  font-weight: 400;
-  letter-spacing: 0.3px;
-  color: rgba(255, 255, 255, 0.9);
-  line-height: 1;
+  font-size: clamp(2rem, 4vw, 2.9rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.supportingCopy {
+  margin-top: 8px;
+  max-width: 42ch;
+  color: var(--app-text-muted, #4b5563);
+  line-height: 1.55;
 }
 
 .loginForm {
-  width: 100%;
+  display: grid;
+  gap: 14px;
 }
 
 .fieldGroup {
-  margin-bottom: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.fieldLabel {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--app-text, #0f172a);
 }
 
 .loginCard input {
   width: 100%;
-  height: 56px;
-  border: 0;
-  border-radius: 4px;
+  min-height: 54px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  border-radius: 16px;
   padding: 0 16px;
-  font-size: 19px;
-  font-weight: 600;
-  color: #4b4b4b;
-  background: #f3f3f3;
+  font-size: 1rem;
+  color: var(--app-text, #0f172a);
+  background: var(--app-surface, #ffffff);
   outline: 2px solid transparent;
-  transition: outline-color 120ms ease;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
 }
 
 .loginCard input::placeholder {
-  color: #8f8f8f;
-  font-weight: 600;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.loginCard input:focus-visible {
+  border-color: var(--app-focus, #93c5fd);
+  box-shadow: 0 0 0 4px rgba(147, 197, 253, 0.18);
 }
 
 .passwordWrap {
@@ -61,29 +125,31 @@
 
 .togglePassword {
   position: absolute;
-  right: 11px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   border: 0;
-  background: transparent;
-  color: #7a7a7a;
-  font-size: 12px;
+  background: var(--app-surface-elevated, #f8fbff);
+  color: var(--app-text-muted, #4b5563);
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 8px 10px;
+  border-radius: 999px;
+}
+
+.togglePassword:hover {
+  color: var(--app-text, #0f172a);
+  background: var(--app-accent-soft, rgba(249, 115, 22, 0.12));
 }
 
 .forgotLink {
-  display: block;
-  margin-top: 8px;
-  text-align: right;
-  color: #fff;
-  opacity: 0.92;
-  font-weight: 800;
-  font-size: 20px;
+  justify-self: end;
+  color: var(--app-accent-strong, #ff0169);
+  font-size: 0.95rem;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -93,31 +159,34 @@
 
 .submitBtn {
   width: 100%;
-  margin-top: 26px;
-  height: 58px;
+  min-height: 56px;
+  margin-top: 4px;
   border: 0;
-  border-radius: 4px;
-  background: #149ff0;
-  color: #fff;
-  font-size: 28px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--app-accent, #f97316), var(--app-accent-strong, #ff0169));
+  color: #ffffff;
+  font-size: 1.05rem;
   font-weight: 800;
   cursor: pointer;
-  transition: transform 100ms ease, background-color 100ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    filter 120ms ease;
+  box-shadow: 0 14px 28px rgba(255, 1, 105, 0.24);
 }
 
 .submitBtn:hover:enabled {
-  background: #0a91dd;
   transform: translateY(-1px);
+  filter: saturate(1.03);
 }
 
 .submitBtn:disabled {
   cursor: not-allowed;
-  opacity: 0.7;
+  opacity: 0.72;
+  box-shadow: none;
 }
 
 .divider {
-  margin-top: 44px;
-  width: 100%;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -125,64 +194,69 @@
 
 .line {
   height: 1px;
-  background: rgba(255, 255, 255, 0.45);
+  background: var(--app-border, #d9e2ef);
   flex: 1;
 }
 
 .or {
+  font-size: 0.8rem;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 18px;
+  letter-spacing: 0.14em;
+  color: var(--app-text-muted, #4b5563);
 }
 
 .facebookBtn {
-  margin-top: 36px;
-  border: 0;
-  background: transparent;
-  color: #fff;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: var(--app-surface-elevated, #f8fbff);
+  color: var(--app-text, #0f172a);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  font-size: 27px;
+  min-height: 52px;
+  border-radius: 16px;
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  border-radius: 4px;
-  padding: 6px 8px;
+  padding: 0 18px;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
 }
 
 .facebookBtn:hover {
-  text-decoration: underline;
+  transform: translateY(-1px);
+  border-color: var(--app-accent, #f97316);
+  background: var(--app-accent-soft, rgba(249, 115, 22, 0.12));
 }
 
 .fbIcon {
-  width: 23px;
-  height: 23px;
-  border-radius: 3px;
-  background: #fff;
-  color: #3b5998;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--app-accent, #f97316), var(--app-accent-strong, #ff0169));
+  color: #ffffff;
   display: grid;
   place-items: center;
-  font-weight: 800;
-  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 900;
   line-height: 1;
 }
 
 .signupFooter {
-  margin-top: auto;
-  width: calc(100% + 80px);
-  border-top: 1px solid rgba(255, 255, 255, 0.44);
+  margin-top: 2px;
+  padding-top: 18px;
+  border-top: 1px solid var(--app-border, #d9e2ef);
   text-align: center;
-  padding: 30px 16px 32px;
 }
 
 .signupFooter p {
-  margin: 0;
-  font-size: 27px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--app-text-muted, #4b5563);
+  line-height: 1.5;
 }
 
 .signupFooter a {
-  color: #fff;
+  color: var(--app-accent-strong, #ff0169);
   font-weight: 800;
   text-decoration: none;
 }
@@ -193,84 +267,82 @@
 
 .errorText,
 .formMessage {
-  min-height: 24px;
-  margin: 6px 0 0;
-  font-size: 15px;
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
 .errorText,
 .formError {
-  color: #ffd6d6;
+  color: #b42318;
 }
 
 .formSuccess {
-  color: #e5ffe5;
+  color: #047857;
 }
 
 .invalid {
-  outline-color: #ffe5e5;
+  border-color: #ef4444 !important;
 }
 
-.loginCard input:focus-visible,
 .loginCard button:focus-visible,
-.loginCard a:focus-visible {
-  outline: 3px solid #fff0a6;
+.loginCard a:focus-visible,
+.loginCard input:focus-visible {
+  outline: 3px solid var(--app-focus, #93c5fd);
   outline-offset: 2px;
 }
 
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .loginCard {
-    min-height: 700px;
-    padding: 96px 34px 0;
+    padding: 22px;
+    gap: 20px;
+    border-radius: 24px;
+  }
+
+  .groupIdentity {
+    align-items: flex-start;
+  }
+
+  .avatar {
+    width: 76px;
+    height: 76px;
+    border-radius: 22px;
   }
 
   .brand {
-    font-size: clamp(52px, 12vw, 64px);
-  }
-
-  .loginCard input {
-    height: 52px;
-    font-size: 17px;
-  }
-
-  .forgotLink {
-    font-size: 17px;
-  }
-
-  .submitBtn {
-    height: 54px;
-    font-size: 24px;
-  }
-
-  .facebookBtn {
-    font-size: 24px;
-  }
-
-  .signupFooter p {
-    font-size: 22px;
+    font-size: clamp(1.7rem, 7vw, 2.25rem);
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 520px) {
   .loginCard {
-    min-height: auto;
-    padding: 64px 18px 0;
-    border-radius: 16px;
+    width: 100%;
+    padding: 18px;
+    gap: 18px;
+    border-radius: 20px;
   }
 
-  .signupFooter {
-    width: calc(100% + 36px);
+  .groupIdentity {
+    gap: 14px;
+  }
+
+  .supportingCopy {
+    max-width: none;
+  }
+
+  .forgotLink {
+    justify-self: start;
+  }
+
+  .submitBtn,
+  .facebookBtn,
+  .loginCard input {
+    min-height: 50px;
+    border-radius: 14px;
+  }
+
+  .togglePassword {
+    padding: 7px 9px;
   }
 }
