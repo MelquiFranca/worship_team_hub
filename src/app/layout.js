@@ -1,6 +1,6 @@
 import './globals.css';
 import { GroupSettingsProvider } from '@/context/GroupSettingsContext';
-import MainBottomNav from '@/components/organisms/MainBottomNav/MainBottomNav';
+import AppNavigation from '@/components/organisms/AppNavigation/AppNavigation';
 
 export const metadata = {
   title: 'Escalas App',
@@ -13,7 +13,7 @@ export default function RootLayout({ children }) {
       <body>
         <GroupSettingsProvider>
           {children}
-          <MainBottomNav />
+          <AppNavigation />
         </GroupSettingsProvider>
       </body>
     </html>

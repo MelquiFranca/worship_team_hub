@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './LoginCard.module.css';
 
 const GROUP_NAME = 'Ministério de Louvor Avivah';
@@ -20,7 +21,9 @@ function fakeAuthRequest(identifier, password) {
   });
 }
 
-export default function LoginCard() {
+export default function LoginCard({ mode = 'group' }) {
+  const router = useRouter();
+  const isAdminMode = mode === 'admin';
   const identifierRef = useRef(null);
   const passwordRef = useRef(null);
 
@@ -68,7 +71,9 @@ export default function LoginCard() {
     let valid = true;
 
     if (!identifier.trim()) {
-      setIdentifierError('Informe seu e-mail, telefone ou usuário.');
+      setIdentifierError(
+        isAdminMode ? 'Informe seu usuário administrativo, e-mail ou telefone.' : 'Informe seu e-mail, telefone ou usuário.'
+      );
       valid = false;
     } else {
       setIdentifierError('');
@@ -128,6 +133,20 @@ export default function LoginCard() {
 
     try {
       await fakeAuthRequest(identifier.trim(), password);
+
+      if (isAdminMode) {
+        setFormSuccess('Acesso administrativo autorizado. Redirecionando...');
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('escalas-app:mock-admin-auth-state', 'logged-in');
+          window.sessionStorage.setItem('escalas-app:mock-admin-auth-at', new Date().toISOString());
+        }
+
+        setTimeout(() => {
+          router.replace('/admin/grupos');
+        }, 350);
+        return;
+      }
+
       setFormSuccess('Login realizado com sucesso. Redirecionando...');
     } catch (error) {
       setFormError(error?.message || 'Não foi possível entrar. Tente novamente.');
@@ -136,11 +155,22 @@ export default function LoginCard() {
     }
   };
 
+  const kicker = isAdminMode ? 'Acesso administrativo' : 'Acesso ao grupo';
+  const title = isAdminMode ? 'Painel administrativo' : GROUP_NAME;
+  const supportingCopy = isAdminMode
+    ? 'Entre para administrar grupos, escalas e configurações do sistema.'
+    : 'Entre para acessar escalas, comunicados e informações do ministério.';
+  const avatarLabel = isAdminMode ? 'Identidade do acesso administrativo' : `Foto do grupo ${GROUP_NAME}`;
+  const identifierLabel = isAdminMode ? 'Usuário administrativo, e-mail ou telefone' : 'E-mail, telefone ou usuário';
+  const identifierPlaceholder = isAdminMode
+    ? 'Digite seu usuário administrativo, e-mail ou telefone'
+    : 'Digite seu e-mail, telefone ou usuário';
+
   return (
     <section className={styles.loginCard} aria-labelledby="login-title">
       <header className={styles.brandBlock}>
         <div className={styles.groupIdentity}>
-          <div className={styles.avatar} role="img" aria-label={`Foto do grupo ${GROUP_NAME}`}>
+          <div className={styles.avatar} role="img" aria-label={avatarLabel}>
             {!hasPhotoError && isPhotoLoaded ? (
               <span
                 className={styles.avatarImage}
@@ -155,13 +185,11 @@ export default function LoginCard() {
           </div>
 
           <div className={styles.brandCopy}>
-            <p className={styles.kicker}>Acesso ao grupo</p>
+            <p className={styles.kicker}>{kicker}</p>
             <h1 id="login-title" className={styles.brand}>
-              {GROUP_NAME}
+              {title}
             </h1>
-            <p className={styles.supportingCopy}>
-              Entre para acessar escalas, comunicados e informações do ministério.
-            </p>
+            <p className={styles.supportingCopy}>{supportingCopy}</p>
           </div>
         </div>
       </header>
@@ -169,7 +197,7 @@ export default function LoginCard() {
       <form className={styles.loginForm} onSubmit={handleSubmit} noValidate>
         <div className={styles.fieldGroup}>
           <label className={styles.fieldLabel} htmlFor="identifier">
-            E-mail, telefone ou usuário
+            {identifierLabel}
           </label>
           <input
             ref={identifierRef}
@@ -177,7 +205,7 @@ export default function LoginCard() {
             name="identifier"
             type="text"
             autoComplete="username"
-            placeholder="Digite seu e-mail, telefone ou usuário"
+            placeholder={identifierPlaceholder}
             value={identifier}
             onChange={(event) => {
               const nextValue = event.target.value;
@@ -240,7 +268,7 @@ export default function LoginCard() {
         </a>
 
         <button className={styles.submitBtn} type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Entrando...' : 'Entrar'}
+          {isSubmitting ? 'Entrando...' : isAdminMode ? 'Entrar no painel' : 'Entrar'}
         </button>
 
         <p className={`${styles.formMessage} ${styles.formError}`} role="alert" aria-live="assertive">
@@ -250,25 +278,6 @@ export default function LoginCard() {
           {formSuccess}
         </p>
       </form>
-
-      <div className={styles.divider} role="separator" aria-label="ou">
-        <span className={styles.line} aria-hidden="true" />
-        <span className={styles.or}>OU</span>
-        <span className={styles.line} aria-hidden="true" />
-      </div>
-
-      <button className={styles.facebookBtn} type="button" aria-label="Entrar com o Facebook">
-        <span className={styles.fbIcon} aria-hidden="true">
-          f
-        </span>
-        <span>Entrar com o Facebook</span>
-      </button>
-
-      <footer className={styles.signupFooter}>
-        <p>
-          Não tem uma conta? <a href="#">Cadastre-se</a>
-        </p>
-      </footer>
     </section>
   );
 }
