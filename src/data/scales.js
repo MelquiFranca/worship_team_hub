@@ -57,6 +57,34 @@ export const scales = [
         title: 'Que Amor E Esse',
         videoUrl: 'https://www.youtube.com/watch?v=8lR2NQ9nY8Q'
       }
+    ],
+    messages: [
+      {
+        id: 'msg-1',
+        type: 'text',
+        payload: {
+          text: 'Pessoal, confirmar passagem de som ate 08:20.'
+        },
+        meta: {
+          authorId: 'm1',
+          authorName: 'Lucas Andrade',
+          createdAt: '2026-04-12T10:05:00.000Z',
+          status: 'sent'
+        }
+      },
+      {
+        id: 'msg-2',
+        type: 'text',
+        payload: {
+          text: 'Ok! Ja estamos organizando os retornos.'
+        },
+        meta: {
+          authorId: 'm4',
+          authorName: 'Marcela Souza',
+          createdAt: '2026-04-12T10:07:00.000Z',
+          status: 'sent'
+        }
+      }
     ]
   },
   {
@@ -97,6 +125,21 @@ export const scales = [
         id: 'p5',
         title: 'Ele Vem',
         videoUrl: 'https://youtu.be/KS44J5wDxUc?si=T7Vi5aum2BfzzBGU'
+      }
+    ],
+    messages: [
+      {
+        id: 'msg-3',
+        type: 'text',
+        payload: {
+          text: 'Chegada prevista do time as 18:40.'
+        },
+        meta: {
+          authorId: 'm6',
+          authorName: 'Fernanda Alves',
+          createdAt: '2026-04-12T21:30:00.000Z',
+          status: 'sent'
+        }
       }
     ]
   }

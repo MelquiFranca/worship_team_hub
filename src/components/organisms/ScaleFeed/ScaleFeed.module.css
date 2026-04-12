@@ -87,15 +87,28 @@
 }
 
 .toggleButton {
+  width: 38px;
+  height: 38px;
   border: 1px solid var(--app-border-strong, #d4d4d8);
   background: var(--app-surface, #fff);
-  color: var(--app-text, #0f172a);
   border-radius: 999px;
-  font-size: 0.84rem;
-  font-weight: 700;
-  padding: 8px 12px;
   cursor: pointer;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text, #0f172a);
+}
+
+.toggleButton svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+  transition: transform 160ms ease;
+}
+
+.chevronExpanded {
+  transform: rotate(180deg);
 }
 
 .toggleButton:hover {
@@ -258,6 +271,121 @@
   background: var(--app-info, #1d4ed8);
 }
 
+.commentsPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.messagesList {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.messageRow {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.messageRowSelf {
+  justify-content: flex-end;
+}
+
+.messageBubble {
+  max-width: min(82%, 560px);
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 12px 12px 12px 4px;
+  background: #ffffff;
+  border: 1px solid #dbe2ea;
+}
+
+.messageBubbleSelf {
+  border-radius: 12px 12px 4px 12px;
+  background: #dcf8c6;
+  border-color: #b8e7a8;
+}
+
+.messageAuthor {
+  font-size: 0.75rem;
+  color: var(--app-info, #1d4ed8);
+}
+
+.messageText {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--app-text, #0f172a);
+  word-break: break-word;
+}
+
+.messageMeta {
+  justify-self: end;
+  font-size: 0.72rem;
+  color: var(--app-text-soft, #64748b);
+}
+
+.composer {
+  display: grid;
+  gap: 6px;
+}
+
+.composerLabel {
+  font-size: 0.78rem;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.composerControls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.composerInput {
+  min-width: 0;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
+  background: var(--app-surface, #fff);
+  border-radius: 999px;
+  color: var(--app-text, #0f172a);
+  font-size: 0.9rem;
+  padding: 11px 14px;
+}
+
+.composerInput::placeholder {
+  color: var(--app-text-soft, #64748b);
+}
+
+.sendButton {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--app-info-strong-soft, #dbeafe);
+  background: var(--app-info-soft, #eff6ff);
+  color: var(--app-info, #1d4ed8);
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sendButton svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.chatNotice {
+  margin: 0;
+  color: var(--app-info, #1d4ed8);
+  font-size: 0.84rem;
+}
+
 .emptyState {
   margin: 0;
   padding: 16px;
@@ -284,27 +412,29 @@
   gap: 8px;
 }
 
-.actionButton,
-.editButton {
+.iconButton {
+  width: 38px;
+  height: 38px;
   border: 1px solid var(--app-border-strong, #d4d4d8);
   background: var(--app-surface, #fff);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--app-text, #0f172a);
-  font-size: 0.84rem;
-  font-weight: 600;
-  padding: 8px 10px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconButton svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
 }
 
 .notifyButton {
-  border: 1px solid var(--app-info-strong-soft, #dbeafe);
+  border-color: var(--app-info-strong-soft, #dbeafe);
   background: var(--app-info-soft, #eff6ff);
   color: var(--app-info, #1d4ed8);
-  border-radius: 8px;
-  font-size: 0.84rem;
-  font-weight: 600;
-  padding: 8px 10px;
-  cursor: pointer;
 }
 
 .actionButtonActive {
@@ -319,15 +449,14 @@
   border-color: var(--app-text, #0f172a);
 }
 
-.notifyButton:hover,
-.actionButton:hover,
-.editButton:hover:enabled,
+.iconButton:hover:enabled,
+.sendButton:hover,
 .toggleButton:hover,
 .dot:hover {
   filter: brightness(0.97);
 }
 
-.editButton:disabled {
+.iconButton:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -339,9 +468,9 @@
   font-size: 0.84rem;
 }
 
-.actionButton:focus-visible,
-.editButton:focus-visible,
-.notifyButton:focus-visible,
+.iconButton:focus-visible,
+.sendButton:focus-visible,
+.composerInput:focus-visible,
 .toggleButton:focus-visible,
 .navButton:focus-visible,
 .dot:focus-visible {
@@ -360,10 +489,6 @@
     align-items: flex-start;
   }
 
-  .toggleButton {
-    white-space: nowrap;
-  }
-
   .cardFooter {
     flex-direction: column;
     align-items: stretch;
@@ -372,20 +497,16 @@
   .leftActions,
   .rightActions {
     width: 100%;
-  }
-
-  .leftActions {
     justify-content: flex-start;
     flex-wrap: wrap;
   }
 
-  .rightActions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  .iconButton {
+    width: 44px;
+    height: 44px;
   }
 
-  .notifyButton,
-  .editButton {
-    flex: 1 1 140px;
+  .messagesList {
+    max-height: 280px;
   }
 }
