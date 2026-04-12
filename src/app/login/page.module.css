@@ -1,13 +1,18 @@
 .page {
   min-height: 100vh;
+  padding: 32px 20px 48px;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: #dedede;
+  background: var(--app-background, #eef3f9);
+  background-image:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.85), transparent 34%),
+    var(--app-page-gradient, linear-gradient(180deg, #f7fbff 0%, #eef3f9 100%));
+  color: var(--app-text, #0f172a);
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .page {
     padding: 16px;
   }
 }
+

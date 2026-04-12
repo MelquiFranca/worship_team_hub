@@ -3,7 +3,7 @@ import styles from './page.module.css';
 
 export const metadata = {
   title: 'Login | Escalas App',
-  description: 'Tela de login da aplicacao Escalas App.'
+  description: 'Tela de login em português do Brasil para o grupo Ministério de Louvor Avivah.'
 };
 
 export default function LoginPage() {

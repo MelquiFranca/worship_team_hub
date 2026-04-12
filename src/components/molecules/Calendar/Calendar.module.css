@@ -7,7 +7,7 @@
 .label {
   font-size: 0.88rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--app-text, #0f172a);
 }
 
 .controlWrap {
@@ -17,10 +17,10 @@
 .trigger {
   width: 100%;
   min-height: 46px;
-  border: 1px solid #d4d4d8;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
   border-radius: 10px;
-  background: #fff;
-  color: #111827;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #0f172a);
   padding: 11px 12px;
   display: flex;
   align-items: center;
@@ -32,34 +32,34 @@
 }
 
 .trigger:hover {
-  background: #fafafa;
+  background: var(--app-surface-muted, #f1f5f9);
 }
 
 .trigger:disabled {
   cursor: not-allowed;
   opacity: 0.75;
-  background: #f8fafc;
+  background: var(--app-surface-elevated, #f8fbff);
 }
 
 .triggerError {
-  border-color: #fca5a5;
+  border-color: var(--app-danger-soft, #fef2f2);
 }
 
 .trigger:focus-visible {
-  outline: 3px solid #93c5fd;
+  outline: 3px solid var(--app-focus, #93c5fd);
   outline-offset: 1px;
 }
 
 .triggerValue {
-  color: #111827;
+  color: var(--app-text, #0f172a);
 }
 
 .triggerPlaceholder {
-  color: #9ca3af;
+  color: var(--app-text-soft, #64748b);
 }
 
 .triggerIcon {
-  color: #6b7280;
+  color: var(--app-text-soft, #64748b);
   font-size: 0.82rem;
 }
 
@@ -69,10 +69,10 @@
   top: calc(100% + 8px);
   left: 0;
   width: min(100%, 320px);
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
   border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.14);
+  background: var(--app-surface, #fff);
+  box-shadow: var(--app-shadow-floating);
   padding: 12px;
 }
 
@@ -91,9 +91,9 @@
 }
 
 .navButton {
-  border: 1px solid #e4e4e7;
-  background: #fff;
-  color: #27272a;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #0f172a);
   border-radius: 8px;
   padding: 6px 8px;
   cursor: pointer;
@@ -102,7 +102,7 @@
 }
 
 .navButton:hover:not(:disabled) {
-  background: #f4f4f5;
+  background: var(--app-surface-muted, #f1f5f9);
 }
 
 .navButton:disabled {
@@ -112,7 +112,7 @@
 
 .navButton:focus-visible,
 .dayButton:focus-visible {
-  outline: 3px solid #93c5fd;
+  outline: 3px solid var(--app-focus, #93c5fd);
   outline-offset: 1px;
 }
 
@@ -131,7 +131,7 @@
   text-align: center;
   font-size: 0.72rem;
   font-weight: 700;
-  color: #6b7280;
+  color: var(--app-text-soft, #64748b);
   padding: 4px 0;
 }
 
@@ -147,8 +147,8 @@
 
 .dayButton {
   border: 1px solid transparent;
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--app-surface-elevated, #f8fbff);
+  color: var(--app-text, #0f172a);
   cursor: pointer;
   font: inherit;
   font-size: 0.84rem;
@@ -157,8 +157,8 @@
 }
 
 .dayButton:hover:not(:disabled) {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: var(--app-info-soft, #eff6ff);
+  border-color: var(--app-info-strong-soft, #dbeafe);
 }
 
 .dayButton:disabled {
@@ -167,8 +167,8 @@
 }
 
 .dayButtonSelected {
-  background: linear-gradient(120deg, #ff7a00, #ff0169);
-  color: #fff;
+  background: var(--app-accent-gradient-compact);
+  color: var(--app-on-accent);
   font-weight: 700;
 }
 
@@ -179,13 +179,13 @@
 .helper {
   margin: 0;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--app-text-soft, #64748b);
 }
 
 .error {
   margin: 0;
   font-size: 0.8rem;
-  color: #dc2626;
+  color: var(--app-danger, #b91c1c);
 }
 
 @media (max-width: 560px) {
