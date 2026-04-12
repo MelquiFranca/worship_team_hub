@@ -1,14 +1,54 @@
 'use client';
 
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './ScaleFeed.module.css';
 
 const COMPONENTS_VIEW = 'components';
 const PLAYLIST_VIEW = 'playlist';
 const COMMENTS_VIEW = 'comments';
+const IMAGES_VIEW = 'images';
 const MESSAGE_TYPE_TEXT = 'text';
 const CURRENT_USER_ID = 'current-user';
+
+function createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift) {
+  return {
+    id: `uploaded-${scaleId}-${Date.now()}`,
+    src: URL.createObjectURL(file),
+    alt: file?.name ? `Imagem enviada do dispositivo: ${file.name}` : `Imagem enviada do dispositivo para ${scaleDate} (${scaleShift})`,
+    label: file?.name ? file.name : 'Imagem do dispositivo',
+    sourceScaleId: scaleId,
+    sourceScaleLabel: `${scaleDate} - ${scaleShift}`,
+    isLocalUpload: true
+  };
+}
+
+function collectImageLibrary(scales) {
+  const seen = new Set();
+  const imageLibrary = [];
+
+  scales.forEach((scale) => {
+    const imageAttachment = scale?.imageAttachment;
+    if (!imageAttachment) {
+      return;
+    }
+
+    const uniqueKey = imageAttachment.id || imageAttachment.src;
+    if (!uniqueKey || seen.has(uniqueKey)) {
+      return;
+    }
+
+    seen.add(uniqueKey);
+    imageLibrary.push({
+      ...imageAttachment,
+      sourceScaleId: imageAttachment.sourceScaleId || scale.id,
+      sourceScaleLabel:
+        imageAttachment.sourceScaleLabel || `${scale.date || 'Data nao informada'} - ${scale.shift || 'Turno nao informado'}`
+    });
+  });
+
+  return imageLibrary;
+}
 
 function toEmbedUrl(videoUrl) {
   try {
@@ -134,6 +174,162 @@ function formatMessageTime(isoDate) {
   } catch {
     return '--:--';
   }
+}
+
+function ScaleImageGallery({ currentImage, imageLibrary, onSelectImage }) {
+  if (!imageLibrary.length) {
+    return null;
+  }
+
+  return (
+    <div className={styles.imageGallery} aria-label="Imagens anteriores da escala">
+      {imageLibrary.map((image) => {
+        const isSelected = Boolean(currentImage && currentImage.id === image.id);
+
+        return (
+          <button
+            key={image.id || image.src}
+            type="button"
+            className={`${styles.imageGalleryItem} ${isSelected ? styles.imageGalleryItemActive : ''}`}
+            onClick={() => onSelectImage(image)}
+            aria-pressed={isSelected}
+            aria-label={`${isSelected ? 'Imagem selecionada' : 'Selecionar imagem'}: ${image.label || image.alt}`}
+          >
+            <span className={styles.imageThumbWrap} aria-hidden="true">
+              <Image
+                className={styles.imageThumb}
+                src={image.src}
+                alt=""
+                width={92}
+                height={92}
+                unoptimized
+              />
+            </span>
+            <span className={styles.imageGalleryMeta}>
+              <strong>{image.label || 'Imagem anterior'}</strong>
+              <span>{image.sourceScaleLabel || 'Imagem reutilizavel'}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ScaleImagePanel({
+  scaleId,
+  scaleDate,
+  scaleShift,
+  currentImage,
+  imageLibrary,
+  onRemoveImage,
+  onSelectImage,
+  onUploadImage
+}) {
+  const hasCurrentImage = Boolean(currentImage);
+  const [isGalleryVisible, setIsGalleryVisible] = useState(false);
+  const fileInputRef = useRef(null);
+  const galleryId = `image-gallery-${makeDomId(scaleId)}`;
+
+  useEffect(() => {
+    setIsGalleryVisible(false);
+  }, [currentImage]);
+
+  const handleOpenUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+
+    if (!file) {
+      event.target.value = '';
+      return;
+    }
+
+    onUploadImage(file);
+    event.target.value = '';
+  };
+
+  return (
+    <section className={styles.imagesPanel} aria-label="Bloco de imagens da escala">
+      {hasCurrentImage ? (
+        <div className={styles.imageHero}>
+          <div className={styles.imagePreviewFrame}>
+            <Image
+              className={styles.imagePreview}
+              src={currentImage.src}
+              alt={currentImage.alt || currentImage.label || `Imagem da escala ${scaleDate} (${scaleShift})`}
+              fill
+              sizes="(max-width: 700px) 100vw, 520px"
+              unoptimized
+            />
+
+            <button
+              type="button"
+              className={styles.imageRemoveButton}
+              onClick={onRemoveImage}
+              aria-label={`Remover imagem da escala de ${scaleDate} (${scaleShift})`}
+              title="Remover imagem"
+            >
+              <IconRemove />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.imageEmptyState}>
+          <p className={styles.imageEmptyText}>Esta escala ainda nao possui imagem vinculada.</p>
+
+          <div className={styles.imageEmptyActions}>
+            {imageLibrary.length ? (
+              <button
+                type="button"
+                className={styles.imageSecondaryButton}
+                onClick={() => setIsGalleryVisible((current) => !current)}
+                aria-expanded={isGalleryVisible}
+                aria-controls={galleryId}
+                aria-label={`${isGalleryVisible ? 'Ocultar' : 'Visualizar'} galeria de imagens do grupo`}
+              >
+                {isGalleryVisible ? 'Ocultar galeria do grupo' : 'Visualizar galeria do grupo'}
+              </button>
+            ) : (
+              <p className={styles.imageHint}>Nenhuma imagem anterior foi encontrada em outras escalas.</p>
+            )}
+
+            <button
+              type="button"
+              className={styles.imagePrimaryButton}
+              onClick={handleOpenUpload}
+              aria-label={`Fazer upload de imagem para a escala de ${scaleDate} (${scaleShift})`}
+            >
+              Upload do dispositivo
+            </button>
+            <input
+              ref={fileInputRef}
+              className={styles.imageUploadInput}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              aria-label={`Selecionar imagem do dispositivo para a escala de ${scaleDate} (${scaleShift})`}
+            />
+          </div>
+
+          {imageLibrary.length && isGalleryVisible ? (
+            <div className={styles.imageChoices} id={galleryId}>
+              <div className={styles.imageChoicesHeader}>
+                <h3>Imagens anteriores</h3>
+                <span>
+                  {imageLibrary.length === 1 ? '1 imagem disponivel' : `${imageLibrary.length} imagens disponiveis`}
+                </span>
+              </div>
+
+              <ScaleImageGallery currentImage={currentImage} imageLibrary={imageLibrary} onSelectImage={onSelectImage} />
+            </div>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function MemberRow({ member, leader = false }) {
@@ -399,15 +595,57 @@ function IconSend() {
   );
 }
 
-function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit }) {
+function IconRemove() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6.7 5.3 5.3 6.7 10.6 12 5.3 17.3l1.4 1.4 5.3-5.3 5.3 5.3 1.4-1.4-5.3-5.3 5.3-5.3-1.4-1.4-5.3 5.3-5.3-5.3Z" />
+    </svg>
+  );
+}
+
+function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit, imageLibrary }) {
   const [activeView, setActiveView] = useState(COMPONENTS_VIEW);
   const [notifyFeedback, setNotifyFeedback] = useState('');
+  const [currentImage, setCurrentImage] = useState(() => scale.imageAttachment || null);
+  const [imageFeedback, setImageFeedback] = useState('');
   const scaleDate = scale?.date || 'Data nao informada';
   const scaleShift = scale?.shift || 'Turno nao informado';
   const detailsId = `scale-card-${makeDomId(scale?.id || `${scaleDate}-${scaleShift}`)}-details`;
 
   const handleNotify = () => {
     setNotifyFeedback(`Notificacao enviada para ${scaleDate} (${scaleShift}).`);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (currentImage?.src?.startsWith('blob:')) {
+        URL.revokeObjectURL(currentImage.src);
+      }
+    };
+  }, [currentImage]);
+
+  const handleRemoveImage = () => {
+    if (currentImage?.src?.startsWith('blob:')) {
+      URL.revokeObjectURL(currentImage.src);
+    }
+
+    setCurrentImage(null);
+    setImageFeedback(`Imagem removida da escala ${scaleDate} (${scaleShift}).`);
+  };
+
+  const handleSelectImage = (image) => {
+    setCurrentImage(image);
+    setImageFeedback(`Imagem vinculada para ${scaleDate} (${scaleShift}).`);
+  };
+
+  const handleUploadImage = (file) => {
+    if (!file) {
+      return;
+    }
+
+    const nextImage = createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift);
+    setCurrentImage(nextImage);
+    setImageFeedback(`Imagem enviada do dispositivo para ${scaleDate} (${scaleShift}).`);
   };
 
   return (
@@ -442,6 +680,18 @@ function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit }) {
           {activeView === PLAYLIST_VIEW ? <PlaylistPanel playlist={scale.playlist} /> : null}
           {activeView === COMMENTS_VIEW ? (
             <CommentsPanel scaleId={scaleId} initialMessages={scale.messages} />
+          ) : null}
+          {activeView === IMAGES_VIEW ? (
+            <ScaleImagePanel
+              scaleId={scaleId}
+              scaleDate={scaleDate}
+              scaleShift={scaleShift}
+              currentImage={currentImage}
+              imageLibrary={imageLibrary}
+              onRemoveImage={handleRemoveImage}
+              onSelectImage={handleSelectImage}
+              onUploadImage={handleUploadImage}
+            />
           ) : null}
         </section>
 
@@ -483,6 +733,18 @@ function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit }) {
             >
               <IconPlay />
             </button>
+            <button
+              type="button"
+              className={`${styles.iconButton} ${
+                activeView === IMAGES_VIEW ? styles.actionButtonActive : ''
+              }`}
+              onClick={() => setActiveView(IMAGES_VIEW)}
+              aria-pressed={activeView === IMAGES_VIEW}
+              aria-label="Abrir imagens"
+              title="Imagens"
+            >
+              <IconImage />
+            </button>
           </div>
 
           <div className={styles.rightActions}>
@@ -513,6 +775,12 @@ function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit }) {
             {notifyFeedback}
           </p>
         ) : null}
+
+        {imageFeedback ? (
+          <p className={styles.cardNotice} role="status" aria-live="polite">
+            {imageFeedback}
+          </p>
+        ) : null}
       </div>
     </article>
   );
@@ -521,6 +789,7 @@ function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit }) {
 export default function ScaleFeed({ scales }) {
   const [feedback, setFeedback] = useState('');
   const [expandedScaleIds, setExpandedScaleIds] = useState({});
+  const imageLibrary = useMemo(() => collectImageLibrary(scales), [scales]);
 
   const handleEdit = (scale) => {
     if (!scale.canEdit) {
@@ -552,6 +821,7 @@ export default function ScaleFeed({ scales }) {
               key={scaleId}
               scale={scale}
               scaleId={scaleId}
+              imageLibrary={imageLibrary}
               isExpanded={Boolean(expandedScaleIds[scaleId])}
               onToggleExpand={() =>
                 setExpandedScaleIds((current) => ({
@@ -565,5 +835,13 @@ export default function ScaleFeed({ scales }) {
         })}
       </div>
     </section>
+  );
+}
+
+function IconImage() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 14H5v-3.2l2.2-2.2 3.2 3.2 4-4L19 15.2V18Zm0-5.6-3.4-3.4-4 4-3.2-3.2L5 12.2V6h14v6.4Z" />
+    </svg>
   );
 }

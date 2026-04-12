@@ -58,6 +58,14 @@ export const scales = [
         videoUrl: 'https://www.youtube.com/watch?v=8lR2NQ9nY8Q'
       }
     ],
+    imageAttachment: {
+      id: 'img-escala-2026-04-12-manha',
+      src: 'https://i.pravatar.cc/640?img=52',
+      alt: 'Imagem vinculada a escala da manha de 12/04/2026',
+      label: 'Imagem principal da escala da manha',
+      sourceScaleId: 'escala-2026-04-12-manha',
+      sourceScaleLabel: '12/04/2026 - Manha'
+    },
     messages: [
       {
         id: 'msg-1',
