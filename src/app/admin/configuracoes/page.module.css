@@ -1,0 +1,38 @@
+.page {
+  min-height: 100vh;
+  padding: 28px 20px 120px;
+  display: grid;
+  place-items: start center;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.9), transparent 30%),
+    var(--app-page-gradient, linear-gradient(180deg, #f7fbff 0%, #eef3f9 100%));
+}
+
+.card {
+  width: min(100%, 860px);
+  padding: 22px;
+  border-radius: 22px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--app-shadow, 0 14px 36px rgba(15, 23, 42, 0.08));
+}
+
+.kicker {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.card h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+
+.text {
+  margin: 10px 0 0;
+  color: var(--app-text-muted, #4b5563);
+  line-height: 1.6;
+}
