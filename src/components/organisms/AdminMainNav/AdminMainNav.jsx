@@ -142,10 +142,16 @@ export default function AdminMainNav() {
     }
   }, [openMenu]);
 
-  const handleLogout = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('escalas-app:admin-auth-state', 'logged-out');
-      window.sessionStorage.setItem('escalas-app:admin-logout-at', new Date().toISOString());
+  const handleLogout = useCallback(async () => {
+    setOpenMenu(null);
+
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch {
+      // O logout real pode falhar sem impedir a saída da tela atual.
     }
 
     router.replace('/admin/login');

@@ -123,10 +123,16 @@ export default function MainBottomNav() {
     setOpenMenu(menuName);
   }, []);
 
-  const handleLogout = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('escalas-app:mock-auth-state', 'logged-out');
-      window.sessionStorage.setItem('escalas-app:mock-logout-at', new Date().toISOString());
+  const handleLogout = useCallback(async () => {
+    setOpenMenu(null);
+
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch {
+      // Logout deve falhar de forma silenciosa no cliente e ainda assim redirecionar.
     }
 
     router.replace('/login');

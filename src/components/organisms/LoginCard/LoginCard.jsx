@@ -7,18 +7,139 @@ import styles from './LoginCard.module.css';
 const GROUP_NAME = 'Ministério de Louvor Avivah';
 const GROUP_PHOTO_URL = 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=320&q=80';
 const GROUP_INITIALS = 'MA';
+const AUTH_LOGIN_ENDPOINT = '/api/auth/login';
+const LOGIN_REDIRECT_DELAY_MS = 350;
 
-function fakeAuthRequest(identifier, password) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (identifier.toLowerCase() === 'avivah@ministerio.com' && password === '123456') {
-        resolve({ ok: true });
-        return;
-      }
+async function readResponsePayload(response) {
+  const rawBody = await response.text();
 
-      reject(new Error('Credenciais inválidas.'));
-    }, 1100);
+  if (!rawBody) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    return { message: rawBody };
+  }
+}
+
+function pickFirstString(...values) {
+  return values.find((value) => typeof value === 'string' && value.trim())?.trim() || '';
+}
+
+function getAuthErrorMessage(payload, status, isAdminMode) {
+  const rawCode = pickFirstString(
+    payload?.code,
+    payload?.errorCode,
+    payload?.error?.code,
+    payload?.error?.errorCode,
+    payload?.name
+  ).toUpperCase();
+
+  const rawMessage = pickFirstString(
+    payload?.message,
+    payload?.error?.message,
+    typeof payload?.error === 'string' ? payload.error : '',
+    payload?.detail,
+    payload?.error?.detail
+  );
+  const safeRawMessage = rawMessage.startsWith('<') || rawMessage.length > 200 ? '' : rawMessage;
+
+  const audienceMessage = isAdminMode
+    ? 'Este usuário não tem permissão para acessar o painel administrativo.'
+    : 'Este usuário não tem permissão para acessar o app do grupo.';
+
+  const codeMessages = {
+    AUTH_INVALID_CREDENTIALS: 'Credenciais inválidas. Confira seu usuário e senha.',
+    AUTH_LOGIN_INVALID: 'Credenciais inválidas. Confira seu usuário e senha.',
+    AUTH_UNAUTHORIZED: 'Não foi possível autenticar. Verifique seus dados e tente novamente.',
+    AUTH_FORBIDDEN: audienceMessage,
+    AUTH_ACCESS_DENIED: audienceMessage,
+    AUTH_USER_INACTIVE: 'Sua conta está inativa. Fale com o suporte.',
+    AUTH_AUDIENCE_FORBIDDEN: audienceMessage,
+    AUTH_ROLE_FORBIDDEN: audienceMessage,
+    AUTH_RATE_LIMITED: 'Muitas tentativas de acesso. Aguarde um momento e tente novamente.'
+  };
+
+  if (rawCode && codeMessages[rawCode]) {
+    return codeMessages[rawCode];
+  }
+
+  if (safeRawMessage) {
+    return safeRawMessage;
+  }
+
+  if (status === 401) {
+    return 'Não foi possível autenticar. Verifique seus dados e tente novamente.';
+  }
+
+  if (status === 403) {
+    return audienceMessage;
+  }
+
+  if (status === 429) {
+    return 'Muitas tentativas de acesso. Aguarde um momento e tente novamente.';
+  }
+
+  if (status >= 500) {
+    return 'O serviço de autenticação está indisponível no momento. Tente novamente em instantes.';
+  }
+
+  return 'Não foi possível entrar. Tente novamente.';
+}
+
+async function loginWithJwt({ identifier, password, audience, isAdminMode }) {
+  const response = await fetch(AUTH_LOGIN_ENDPOINT, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      identifier,
+      password,
+      audience
+    })
   });
+
+  if (!response.ok) {
+    const payload = await readResponsePayload(response);
+    throw new Error(getAuthErrorMessage(payload, response.status, isAdminMode));
+  }
+
+  return response;
+}
+
+async function loginWithFallbackAudience({ identifier, password, isAdminMode }) {
+  const primaryAudience = isAdminMode ? 'admin-panel' : 'group-app';
+
+  try {
+    await loginWithJwt({ identifier, password, audience: primaryAudience, isAdminMode });
+    return;
+  } catch (error) {
+    if (isAdminMode) {
+      throw error;
+    }
+
+    const message = String(error?.message || '').toLowerCase();
+    const shouldTryComponentAudience =
+      message.includes('permiss') ||
+      message.includes('audiencia') ||
+      message.includes('audiência') ||
+      message.includes('forbidden');
+
+    if (!shouldTryComponentAudience) {
+      throw error;
+    }
+
+    await loginWithJwt({
+      identifier,
+      password,
+      audience: 'component-app',
+      isAdminMode
+    });
+  }
 }
 
 export default function LoginCard({ mode = 'group' }) {
@@ -37,6 +158,7 @@ export default function LoginCard({ mode = 'group' }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasPhotoError, setHasPhotoError] = useState(false);
   const [isPhotoLoaded, setIsPhotoLoaded] = useState(false);
+  const redirectTimeoutRef = useRef(null);
 
   useEffect(() => {
     let isActive = true;
@@ -66,6 +188,15 @@ export default function LoginCard({ mode = 'group' }) {
       isActive = false;
     };
   }, []);
+
+  useEffect(
+    () => () => {
+      if (redirectTimeoutRef.current) {
+        window.clearTimeout(redirectTimeoutRef.current);
+      }
+    },
+    []
+  );
 
   const validateFields = () => {
     let valid = true;
@@ -132,22 +263,21 @@ export default function LoginCard({ mode = 'group' }) {
     setIsSubmitting(true);
 
     try {
-      await fakeAuthRequest(identifier.trim(), password);
+      await loginWithFallbackAudience({
+        identifier: identifier.trim(),
+        password,
+        isAdminMode
+      });
 
-      if (isAdminMode) {
-        setFormSuccess('Acesso administrativo autorizado. Redirecionando...');
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.setItem('escalas-app:mock-admin-auth-state', 'logged-in');
-          window.sessionStorage.setItem('escalas-app:mock-admin-auth-at', new Date().toISOString());
-        }
+      setFormSuccess(isAdminMode ? 'Acesso administrativo autorizado. Redirecionando...' : 'Login realizado com sucesso. Redirecionando...');
 
-        setTimeout(() => {
-          router.replace('/admin/grupos');
-        }, 350);
-        return;
+      if (redirectTimeoutRef.current) {
+        window.clearTimeout(redirectTimeoutRef.current);
       }
 
-      setFormSuccess('Login realizado com sucesso. Redirecionando...');
+      redirectTimeoutRef.current = window.setTimeout(() => {
+        router.replace(isAdminMode ? '/admin/grupos' : '/escalas');
+      }, LOGIN_REDIRECT_DELAY_MS);
     } catch (error) {
       setFormError(error?.message || 'Não foi possível entrar. Tente novamente.');
     } finally {
