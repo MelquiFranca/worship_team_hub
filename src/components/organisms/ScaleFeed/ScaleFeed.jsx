@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import styles from './ScaleFeed.module.css';
 
 const COMPONENTS_VIEW = 'components';
@@ -10,6 +11,100 @@ const COMMENTS_VIEW = 'comments';
 const IMAGES_VIEW = 'images';
 const MESSAGE_TYPE_TEXT = 'text';
 const CURRENT_USER_ID = 'current-user';
+const COMPONENT_APP_PERMISSION_MESSAGE =
+  'Seu perfil de componente pode visualizar componentes, playlist, imagens e enviar mensagens, mas notificacoes e edicao estao desativadas.';
+const CURRENT_USER_BADGE_LABEL = 'Você';
+
+const COMBINING_MARKS_PATTERN = /[\u0300-\u036f]/g;
+
+function normalizeComparableText(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    .normalize('NFD')
+    .replace(COMBINING_MARKS_PATTERN, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function toSlugText(value) {
+  return normalizeComparableText(value)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function getUsernameSlugCandidates(user) {
+  const values = [];
+
+  if (typeof user?.username === 'string') {
+    values.push(user.username);
+
+    const usernameLocalPart = user.username.includes('@') ? user.username.split('@')[0] : '';
+    if (usernameLocalPart && usernameLocalPart !== user.username) {
+      values.push(usernameLocalPart);
+    }
+  }
+
+  if (typeof user?.identifier === 'string') {
+    values.push(user.identifier);
+  }
+
+  if (typeof user?.email === 'string') {
+    const emailLocalPart = user.email.split('@')[0];
+    if (emailLocalPart) {
+      values.push(emailLocalPart);
+    }
+  }
+
+  return values
+    .map((value) => toSlugText(value))
+    .filter(Boolean);
+}
+
+function getNameMatchCandidates(user) {
+  return [user?.name, user?.displayName]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => normalizeComparableText(value))
+    .filter(Boolean);
+}
+
+function getMemberNameCandidates(member) {
+  return [member?.name, member?.displayName]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => normalizeComparableText(value))
+    .filter(Boolean);
+}
+
+function isCurrentUserMember(member, authUser) {
+  if (!member || !authUser) {
+    return false;
+  }
+
+  const userNameCandidates = getNameMatchCandidates(authUser);
+  const memberNameCandidates = getMemberNameCandidates(member);
+
+  if (
+    userNameCandidates.length &&
+    memberNameCandidates.some((candidate) => userNameCandidates.includes(candidate))
+  ) {
+    return true;
+  }
+
+  const userSlugCandidates = getUsernameSlugCandidates(authUser);
+  if (!userSlugCandidates.length) {
+    return false;
+  }
+
+  const memberSlugCandidates = [member?.name, member?.displayName, member?.username]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => toSlugText(value))
+    .filter(Boolean);
+
+  return memberSlugCandidates.some((candidate) => userSlugCandidates.includes(candidate));
+}
 
 function createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift) {
   return {
@@ -332,9 +427,13 @@ function ScaleImagePanel({
   );
 }
 
-function MemberRow({ member, leader = false }) {
+function MemberRow({ member, leader = false, isCurrentUser = false }) {
   return (
-    <article className={`${styles.memberRow} ${leader ? styles.memberLeader : ''}`}>
+    <article
+      className={`${styles.memberRow} ${leader ? styles.memberLeader : ''} ${
+        isCurrentUser ? styles.memberCurrentUser : ''
+      }`}
+    >
       <Image
         className={styles.memberPhoto}
         src={member.photo}
@@ -346,13 +445,20 @@ function MemberRow({ member, leader = false }) {
         <strong>{member.name}</strong>
         <span>{member.role}</span>
       </div>
-      {leader ? <span className={styles.leaderBadge}>Lider</span> : null}
+      <div className={styles.memberBadges}>
+        {leader ? <span className={styles.leaderBadge}>Lider</span> : null}
+        {isCurrentUser ? <span className={styles.currentUserBadge}>{CURRENT_USER_BADGE_LABEL}</span> : null}
+      </div>
     </article>
   );
 }
 
-function ComponentsPanel({ members }) {
+function ComponentsPanel({ members, currentUser }) {
   const { leader, groupedByRole } = useMemo(() => groupMembers(members), [members]);
+  const currentUserMemberId = useMemo(
+    () => members.find((member) => isCurrentUserMember(member, currentUser))?.id || null,
+    [members, currentUser]
+  );
 
   if (!members.length) {
     return <p className={styles.emptyState}>Nenhum componente escalado para esta data.</p>;
@@ -363,7 +469,7 @@ function ComponentsPanel({ members }) {
       {leader ? (
         <section className={styles.roleSection} aria-label="Lider da escala">
           <h3>Lideranca</h3>
-          <MemberRow member={leader} leader />
+          <MemberRow member={leader} leader isCurrentUser={leader.id === currentUserMemberId} />
         </section>
       ) : null}
 
@@ -371,7 +477,7 @@ function ComponentsPanel({ members }) {
         <section className={styles.roleSection} key={group.role} aria-label={`Funcao ${group.role}`}>
           <h3>{group.role}</h3>
           {group.members.map((member) => (
-            <MemberRow key={member.id} member={member} />
+            <MemberRow key={member.id} member={member} isCurrentUser={member.id === currentUserMemberId} />
           ))}
         </section>
       ))}
@@ -603,7 +709,16 @@ function IconRemove() {
   );
 }
 
-function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit, imageLibrary }) {
+function ScaleCard({
+  scale,
+  scaleId,
+  isExpanded,
+  onToggleExpand,
+  onEdit,
+  imageLibrary,
+  isComponentApp,
+  currentUser
+}) {
   const [activeView, setActiveView] = useState(COMPONENTS_VIEW);
   const [notifyFeedback, setNotifyFeedback] = useState('');
   const [currentImage, setCurrentImage] = useState(() => scale.imageAttachment || null);
@@ -613,6 +728,11 @@ function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit, imageLi
   const detailsId = `scale-card-${makeDomId(scale?.id || `${scaleDate}-${scaleShift}`)}-details`;
 
   const handleNotify = () => {
+    if (isComponentApp) {
+      setNotifyFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
+      return;
+    }
+
     setNotifyFeedback(`Notificacao enviada para ${scaleDate} (${scaleShift}).`);
   };
 
@@ -676,7 +796,9 @@ function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit, imageLi
 
       <div className={styles.cardDetails} id={detailsId} hidden={!isExpanded} aria-hidden={!isExpanded}>
         <section className={styles.cardBody}>
-          {activeView === COMPONENTS_VIEW ? <ComponentsPanel members={scale.members} /> : null}
+          {activeView === COMPONENTS_VIEW ? (
+            <ComponentsPanel members={scale.members} currentUser={currentUser} />
+          ) : null}
           {activeView === PLAYLIST_VIEW ? <PlaylistPanel playlist={scale.playlist} /> : null}
           {activeView === COMMENTS_VIEW ? (
             <CommentsPanel scaleId={scaleId} initialMessages={scale.messages} />
@@ -750,19 +872,26 @@ function ScaleCard({ scale, scaleId, isExpanded, onToggleExpand, onEdit, imageLi
           <div className={styles.rightActions}>
             <button
               type="button"
-              className={`${styles.iconButton} ${styles.notifyButton}`}
+              className={`${styles.iconButton} ${styles.notifyButton} ${
+                isComponentApp ? styles.iconButtonDisabledPermission : ''
+              }`}
               onClick={handleNotify}
+              disabled={isComponentApp}
               aria-label={`Notificar equipe da escala de ${scaleDate} (${scaleShift})`}
+              aria-disabled={isComponentApp}
               title="Notificar"
             >
               <IconBell />
             </button>
             <button
               type="button"
-              className={`${styles.iconButton} ${styles.editButton}`}
+              className={`${styles.iconButton} ${styles.editButton} ${
+                isComponentApp ? styles.iconButtonDisabledPermission : ''
+              }`}
               onClick={() => onEdit(scale)}
-              disabled={!scale.canEdit}
+              disabled={!scale.canEdit || isComponentApp}
               aria-label={`Editar escala de ${scaleDate} ${scaleShift}`}
+              aria-disabled={!scale.canEdit || isComponentApp}
               title="Editar escala"
             >
               <IconEdit />
@@ -790,8 +919,29 @@ export default function ScaleFeed({ scales }) {
   const [feedback, setFeedback] = useState('');
   const [expandedScaleIds, setExpandedScaleIds] = useState({});
   const imageLibrary = useMemo(() => collectImageLibrary(scales), [scales]);
+  const { user: authUser, permissions, isLoading: isAuthSessionLoading } = useAuthSession();
+  const isComponentApp = !isAuthSessionLoading && Boolean(permissions.isComponentApp);
+
+  useEffect(() => {
+    if (isAuthSessionLoading) {
+      return;
+    }
+
+    setFeedback((current) => {
+      if (isComponentApp) {
+        return COMPONENT_APP_PERMISSION_MESSAGE;
+      }
+
+      return current === COMPONENT_APP_PERMISSION_MESSAGE ? '' : current;
+    });
+  }, [isAuthSessionLoading, isComponentApp]);
 
   const handleEdit = (scale) => {
+    if (isComponentApp) {
+      setFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
+      return;
+    }
+
     if (!scale.canEdit) {
       setFeedback(`Voce nao possui permissao para editar a escala de ${scale.date} (${scale.shift}).`);
       return;
@@ -822,6 +972,7 @@ export default function ScaleFeed({ scales }) {
               scale={scale}
               scaleId={scaleId}
               imageLibrary={imageLibrary}
+              isComponentApp={isComponentApp}
               isExpanded={Boolean(expandedScaleIds[scaleId])}
               onToggleExpand={() =>
                 setExpandedScaleIds((current) => ({
@@ -830,6 +981,7 @@ export default function ScaleFeed({ scales }) {
                 }))
               }
               onEdit={handleEdit}
+              currentUser={authUser}
             />
           );
         })}

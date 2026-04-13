@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
 import styles from './MainBottomNav.module.css';
 
@@ -64,6 +65,7 @@ export default function MainBottomNav() {
   const currentPathname = pathname || '';
   const router = useRouter();
   const { settings } = useGroupSettings();
+  const { audience, permissions, isLoading: isAuthSessionLoading } = useAuthSession();
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
   const createMenuFirstItemRef = useRef(null);
@@ -72,6 +74,8 @@ export default function MainBottomNav() {
   const avatarTriggerRef = useRef(null);
 
   const initials = useMemo(() => getInitials(settings.name || ''), [settings.name]);
+  const canShowCreateMenu = !isAuthSessionLoading && Boolean(permissions.canInsertScale);
+  const canShowSettingsLink = !isAuthSessionLoading && audience === 'group-app';
   const escalasActive = isActiveRoute(currentPathname, '/escalas');
   const componentesActive = isActiveRoute(currentPathname, '/componentes');
   const configuracoesActive = isActiveRoute(currentPathname, '/configuracoes-gerais-grupo');
@@ -119,9 +123,19 @@ export default function MainBottomNav() {
     }
   }, [openMenu]);
 
+  useEffect(() => {
+    if (!canShowCreateMenu && openMenu === 'create') {
+      closeMenus();
+    }
+  }, [canShowCreateMenu, closeMenus, openMenu]);
+
   const handleOpenMenu = useCallback((menuName) => {
+    if (menuName === 'create' && !canShowCreateMenu) {
+      return;
+    }
+
     setOpenMenu(menuName);
-  }, []);
+  }, [canShowCreateMenu]);
 
   const handleLogout = useCallback(async () => {
     setOpenMenu(null);
@@ -165,44 +179,48 @@ export default function MainBottomNav() {
           <span className={styles.srOnly}>Componentes</span>
         </Link>
 
-        <div className={styles.actionSlot}>
-          <button
-            ref={createTriggerRef}
-            type="button"
-            className={`${styles.actionButton} ${openMenu === 'create' ? styles.actionButtonOpen : ''}`}
-            aria-label="Abrir menu de cadastros"
-            aria-expanded={openMenu === 'create'}
-            aria-controls="main-bottom-nav-create-menu"
-            onClick={() => handleOpenMenu('create')}
+        {canShowCreateMenu ? (
+          <div className={styles.actionSlot}>
+            <button
+              ref={createTriggerRef}
+              type="button"
+              className={`${styles.actionButton} ${openMenu === 'create' ? styles.actionButtonOpen : ''}`}
+              aria-label="Abrir menu de cadastros"
+              aria-expanded={openMenu === 'create'}
+              aria-controls="main-bottom-nav-create-menu"
+              onClick={() => handleOpenMenu('create')}
+            >
+              <PlusIcon />
+            </button>
+
+            {openMenu === 'create' ? (
+              <div id="main-bottom-nav-create-menu" className={styles.popover} role="group" aria-label="Atalhos de cadastro">
+                <Link
+                  ref={createMenuFirstItemRef}
+                  href="/cadastro-escalas"
+                  className={styles.popoverItem}
+                >
+                  Nova escala
+                </Link>
+                <Link href="/cadastro-componentes" className={styles.popoverItem}>
+                  Novo componente
+                </Link>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {canShowSettingsLink ? (
+          <Link
+            href="/configuracoes-gerais-grupo"
+            className={`${styles.item} ${styles.groupSettingsItem} ${configuracoesActive ? styles.itemActive : ''}`}
+            aria-label="Configuracoes gerais do grupo"
+            aria-current={configuracoesActive ? 'page' : undefined}
           >
-            <PlusIcon />
-          </button>
-
-          {openMenu === 'create' ? (
-            <div id="main-bottom-nav-create-menu" className={styles.popover} role="group" aria-label="Atalhos de cadastro">
-              <Link
-                ref={createMenuFirstItemRef}
-                href="/cadastro-escalas"
-                className={styles.popoverItem}
-              >
-                Nova escala
-              </Link>
-              <Link href="/cadastro-componentes" className={styles.popoverItem}>
-                Novo componente
-              </Link>
-            </div>
-          ) : null}
-        </div>
-
-        <Link
-          href="/configuracoes-gerais-grupo"
-          className={`${styles.item} ${styles.groupSettingsItem} ${configuracoesActive ? styles.itemActive : ''}`}
-          aria-label="Configuracoes gerais do grupo"
-          aria-current={configuracoesActive ? 'page' : undefined}
-        >
-          <SettingsIcon />
-          <span className={styles.srOnly}>Configuracoes gerais do grupo</span>
-        </Link>
+            <SettingsIcon />
+            <span className={styles.srOnly}>Configuracoes gerais do grupo</span>
+          </Link>
+        ) : null}
 
         <div className={styles.avatarSlot}>
           <button

@@ -1,4 +1,5 @@
 import './globals.css';
+import { AuthSessionProvider } from '@/context/AuthSessionContext';
 import { GroupSettingsProvider } from '@/context/GroupSettingsContext';
 import AppNavigation from '@/components/organisms/AppNavigation/AppNavigation';
 
@@ -11,10 +12,12 @@ export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
       <body>
-        <GroupSettingsProvider>
-          {children}
-          <AppNavigation />
-        </GroupSettingsProvider>
+        <AuthSessionProvider>
+          <GroupSettingsProvider>
+            {children}
+            <AppNavigation />
+          </GroupSettingsProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

@@ -161,6 +161,12 @@
   background: var(--app-warning-soft, #fff7ed);
 }
 
+.memberCurrentUser {
+  border-color: var(--app-info-strong-soft, #dbeafe);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.98));
+  box-shadow: 0 0 0 1px rgba(29, 78, 216, 0.08);
+}
+
 .memberPhoto {
   width: 40px;
   height: 40px;
@@ -171,6 +177,8 @@
 .memberInfo {
   display: grid;
   gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
 .memberInfo strong {
@@ -182,11 +190,29 @@
   color: var(--app-text-soft, #64748b);
 }
 
-.leaderBadge {
+.memberBadges {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.leaderBadge {
   border-radius: 999px;
   background: var(--app-accent, #f97316);
   color: var(--app-on-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.currentUserBadge {
+  border-radius: 999px;
+  border: 1px solid var(--app-info-strong-soft, #dbeafe);
+  background: var(--app-info-soft, #eff6ff);
+  color: var(--app-info, #1d4ed8);
   font-size: 0.74rem;
   font-weight: 700;
   padding: 4px 8px;
@@ -682,6 +708,11 @@
 .iconButton:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.iconButtonDisabledPermission {
+  opacity: 0.45;
+  filter: grayscale(0.08);
 }
 
 .cardNotice {
