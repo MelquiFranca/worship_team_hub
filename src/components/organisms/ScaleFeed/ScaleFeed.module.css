@@ -328,6 +328,14 @@
   object-fit: cover;
 }
 
+.imageFullscreenButton {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
 .imageRemoveButton {
   position: absolute;
   top: 10px;
@@ -347,10 +355,68 @@
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
 }
 
+.imageFullscreenButton:focus-visible {
+  outline: 3px solid var(--app-focus, #93c5fd);
+  outline-offset: -3px;
+}
+
 .imageRemoveButton svg {
   width: 16px;
   height: 16px;
   fill: currentColor;
+}
+
+.imageFullscreenOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(2, 6, 23, 0.9);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.imageFullscreenContent {
+  width: min(100%, 1100px);
+  display: grid;
+  gap: 10px;
+}
+
+.imageFullscreenTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #ffffff;
+}
+
+.imageFullscreenDescription {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.86rem;
+}
+
+.imageFullscreenMediaWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #020617;
+}
+
+.imageFullscreenMedia {
+  object-fit: contain;
+}
+
+.imageFullscreenCloseButton {
+  justify-self: end;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  min-height: 40px;
+  padding: 0 14px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .imageEmptyState {
@@ -396,6 +462,13 @@
 .imagePrimaryButton:hover,
 .imageRemoveButton:hover {
   filter: brightness(0.98);
+}
+
+.imageSecondaryButton:disabled,
+.imagePrimaryButton:disabled,
+.imageRemoveButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .imageUploadInput {
@@ -725,6 +798,7 @@
 .iconButton:focus-visible,
 .imageSecondaryButton:focus-visible,
 .imagePrimaryButton:focus-visible,
+.imageFullscreenCloseButton:focus-visible,
 .imageRemoveButton:focus-visible,
 .imageGalleryItem:focus-visible,
 .sendButton:focus-visible,

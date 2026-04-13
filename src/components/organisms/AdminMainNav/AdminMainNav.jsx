@@ -4,9 +4,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useAuthSession } from '@/context/AuthSessionContext';
+import { CLIENT_AUTH_STORAGE_KEYS } from '@/lib/auth/clientSessionCleanup';
 import styles from './AdminMainNav.module.css';
 
-const ADMIN_PROFILE_STORAGE_KEY = 'escalas-app:admin-profile';
+const ADMIN_PROFILE_STORAGE_KEY = CLIENT_AUTH_STORAGE_KEYS.adminProfile;
 
 function isActiveRoute(pathname, targetPath) {
   return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
@@ -74,6 +76,7 @@ function readAdminProfile() {
 export default function AdminMainNav() {
   const pathname = usePathname() || '';
   const router = useRouter();
+  const { logout } = useAuthSession();
   const [openMenu, setOpenMenu] = useState(null);
   const [profile, setProfile] = useState({ name: 'Administrador', photo: '' });
   const navRef = useRef(null);
@@ -144,18 +147,9 @@ export default function AdminMainNav() {
 
   const handleLogout = useCallback(async () => {
     setOpenMenu(null);
-
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } catch {
-      // O logout real pode falhar sem impedir a saída da tela atual.
-    }
-
+    await logout();
     router.replace('/admin/login');
-  }, [router]);
+  }, [logout, router]);
 
   if (pathname === '/admin/login') {
     return null;

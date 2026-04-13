@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { clearClientSessionData } from '@/lib/auth/clientSessionCleanup';
 
 const AUTH_ME_ENDPOINT = '/api/auth/me';
 
@@ -134,6 +135,34 @@ export function AuthSessionProvider({ children }) {
   const [audience, setAudience] = useState(null);
   const [role, setRole] = useState(null);
 
+  const clearAuthState = useCallback((options = {}) => {
+    const { clearClientData = false } = options;
+
+    if (clearClientData) {
+      clearClientSessionData();
+    }
+
+    setIsAuthenticated(false);
+    setSession(null);
+    setUser(null);
+    setClaims(null);
+    setAudience(null);
+    setRole(null);
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch {
+      // O logout no servidor pode falhar sem impedir a limpeza local.
+    } finally {
+      clearAuthState({ clearClientData: true });
+    }
+  }, [clearAuthState]);
+
   useEffect(() => {
     let isActive = true;
     const controller = new AbortController();
@@ -163,23 +192,13 @@ export function AuthSessionProvider({ children }) {
           return;
         }
 
-        setIsAuthenticated(false);
-        setSession(null);
-        setUser(null);
-        setClaims(null);
-        setAudience(null);
-        setRole(null);
+        clearAuthState({ clearClientData: true });
       } catch (error) {
         if (!isActive || error?.name === 'AbortError') {
           return;
         }
 
-        setIsAuthenticated(false);
-        setSession(null);
-        setUser(null);
-        setClaims(null);
-        setAudience(null);
-        setRole(null);
+        clearAuthState();
       } finally {
         if (isActive) {
           setIsLoading(false);
@@ -193,7 +212,7 @@ export function AuthSessionProvider({ children }) {
       isActive = false;
       controller.abort();
     };
-  }, []);
+  }, [clearAuthState]);
 
   const permissions = useMemo(
     () => buildPermissions({ audience, role, isAuthenticated }),
@@ -209,9 +228,10 @@ export function AuthSessionProvider({ children }) {
       claims,
       audience,
       role,
-      permissions
+      permissions,
+      logout
     }),
-    [isLoading, isAuthenticated, session, user, claims, audience, role, permissions]
+    [isLoading, isAuthenticated, session, user, claims, audience, role, permissions, logout]
   );
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;

@@ -65,7 +65,7 @@ export default function MainBottomNav() {
   const currentPathname = pathname || '';
   const router = useRouter();
   const { settings } = useGroupSettings();
-  const { audience, permissions, isLoading: isAuthSessionLoading } = useAuthSession();
+  const { audience, permissions, isLoading: isAuthSessionLoading, logout } = useAuthSession();
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
   const createMenuFirstItemRef = useRef(null);
@@ -139,18 +139,9 @@ export default function MainBottomNav() {
 
   const handleLogout = useCallback(async () => {
     setOpenMenu(null);
-
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } catch {
-      // Logout deve falhar de forma silenciosa no cliente e ainda assim redirecionar.
-    }
-
+    await logout();
     router.replace('/login');
-  }, [router]);
+  }, [logout, router]);
 
   if (currentPathname === '/login') {
     return null;

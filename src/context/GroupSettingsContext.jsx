@@ -8,8 +8,9 @@ import {
   resolveGroupTheme
 } from '@/theme/groupTheme';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
+import { CLIENT_AUTH_STORAGE_KEYS } from '@/lib/auth/clientSessionCleanup';
 
-export const GROUP_SETTINGS_STORAGE_KEY = 'escalas-app:group-settings';
+export const GROUP_SETTINGS_STORAGE_KEY = CLIENT_AUTH_STORAGE_KEYS.groupSettings;
 
 export const groupFunctionOptions = GROUP_FUNCTION_OPTIONS;
 

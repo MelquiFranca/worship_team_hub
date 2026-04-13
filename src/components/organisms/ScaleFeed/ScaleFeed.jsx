@@ -317,20 +317,59 @@ function ScaleImagePanel({
   scaleShift,
   currentImage,
   imageLibrary,
+  isComponentApp,
+  onRestrictedAction,
   onRemoveImage,
   onSelectImage,
   onUploadImage
 }) {
   const hasCurrentImage = Boolean(currentImage);
   const [isGalleryVisible, setIsGalleryVisible] = useState(false);
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const previousBodyOverflowRef = useRef('');
   const galleryId = `image-gallery-${makeDomId(scaleId)}`;
+  const fullscreenTitleId = `image-fullscreen-title-${makeDomId(scaleId)}`;
+  const fullscreenDescriptionId = `image-fullscreen-description-${makeDomId(scaleId)}`;
 
   useEffect(() => {
     setIsGalleryVisible(false);
   }, [currentImage]);
 
+  useEffect(() => {
+    if (!hasCurrentImage) {
+      setIsFullscreenOpen(false);
+    }
+  }, [hasCurrentImage]);
+
+  useEffect(() => {
+    if (!isFullscreenOpen) {
+      return undefined;
+    }
+
+    previousBodyOverflowRef.current = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && window.matchMedia('(min-width: 701px)').matches) {
+        setIsFullscreenOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflowRef.current;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreenOpen]);
+
   const handleOpenUpload = () => {
+    if (isComponentApp) {
+      onRestrictedAction?.();
+      return;
+    }
+
     fileInputRef.current?.click();
   };
 
@@ -344,6 +383,27 @@ function ScaleImagePanel({
 
     onUploadImage(file);
     event.target.value = '';
+  };
+
+  const handleSelectImageFromGallery = (image) => {
+    if (isComponentApp) {
+      onRestrictedAction?.();
+      return;
+    }
+
+    onSelectImage(image);
+  };
+
+  const handleOpenFullscreen = () => {
+    if (!hasCurrentImage) {
+      return;
+    }
+
+    setIsFullscreenOpen(true);
+  };
+
+  const handleCloseFullscreen = () => {
+    setIsFullscreenOpen(false);
   };
 
   return (
@@ -362,14 +422,61 @@ function ScaleImagePanel({
 
             <button
               type="button"
+              className={styles.imageFullscreenButton}
+              onClick={handleOpenFullscreen}
+              aria-label={`Abrir imagem da escala de ${scaleDate} (${scaleShift}) em tela cheia`}
+              title="Abrir em tela cheia"
+            />
+
+            <button
+              type="button"
               className={styles.imageRemoveButton}
               onClick={onRemoveImage}
+              disabled={isComponentApp}
               aria-label={`Remover imagem da escala de ${scaleDate} (${scaleShift})`}
+              aria-disabled={isComponentApp}
               title="Remover imagem"
             >
               <IconRemove />
             </button>
           </div>
+
+          {isFullscreenOpen ? (
+            <div
+              className={styles.imageFullscreenOverlay}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={fullscreenTitleId}
+              aria-describedby={fullscreenDescriptionId}
+            >
+              <div className={styles.imageFullscreenContent}>
+                <h2 id={fullscreenTitleId} className={styles.imageFullscreenTitle}>
+                  Imagem da escala
+                </h2>
+                <p id={fullscreenDescriptionId} className={styles.imageFullscreenDescription}>
+                  {scaleDate} ({scaleShift})
+                </p>
+                <div className={styles.imageFullscreenMediaWrap}>
+                  <Image
+                    className={styles.imageFullscreenMedia}
+                    src={currentImage.src}
+                    alt={currentImage.alt || currentImage.label || `Imagem da escala ${scaleDate} (${scaleShift})`}
+                    fill
+                    sizes="100vw"
+                    unoptimized
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={styles.imageFullscreenCloseButton}
+                  onClick={handleCloseFullscreen}
+                  aria-label="Fechar visualizacao da imagem em tela cheia"
+                >
+                  Fechar visualizacao
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className={styles.imageEmptyState}>
@@ -395,7 +502,9 @@ function ScaleImagePanel({
               type="button"
               className={styles.imagePrimaryButton}
               onClick={handleOpenUpload}
+              disabled={isComponentApp}
               aria-label={`Fazer upload de imagem para a escala de ${scaleDate} (${scaleShift})`}
+              aria-disabled={isComponentApp}
             >
               Upload do dispositivo
             </button>
@@ -418,7 +527,11 @@ function ScaleImagePanel({
                 </span>
               </div>
 
-              <ScaleImageGallery currentImage={currentImage} imageLibrary={imageLibrary} onSelectImage={onSelectImage} />
+              <ScaleImageGallery
+                currentImage={currentImage}
+                imageLibrary={imageLibrary}
+                onSelectImage={handleSelectImageFromGallery}
+              />
             </div>
           ) : null}
         </div>
@@ -745,6 +858,11 @@ function ScaleCard({
   }, [currentImage]);
 
   const handleRemoveImage = () => {
+    if (isComponentApp) {
+      setImageFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
+      return;
+    }
+
     if (currentImage?.src?.startsWith('blob:')) {
       URL.revokeObjectURL(currentImage.src);
     }
@@ -754,11 +872,21 @@ function ScaleCard({
   };
 
   const handleSelectImage = (image) => {
+    if (isComponentApp) {
+      setImageFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
+      return;
+    }
+
     setCurrentImage(image);
     setImageFeedback(`Imagem vinculada para ${scaleDate} (${scaleShift}).`);
   };
 
   const handleUploadImage = (file) => {
+    if (isComponentApp) {
+      setImageFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
+      return;
+    }
+
     if (!file) {
       return;
     }
@@ -810,6 +938,8 @@ function ScaleCard({
               scaleShift={scaleShift}
               currentImage={currentImage}
               imageLibrary={imageLibrary}
+              isComponentApp={isComponentApp}
+              onRestrictedAction={() => setImageFeedback(COMPONENT_APP_PERMISSION_MESSAGE)}
               onRemoveImage={handleRemoveImage}
               onSelectImage={handleSelectImage}
               onUploadImage={handleUploadImage}
