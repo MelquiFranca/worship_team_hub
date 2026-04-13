@@ -25,6 +25,7 @@ Implementar autorização funcional completa por audiência (`admin-panel`, `gro
   - Acesso total às telas e funcionalidades da visão administrativa.
 - `group-app`:
   - Acesso total às telas e funcionalidades da visão de grupo.
+  - Permissão para editar qualquer escala da visão de grupo.
 - `component-app`:
   - Menu principal disponível somente com: Escalas, Componentes e Avatar.
   - Acesso a Editar Perfil, com restrição para não alterar nome.
@@ -35,6 +36,8 @@ Implementar autorização funcional completa por audiência (`admin-panel`, `gro
   - Bloqueio para enviar notificação.
   - Bloqueio para editar escalas ou componentes.
   - Bloqueio para inserir escalas ou componentes.
+  - Bloqueio para adicionar imagem na escala.
+  - Bloqueio para excluir imagem da escala.
 - Destacar visualmente o usuário logado na lista de componentes nas escalas em que estiver inserido.
 
 ## 5) Não-Escopo
@@ -55,7 +58,7 @@ Implementar autorização funcional completa por audiência (`admin-panel`, `gro
   - Líder de grupo autenticado acessa integralmente rotas e ações da visão de grupo.
   - Componente autenticado vê menu reduzido e executa apenas ações permitidas.
   - Componente visualiza escala em que participa e sua linha aparece destacada.
-  - Componente tenta ação proibida (notificar, editar/inserir escala/componente) e recebe bloqueio consistente.
+- Componente tenta ação proibida (notificar, editar/inserir escala/componente, adicionar/excluir imagem) e recebe bloqueio consistente.
 
 ## 7) Critérios de Aceite (testáveis)
 
@@ -66,11 +69,11 @@ Use formato passa/falha.
 | AC-01 | Claims do JWT (`aud`, `role`, `sub`, `groupId`) são consumidas como base para resolver permissões no client e middleware, sem depender de flags mock em `sessionStorage`. | Teste de integração + inspeção de fluxo autenticado. | Alta |
 | AC-02 | `/login` e `/admin/login` permanecem acessíveis sem autenticação para qualquer usuário. | Teste manual e de integração de rotas públicas. | Alta |
 | AC-03 | Usuário `admin-panel` possui acesso total à visão Admin (rotas e ações administrativas). | Teste de integração com token admin e navegação completa de admin. | Alta |
-| AC-04 | Usuário `group-app` possui acesso total à visão do Grupo (rotas e ações do grupo). | Teste de integração com token group_owner. | Alta |
+| AC-04 | Usuário `group-app` possui acesso total à visão do Grupo (rotas e ações do grupo), incluindo edição de qualquer escala. | Teste de integração com token group_owner + teste de edição em escalas com `canEdit` diverso. | Alta |
 | AC-05 | Usuário `component-app` visualiza no menu principal apenas: Escalas, Componentes e Avatar. | Teste de UI (manual + snapshot). | Alta |
 | AC-06 | Usuário `component-app` acessa Editar Perfil, porém o campo de nome não pode ser alterado (readonly/disabled e bloqueio no submit). | Teste de UI e teste de integração de formulário. | Alta |
 | AC-07 | Usuário `component-app` pode enviar mensagens em escalas e visualizar componentes, playlist e imagem da escala. | Teste de integração de ações em `ScaleFeed`. | Alta |
-| AC-08 | Usuário `component-app` não pode enviar notificação, editar escala/componente ou inserir escala/componente (ações ocultas ou desabilitadas + bloqueio no backend quando aplicável). | Teste de UI + integração de autorização de ações. | Alta |
+| AC-08 | Usuário `component-app` não pode enviar notificação, editar escala/componente, inserir escala/componente, adicionar imagem na escala ou excluir imagem da escala (ações ocultas ou desabilitadas + bloqueio no backend quando aplicável). | Teste de UI + integração de autorização de ações. | Alta |
 | AC-09 | Nas escalas em que o usuário logado estiver presente, sua exibição é destacada visualmente na lista de componentes. | Teste de UI com usuário componente presente/ausente na escala. | Alta |
 | AC-10 | Tentativas de acesso/ação não autorizadas retornam comportamento consistente (`403` ou redirecionamento controlado) sem vazar detalhes sensíveis. | Teste de integração de erros e fluxos proibidos. | Média |
 
@@ -95,8 +98,9 @@ Use formato passa/falha.
 | ER-02 | JWT com audiência incompatível para a rota | Bloquear com redirecionamento controlado ou `403`, conforme padrão da app. |
 | ER-03 | Usuário `component-app` tenta acionar envio de notificação | Ação indisponível na UI e endpoint bloqueia com `403` se chamado diretamente. |
 | ER-04 | Usuário `component-app` tenta editar/inserir escala ou componente | Ação indisponível na UI e endpoint bloqueia com `403` se chamado diretamente. |
-| ER-05 | Usuário `component-app` tenta alterar nome em Editar Perfil | Campo de nome não editável; submit ignora/nega alteração do nome. |
-| ER-06 | Falta de mapeamento do usuário logado para componente da escala | Não destacar nenhum item e manter renderização sem quebra. |
+| ER-05 | Usuário `component-app` tenta adicionar/excluir imagem da escala | Ação indisponível na UI e endpoint bloqueia com `403` se chamado diretamente. |
+| ER-06 | Usuário `component-app` tenta alterar nome em Editar Perfil | Campo de nome não editável; submit ignora/nega alteração do nome. |
+| ER-07 | Falta de mapeamento do usuário logado para componente da escala | Não destacar nenhum item e manter renderização sem quebra. |
 
 ## 10) Dependências e Restrições
 
