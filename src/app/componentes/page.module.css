@@ -15,6 +15,32 @@
   margin: 0 auto;
 }
 
+.statusCard {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
+  background: var(--app-surface, #fff);
+  box-shadow: var(--app-shadow-soft);
+}
+
+.statusText {
+  margin: 0;
+  color: var(--app-text, #0f172a);
+}
+
+.retryButton {
+  justify-self: start;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
+  background: var(--app-surface, #fff);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  color: var(--app-text, #0f172a);
+  font-weight: 600;
+}
+
 @media (max-width: 700px) {
   .page {
     padding: 18px 0 32px;

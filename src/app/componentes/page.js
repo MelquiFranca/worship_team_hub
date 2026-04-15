@@ -1,5 +1,4 @@
-import ComponentsGallery from '@/components/organisms/ComponentsGallery/ComponentsGallery';
-import { scales } from '@/data/scales';
+import ComponentsPageClient from './ComponentsPageClient';
 import styles from './page.module.css';
 
 export const metadata = {
@@ -11,7 +10,7 @@ export default function ComponentsPage() {
   return (
     <main className={styles.page}>
       <div className={styles.galleryContainer}>
-        <ComponentsGallery scales={scales} />
+        <ComponentsPageClient />
       </div>
     </main>
   );

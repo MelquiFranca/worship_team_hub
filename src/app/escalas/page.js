@@ -1,5 +1,4 @@
-import ScaleFeed from '@/components/organisms/ScaleFeed/ScaleFeed';
-import { scales } from '@/data/scales';
+import ScalesPageClient from './ScalesPageClient';
 import styles from './page.module.css';
 
 export const metadata = {
@@ -11,7 +10,7 @@ export default function ScalesPage() {
   return (
     <main className={styles.page}>
       <div className={styles.feedContainer}>
-        <ScaleFeed scales={scales} />
+        <ScalesPageClient />
       </div>
     </main>
   );

@@ -553,6 +553,7 @@ function MemberRow({ member, leader = false, isCurrentUser = false }) {
         alt={`Foto de ${member.name}`}
         width={40}
         height={40}
+        unoptimized
       />
       <div className={styles.memberInfo}>
         <strong>{member.name}</strong>
@@ -1091,6 +1092,10 @@ export default function ScaleFeed({ scales }) {
         <p className={styles.feedback} role="status" aria-live="polite">
           {feedback}
         </p>
+      ) : null}
+
+      {!scales.length ? (
+        <p className={styles.emptyState}>Nenhuma escala encontrada.</p>
       ) : null}
 
       <div className={styles.feedList}>

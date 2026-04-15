@@ -1,0 +1,155 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import ScaleFeed from '@/components/organisms/ScaleFeed/ScaleFeed';
+import { requestJson } from '@/lib/api/http';
+import styles from './page.module.css';
+
+function normalizeString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function formatScaleDate(value) {
+  const dateValue = normalizeString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    return dateValue || 'Data nao informada';
+  }
+
+  const [year, month, day] = dateValue.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function normalizeComponentCatalog(items) {
+  const map = new Map();
+
+  (Array.isArray(items) ? items : []).forEach((item, index) => {
+    const id =
+      normalizeString(item?.id) ||
+      normalizeString(item?._id) ||
+      `component-${index}`;
+    const name =
+      normalizeString(item?.fullName) ||
+      normalizeString(item?.name) ||
+      normalizeString(item?.displayName) ||
+      'Componente sem nome';
+    const photo =
+      normalizeString(item?.photoUrl) ||
+      normalizeString(item?.photo) ||
+      `https://i.pravatar.cc/120?u=${encodeURIComponent(id)}`;
+
+    map.set(id, { id, name, photo });
+  });
+
+  return map;
+}
+
+function normalizePlaylist(playlist) {
+  if (!Array.isArray(playlist)) {
+    return [];
+  }
+
+  return playlist.map((item, index) => ({
+    id: normalizeString(item?.id) || `playlist-${index}`,
+    title: normalizeString(item?.title) || `Video ${index + 1}`,
+    videoUrl: normalizeString(item?.videoUrl) || normalizeString(item?.url)
+  }));
+}
+
+function normalizeScales(scaleItems, componentsById) {
+  if (!Array.isArray(scaleItems)) {
+    return [];
+  }
+
+  return scaleItems.map((scale, index) => {
+    const scaleId =
+      normalizeString(scale?.id) ||
+      normalizeString(scale?._id) ||
+      `scale-${index}`;
+    const scaleComponents = Array.isArray(scale?.components) ? scale.components : [];
+
+    const members = scaleComponents.map((item, memberIndex) => {
+      const componentId = normalizeString(item?.componentId) || `component-${memberIndex}`;
+      const componentData = componentsById.get(componentId);
+      const role = normalizeString(item?.function) || 'Sem funcao definida';
+      const normalizedRole = role.toLowerCase();
+      const isLeader = normalizedRole.includes('lider');
+
+      return {
+        id: componentId,
+        name: componentData?.name || 'Componente nao encontrado',
+        role,
+        photo:
+          componentData?.photo ||
+          `https://i.pravatar.cc/120?u=${encodeURIComponent(componentId)}`,
+        isLeader
+      };
+    });
+
+    return {
+      id: scaleId,
+      date: formatScaleDate(scale?.date),
+      shift: normalizeString(scale?.shift) || 'Turno nao informado',
+      canEdit: scale?.canEdit !== false,
+      members,
+      playlist: normalizePlaylist(scale?.playlist),
+      messages: Array.isArray(scale?.messages) ? scale.messages : [],
+      imageAttachment: scale?.imageAttachment || null
+    };
+  });
+}
+
+export default function ScalesPageClient() {
+  const [scales, setScales] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const [componentsPayload, scalesPayload] = await Promise.all([
+        requestJson('/api/components?limit=100'),
+        requestJson('/api/scales?limit=100')
+      ]);
+
+      const componentsById = normalizeComponentCatalog(componentsPayload?.items);
+      const normalizedScales = normalizeScales(scalesPayload?.items, componentsById);
+      setScales(normalizedScales);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Nao foi possivel carregar as escalas.'
+      );
+      setScales([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  if (isLoading) {
+    return (
+      <section className={styles.statusCard} aria-live="polite">
+        <p className={styles.statusText}>Carregando escalas...</p>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className={styles.statusCard} aria-live="polite">
+        <p className={styles.statusText}>{error}</p>
+        <button type="button" className={styles.retryButton} onClick={fetchData}>
+          Tentar novamente
+        </button>
+      </section>
+    );
+  }
+
+  return <ScaleFeed scales={scales} />;
+}

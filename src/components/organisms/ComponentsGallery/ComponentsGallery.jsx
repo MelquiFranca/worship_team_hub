@@ -1,20 +1,6 @@
 import Image from 'next/image';
 import styles from './ComponentsGallery.module.css';
 
-function normalizeComponents(scales) {
-  const uniqueMembers = new Map();
-
-  scales.forEach((scale) => {
-    scale.members.forEach((member) => {
-      if (!uniqueMembers.has(member.id)) {
-        uniqueMembers.set(member.id, member);
-      }
-    });
-  });
-
-  return Array.from(uniqueMembers.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-}
-
 function ComponentBlock({ member }) {
   return (
     <article className={styles.componentBlock}>
@@ -26,6 +12,7 @@ function ComponentBlock({ member }) {
             alt={`Foto de ${member.name}`}
             width={200}
             height={200}
+            unoptimized
           />
         ) : (
           <div className={styles.photoFallback} aria-hidden="true">
@@ -38,9 +25,7 @@ function ComponentBlock({ member }) {
   );
 }
 
-export default function ComponentsGallery({ scales }) {
-  const components = normalizeComponents(scales);
-
+export default function ComponentsGallery({ components = [] }) {
   return (
     <section className={styles.galleryPage} aria-label="Lista de componentes">
       <header className={styles.galleryHeader}>
