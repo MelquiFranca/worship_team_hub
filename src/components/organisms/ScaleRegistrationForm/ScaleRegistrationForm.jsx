@@ -1,11 +1,12 @@
 'use client';
 
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Calendar from '@/components/molecules/Calendar/Calendar';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
 import { scales as existingScales } from '@/data/scales';
+import { requestJson } from '@/lib/api/http';
 import styles from './ScaleRegistrationForm.module.css';
 
 const SHIFT_OPTIONS = ['Manha', 'Tarde', 'Noite'];
@@ -32,6 +33,76 @@ function normalizeComponentPool(scales) {
   return Array.from(pool.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
+function extractComponentList(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.items)) {
+    return payload.items;
+  }
+
+  if (Array.isArray(payload?.components)) {
+    return payload.components;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
+function normalizeApiComponent(component) {
+  if (!component || typeof component !== 'object') {
+    return null;
+  }
+
+  const id = component.id != null ? String(component.id) : '';
+  const name =
+    (typeof component.fullName === 'string' && component.fullName.trim()) ||
+    (typeof component.name === 'string' && component.name.trim()) ||
+    (typeof component.username === 'string' && component.username.trim()) ||
+    '';
+
+  if (!id || !name) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    photo:
+      (typeof component.photo === 'string' && component.photo) ||
+      (typeof component.photoUrl === 'string' && component.photoUrl) ||
+      '',
+    role:
+      (typeof component.role === 'string' && component.role) ||
+      (typeof component.function === 'string' && component.function) ||
+      (typeof component.primaryFunction === 'string' && component.primaryFunction) ||
+      'Componente'
+  };
+}
+
+function normalizeComponentOptions(payload) {
+  return extractComponentList(payload)
+    .map(normalizeApiComponent)
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+function formatScaleDateForPayload(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 function getVideoId(item) {
   return item.videoId || item.id?.videoId || item.id;
 }
@@ -53,11 +124,16 @@ function isSupportedYouTubeUrl(rawUrl) {
 
 export default function ScaleRegistrationForm() {
   const { settings, availableFunctionOptions } = useGroupSettings();
-  const componentOptions = useMemo(() => normalizeComponentPool(existingScales), []);
+  const fallbackComponentOptions = useMemo(() => normalizeComponentPool(existingScales), []);
+  const [componentOptions, setComponentOptions] = useState(fallbackComponentOptions);
   const [scaleDate, setScaleDate] = useState(null);
   const [shift, setShift] = useState('');
   const [selectedComponentIds, setSelectedComponentIds] = useState([]);
   const [functionsByComponent, setFunctionsByComponent] = useState({});
+  const [componentNotice, setComponentNotice] = useState({
+    type: 'status',
+    message: 'Carregando componentes do backend...'
+  });
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchStatus, setSearchStatus] = useState('idle');
@@ -70,6 +146,54 @@ export default function ScaleRegistrationForm() {
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [missingFunctionIds, setMissingFunctionIds] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadComponents() {
+      try {
+        const payload = await requestJson('/api/components', {
+          method: 'GET',
+          cache: 'no-store'
+        });
+
+        const normalizedComponents = normalizeComponentOptions(payload);
+
+        if (!isActive) {
+          return;
+        }
+
+        if (normalizedComponents.length > 0) {
+          setComponentOptions(normalizedComponents);
+          setComponentNotice({ type: 'idle', message: '' });
+          return;
+        }
+
+        setComponentOptions(fallbackComponentOptions);
+        setComponentNotice({
+          type: 'status',
+          message: 'A API ainda nao retornou componentes. Mostrando a base local por enquanto.'
+        });
+      } catch {
+        if (!isActive) {
+          return;
+        }
+
+        setComponentOptions(fallbackComponentOptions);
+        setComponentNotice({
+          type: 'status',
+          message: 'Nao foi possivel carregar os componentes do backend agora. Mostrando a base local.'
+        });
+      }
+    }
+
+    loadComponents();
+
+    return () => {
+      isActive = false;
+    };
+  }, [fallbackComponentOptions]);
 
   const selectedComponents = useMemo(
     () => componentOptions.filter((component) => selectedComponentIds.includes(component.id)),
@@ -268,7 +392,25 @@ export default function ScaleRegistrationForm() {
     setPlaylist((currentPlaylist) => currentPlaylist.filter((item) => getVideoId(item) !== videoId));
   };
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    const allowedIds = new Set(componentOptions.map((component) => component.id));
+
+    setSelectedComponentIds((currentIds) => currentIds.filter((id) => allowedIds.has(id)));
+    setFunctionsByComponent((currentFunctions) => {
+      const nextFunctions = {};
+
+      Object.entries(currentFunctions).forEach(([componentId, value]) => {
+        if (allowedIds.has(componentId)) {
+          nextFunctions[componentId] = value;
+        }
+      });
+
+      return nextFunctions;
+    });
+    setMissingFunctionIds((currentMissingIds) => currentMissingIds.filter((id) => allowedIds.has(id)));
+  }, [componentOptions]);
+
+  const handleSubmit = async () => {
     const validationErrors = [];
 
     if (!scaleDate) {
@@ -297,10 +439,46 @@ export default function ScaleRegistrationForm() {
       return;
     }
 
+    const payload = {
+      date: formatScaleDateForPayload(scaleDate),
+      shift,
+      components: selectedComponents.map((component) => ({
+        componentId: component.id,
+        function: functionsByComponent[component.id].trim()
+      })),
+      playlist: playlist.map((item) => ({
+        videoId: getVideoId(item) || '',
+        title: item.title || '',
+        channelTitle: item.channelTitle || '',
+        url: item.url || item.videoUrl || '',
+        videoUrl: item.videoUrl || item.url || '',
+        thumbnailUrl: item.thumbnailUrl || ''
+      }))
+    };
+
+    setIsSubmitting(true);
     setSubmitError('');
-    setSubmitMessage(
-      `Escala pronta para cadastro em ${formatDate(scaleDate)} com ${selectedComponents.length} componente(s) e ${playlist.length} musica(s) na playlist.`
-    );
+    setSubmitMessage('');
+
+    try {
+      const responsePayload = await requestJson('/api/scales', {
+        method: 'POST',
+        body: payload
+      });
+
+      const successMessage =
+        typeof responsePayload?.message === 'string' && responsePayload.message.trim()
+          ? responsePayload.message.trim()
+          : `Escala cadastrada com sucesso em ${formatDate(scaleDate)}.`;
+
+      setSubmitMessage(successMessage);
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : 'Nao foi possivel cadastrar a escala agora. Tente novamente.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -385,6 +563,16 @@ export default function ScaleRegistrationForm() {
               <h2>Componentes da escala</h2>
               <p>Selecione os componentes e atribua uma funcao para cada um.</p>
             </div>
+
+            {componentNotice.message ? (
+              <p
+                className={styles.inlineMessage}
+                role={componentNotice.type === 'status' ? 'status' : 'alert'}
+                aria-live="polite"
+              >
+                {componentNotice.message}
+              </p>
+            ) : null}
 
             <div className={styles.componentGrid}>
               {componentOptions.map((component) => {
@@ -669,8 +857,8 @@ export default function ScaleRegistrationForm() {
               </div>
             </div>
 
-            <button className={styles.primaryButton} type="button" onClick={handleSubmit}>
-              Salvar escala
+            <button className={styles.primaryButton} type="button" onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? 'Salvando...' : 'Salvar escala'}
             </button>
           </section>
         </aside>

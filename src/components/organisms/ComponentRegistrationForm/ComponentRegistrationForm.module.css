@@ -12,11 +12,20 @@
 .feedback {
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid var(--app-info-strong-soft, #dbeafe);
   border-radius: 10px;
+  font-size: 0.92rem;
+}
+
+.feedbackSuccess {
+  border: 1px solid var(--app-info-strong-soft, #dbeafe);
   background: var(--app-info-soft, #eff6ff);
   color: var(--app-info, #1d4ed8);
-  font-size: 0.92rem;
+}
+
+.feedbackError {
+  border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 20%, white);
+  background: var(--app-danger-soft, #fef2f2);
+  color: var(--app-danger, #b91c1c);
 }
 
 .photoArea {
@@ -189,6 +198,12 @@
 
 .submitButton:hover {
   filter: brightness(1.02);
+}
+
+.submitButton:disabled {
+  cursor: progress;
+  opacity: 0.75;
+  filter: none;
 }
 
 @media (max-width: 560px) {

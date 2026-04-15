@@ -2,14 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Calendar from '@/components/molecules/Calendar/Calendar';
+import { requestJson } from '@/lib/api/http';
 import styles from './ComponentRegistrationForm.module.css';
 
 function validateForm(values) {
   const nextErrors = {};
-
-  if (!values.photoFile) {
-    nextErrors.photo = 'Adicione uma foto.';
-  }
 
   if (!values.fullName.trim()) {
     nextErrors.fullName = 'Informe o nome completo.';
@@ -47,6 +44,14 @@ function toLocalIsoDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function getPhotoIndicator(photoFile) {
+  if (!photoFile) {
+    return '';
+  }
+
+  return photoFile.name || photoFile.type || 'foto-selecionada';
+}
+
 export default function ComponentRegistrationForm() {
   const [fullName, setFullName] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -56,7 +61,8 @@ export default function ComponentRegistrationForm() {
   const [photoPreview, setPhotoPreview] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
-  const [statusMessage, setStatusMessage] = useState('');
+  const [feedback, setFeedback] = useState({ type: 'idle', message: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const previewFallback = useMemo(() => getInitials(fullName || 'Foto'), [fullName]);
 
@@ -72,54 +78,94 @@ export default function ComponentRegistrationForm() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [photoFile]);
 
-  function handleSubmit(event) {
+  function clearFeedback() {
+    setFeedback({ type: 'idle', message: '' });
+  }
+
+  function resetForm() {
+    setFullName('');
+    setBirthDate('');
+    setUsername('');
+    setPassword('');
+    setPhotoFile(null);
+    setPhotoPreview('');
+    setShowPassword(false);
+    setErrors({});
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const nextErrors = validateForm({
       fullName,
       birthDate,
       username,
-      password,
-      photoFile
+      password
     });
 
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
-      setStatusMessage('');
+      setFeedback({
+        type: 'error',
+        message: 'Corrija os campos destacados antes de continuar.'
+      });
       return;
     }
 
-    setStatusMessage('Componente preparado para cadastro com sucesso.');
-  }
+    setIsSubmitting(true);
+    clearFeedback();
 
-  function clearStatusMessage() {
-    if (statusMessage) {
-      setStatusMessage('');
+    try {
+      const payload = {
+        fullName: fullName.trim(),
+        birthDate: birthDate instanceof Date ? toLocalIsoDate(birthDate) : birthDate,
+        username: username.trim(),
+        password,
+        photoUrl: getPhotoIndicator(photoFile),
+        photoProvided: Boolean(photoFile)
+      };
+      const responsePayload = await requestJson('/api/components', {
+        method: 'POST',
+        body: payload
+      });
+
+      const successMessage =
+        typeof responsePayload?.message === 'string' && responsePayload.message.trim()
+          ? responsePayload.message.trim()
+          : 'Componente cadastrado com sucesso.';
+
+      setFeedback({ type: 'success', message: successMessage });
+      resetForm();
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Nao foi possivel cadastrar o componente agora. Tente novamente.'
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   function handlePhotoChange(event) {
     const nextFile = event.target.files?.[0] || null;
-    clearStatusMessage();
+    clearFeedback();
     setPhotoFile(nextFile);
-
-    if (errors.photo) {
-      setErrors((current) => {
-        const nextErrors = { ...current };
-        delete nextErrors.photo;
-        return nextErrors;
-      });
-    }
   }
 
   const todayIso = toLocalIsoDate(new Date());
 
   return (
     <section className={styles.card} aria-label="Formulario de cadastro de componentes">
-      {statusMessage ? (
-        <p className={styles.feedback} role="status" aria-live="polite">
-          {statusMessage}
+      {feedback.message ? (
+        <p
+          className={`${styles.feedback} ${
+            feedback.type === 'error' ? styles.feedbackError : styles.feedbackSuccess
+          }`}
+          role={feedback.type === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {feedback.message}
         </p>
       ) : null}
 
@@ -137,7 +183,7 @@ export default function ComponentRegistrationForm() {
 
         <div className={styles.photoCopy}>
           <strong>Foto do componente</strong>
-          <p>Escolha uma imagem para visualizar antes de enviar o cadastro.</p>
+          <p>Escolha uma imagem opcional para visualizar antes de enviar o cadastro.</p>
 
           <label className={styles.fileButton} htmlFor="component-photo">
             Selecionar foto
@@ -150,17 +196,11 @@ export default function ComponentRegistrationForm() {
             onChange={handlePhotoChange}
           />
 
-          {errors.photo ? (
-            <span className={styles.error} role="alert">
-              {errors.photo}
-            </span>
-          ) : (
-            <span className={styles.helpText}>PNG, JPG ou WebP.</span>
-          )}
+          <span className={styles.helpText}>PNG, JPG ou WebP. Opcional.</span>
         </div>
       </div>
 
-      <form className={styles.form} onSubmit={handleSubmit} noValidate>
+      <form className={styles.form} onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
         <div className={styles.field}>
           <label htmlFor="fullName">Nome completo</label>
           <input
@@ -169,7 +209,7 @@ export default function ComponentRegistrationForm() {
             type="text"
             value={fullName}
             onChange={(event) => {
-              clearStatusMessage();
+              clearFeedback();
               setFullName(event.target.value);
             }}
             autoComplete="name"
@@ -189,7 +229,7 @@ export default function ComponentRegistrationForm() {
           label="Data de nascimento"
           value={birthDate}
           onChange={(nextValue) => {
-            clearStatusMessage();
+            clearFeedback();
             setBirthDate(nextValue);
           }}
           placeholder="Selecione a data"
@@ -203,17 +243,17 @@ export default function ComponentRegistrationForm() {
         <div className={styles.field}>
           <label htmlFor="username">Usuário</label>
           <input
-          id="username"
-          name="username"
-          type="text"
-          value={username}
-          onChange={(event) => {
-            clearStatusMessage();
-            setUsername(event.target.value);
-          }}
-          autoComplete="username"
-          aria-invalid={Boolean(errors.username)}
-          aria-describedby={errors.username ? 'username-error' : undefined}
+            id="username"
+            name="username"
+            type="text"
+            value={username}
+            onChange={(event) => {
+              clearFeedback();
+              setUsername(event.target.value);
+            }}
+            autoComplete="username"
+            aria-invalid={Boolean(errors.username)}
+            aria-describedby={errors.username ? 'username-error' : undefined}
             placeholder="Crie um usuário"
           />
           {errors.username ? (
@@ -232,7 +272,7 @@ export default function ComponentRegistrationForm() {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(event) => {
-                clearStatusMessage();
+                clearFeedback();
                 setPassword(event.target.value);
               }}
               autoComplete="new-password"
@@ -256,8 +296,8 @@ export default function ComponentRegistrationForm() {
           ) : null}
         </div>
 
-        <button type="submit" className={styles.submitButton}>
-          Cadastrar componente
+        <button type="submit" className={styles.submitButton} disabled={isSubmitting}>
+          {isSubmitting ? 'Cadastrando...' : 'Cadastrar componente'}
         </button>
       </form>
     </section>
