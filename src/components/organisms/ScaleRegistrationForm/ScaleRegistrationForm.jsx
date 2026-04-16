@@ -127,6 +127,7 @@ export default function ScaleRegistrationForm() {
   const fallbackComponentOptions = useMemo(() => normalizeComponentPool(existingScales), []);
   const [componentOptions, setComponentOptions] = useState(fallbackComponentOptions);
   const [scaleDate, setScaleDate] = useState(null);
+  const [scaleDateError, setScaleDateError] = useState('');
   const [shift, setShift] = useState('');
   const [selectedComponentIds, setSelectedComponentIds] = useState([]);
   const [functionsByComponent, setFunctionsByComponent] = useState({});
@@ -415,6 +416,9 @@ export default function ScaleRegistrationForm() {
 
     if (!scaleDate) {
       validationErrors.push('Selecione a data da escala.');
+      setScaleDateError('Selecione a data da escala.');
+    } else if (scaleDateError) {
+      setScaleDateError('');
     }
 
     if (!shift) {
@@ -533,10 +537,20 @@ export default function ScaleRegistrationForm() {
 
             <div className={styles.scheduleGrid}>
               <Calendar
+                id="scaleDate"
                 label="Data da escala"
-                placeholder="Escolha a data no calendario"
+                placeholder="Escolha a data (dia, mes e ano)"
                 value={scaleDate}
-                onChange={setScaleDate}
+                onChange={(nextDate) => {
+                  setScaleDate(nextDate);
+                  if (scaleDateError) {
+                    setScaleDateError('');
+                  }
+                }}
+                required
+                error={scaleDateError}
+                helperText="Selecione dia, mes e ano. No topo do calendario, ajuste a navegacao para chegar ao ano desejado."
+                name="scaleDate"
               />
 
               <div className={styles.shiftField}>

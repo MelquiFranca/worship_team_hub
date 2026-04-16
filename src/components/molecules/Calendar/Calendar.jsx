@@ -78,12 +78,28 @@ function formatMonthLabel(date) {
   }).format(date);
 }
 
+function formatMonthName(date) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    month: 'long'
+  }).format(date);
+}
+
 function formatSelectedDate(date) {
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
   }).format(date);
+}
+
+function getDaysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function setYearPreservingDate(currentDate, targetYear) {
+  const monthIndex = currentDate.getMonth();
+  const safeDay = Math.min(currentDate.getDate(), getDaysInMonth(targetYear, monthIndex));
+  return new Date(targetYear, monthIndex, safeDay);
 }
 
 function buildCalendarDays(viewDate) {
@@ -133,6 +149,15 @@ export default function Calendar({
   const selectedDate = useMemo(() => fromDateLike(value), [value]);
   const minDateValue = useMemo(() => (minDate ? fromDateLike(minDate) : null), [minDate]);
   const maxDateValue = useMemo(() => (maxDate ? fromDateLike(maxDate) : null), [maxDate]);
+  const yearOptions = useMemo(() => {
+    const currentYear = viewDate.getFullYear();
+    const startYear = minDateValue ? minDateValue.getFullYear() : currentYear - 100;
+    const endYear = maxDateValue ? maxDateValue.getFullYear() : currentYear + 20;
+    const normalizedStart = Math.min(startYear, endYear);
+    const normalizedEnd = Math.max(startYear, endYear);
+
+    return Array.from({ length: normalizedEnd - normalizedStart + 1 }, (_, index) => normalizedStart + index);
+  }, [maxDateValue, minDateValue, viewDate]);
   const describedBy = useMemo(
     () =>
       [helperText ? `${fieldId}-description` : null, error ? `${fieldId}-error` : null]
@@ -205,6 +230,15 @@ export default function Calendar({
     return false;
   }
 
+  function handleYearChange(event) {
+    const nextYear = Number(event.target.value);
+    if (!Number.isInteger(nextYear)) {
+      return;
+    }
+
+    setViewDate((current) => setYearPreservingDate(current, nextYear));
+  }
+
   return (
     <div className={styles.calendarField} ref={rootRef}>
       {label ? (
@@ -249,7 +283,25 @@ export default function Calendar({
                 Anterior
               </button>
 
-              <strong className={styles.monthLabel}>{formatMonthLabel(viewDate)}</strong>
+              <div className={styles.headerCenter}>
+                <strong className={styles.monthLabel}>{formatMonthName(viewDate)}</strong>
+                <label htmlFor={`${fieldId}-year`} className={styles.yearLabel}>
+                  Ano
+                </label>
+                <select
+                  id={`${fieldId}-year`}
+                  className={styles.yearSelect}
+                  value={viewDate.getFullYear()}
+                  onChange={handleYearChange}
+                  aria-label="Selecionar ano do calendário"
+                >
+                  {yearOptions.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <button
                 type="button"

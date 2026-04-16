@@ -232,10 +232,10 @@ export default function ComponentRegistrationForm() {
             clearFeedback();
             setBirthDate(nextValue);
           }}
-          placeholder="Selecione a data"
+          placeholder="Selecione a data (dia, mes e ano)"
           required
           error={errors.birthDate || ''}
-          helperText="Use o calendário para escolher a data."
+          helperText="Selecione dia, mes e ano. No topo do calendario, ajuste a navegacao para chegar ao ano desejado."
           maxDate={todayIso}
           name="birthDate"
         />
