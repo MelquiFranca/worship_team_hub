@@ -24,6 +24,10 @@ function validateForm(values) {
     nextErrors.password = 'Informe a senha.';
   }
 
+  if (!values.permissionType || !['group-app', 'component-app'].includes(values.permissionType)) {
+    nextErrors.permissionType = 'Selecione o tipo de permissao.';
+  }
+
   return nextErrors;
 }
 
@@ -57,6 +61,7 @@ export default function ComponentRegistrationForm() {
   const [birthDate, setBirthDate] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [permissionType, setPermissionType] = useState('');
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -87,6 +92,7 @@ export default function ComponentRegistrationForm() {
     setBirthDate('');
     setUsername('');
     setPassword('');
+    setPermissionType('');
     setPhotoFile(null);
     setPhotoPreview('');
     setShowPassword(false);
@@ -100,7 +106,8 @@ export default function ComponentRegistrationForm() {
       fullName,
       birthDate,
       username,
-      password
+      password,
+      permissionType
     });
 
     setErrors(nextErrors);
@@ -122,6 +129,7 @@ export default function ComponentRegistrationForm() {
         birthDate: birthDate instanceof Date ? toLocalIsoDate(birthDate) : birthDate,
         username: username.trim(),
         password,
+        permissionType,
         photoUrl: getPhotoIndicator(photoFile),
         photoProvided: Boolean(photoFile)
       };
@@ -292,6 +300,31 @@ export default function ComponentRegistrationForm() {
           {errors.password ? (
             <span className={styles.error} id="password-error" role="alert">
               {errors.password}
+            </span>
+          ) : null}
+        </div>
+
+        <div className={styles.field}>
+          <label htmlFor="permissionType">Tipo de permissao</label>
+          <select
+            id="permissionType"
+            name="permissionType"
+            value={permissionType}
+            onChange={(event) => {
+              clearFeedback();
+              setPermissionType(event.target.value);
+            }}
+            aria-invalid={Boolean(errors.permissionType)}
+            aria-describedby={errors.permissionType ? 'permissionType-error' : undefined}
+            required
+          >
+            <option value="">Selecione o tipo de permissao</option>
+            <option value="group-app">group-app</option>
+            <option value="component-app">component-app</option>
+          </select>
+          {errors.permissionType ? (
+            <span className={styles.error} id="permissionType-error" role="alert">
+              {errors.permissionType}
             </span>
           ) : null}
         </div>

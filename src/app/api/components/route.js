@@ -15,13 +15,21 @@ import { getMongoCollections } from '../../../lib/db/mongodb.js';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const ALLOWED_PERMISSION_TYPES = new Set(['admin-panel', 'group-app', 'component-app']);
+const LEGACY_PERMISSION_TYPE_FALLBACK = 'component-app';
+
 function serializeComponent(document) {
+  const permissionType = ALLOWED_PERMISSION_TYPES.has(document.permissionType)
+    ? document.permissionType
+    : LEGACY_PERMISSION_TYPE_FALLBACK;
+
   return {
     id: document._id.toString(),
     groupId: document.groupId,
     fullName: document.fullName,
     birthDate: document.birthDate,
     username: document.username,
+    permissionType,
     photoUrl: document.photoUrl || '',
     photoProvided: Boolean(document.photoProvided),
     createdAt: document.createdAt,
@@ -34,10 +42,11 @@ function buildComponentPayload(body, groupId) {
   const birthDate = normalizeIsoDate(body?.birthDate);
   const username = normalizeString(body?.username);
   const password = typeof body?.password === 'string' ? body.password : '';
+  const permissionType = normalizeString(body?.permissionType);
   const photoUrl = normalizeString(body?.photoUrl);
   const photoProvided = Boolean(body?.photoProvided);
 
-  if (!fullName || !birthDate || !username || !password.trim()) {
+  if (!fullName || !birthDate || !username || !password.trim() || !ALLOWED_PERMISSION_TYPES.has(permissionType)) {
     return null;
   }
 
@@ -46,6 +55,7 @@ function buildComponentPayload(body, groupId) {
     fullName,
     birthDate,
     username,
+    permissionType,
     normalizedUsername: normalizeLowercaseString(username),
     password,
     photoUrl,
@@ -106,7 +116,7 @@ export async function POST(request) {
 
     if (!payload) {
       return jsonApiError(
-        'Informe fullName, birthDate, username e password para continuar.',
+        'Informe fullName, birthDate, username, password e permissionType para continuar.',
         400,
         'BAD_REQUEST'
       );
@@ -135,6 +145,7 @@ export async function POST(request) {
       birthDate: payload.birthDate,
       username: payload.username,
       normalizedUsername: payload.normalizedUsername,
+      permissionType: payload.permissionType,
       passwordHash,
       photoUrl: payload.photoUrl,
       photoProvided: payload.photoProvided,

@@ -99,7 +99,8 @@
 .fileButton:focus-visible,
 .submitButton:focus-visible,
 .passwordToggle:focus-visible,
-.field input:focus-visible {
+.field input:focus-visible,
+.field select:focus-visible {
   outline: 3px solid var(--app-focus, #93c5fd);
   outline-offset: 1px;
 }
@@ -145,7 +146,8 @@
   color: var(--app-text, #0f172a);
 }
 
-.field input {
+.field input,
+.field select {
   width: 100%;
   border: 1px solid var(--app-border-strong, #d4d4d8);
   border-radius: 10px;
@@ -155,7 +157,8 @@
   font: inherit;
 }
 
-.field input:hover {
+.field input:hover,
+.field select:hover {
   background: var(--app-surface-elevated, #f8fbff);
 }
 
