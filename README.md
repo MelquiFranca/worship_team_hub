@@ -30,6 +30,22 @@ Aplicacao base em Next.js com App Router.
 - `npm run start`: inicia servidor de producao.
 - `npm run lint`: executa lint.
 
+## Upload de imagem de componente
+
+- O upload de foto agora e persistido no MongoDB dentro do proprio documento de `components`.
+- A API aceita `photoDataUrl` (data URL base64) e salva os metadados/binario em `components.photo`.
+- Tipos aceitos: `image/jpeg`, `image/png`, `image/webp` e `image/gif`.
+- Limite de tamanho: `2MB` por imagem.
+- Compatibilidade legado: `photoUrl` continua sendo retornado e aceito como fallback.
+- Para remocao da imagem no `PATCH`, envie `photoDataUrl: null` ou `photoDataUrl: ""`.
+
+## Upload de imagem do grupo
+
+- As configuracoes gerais do grupo agora sao persistidas em banco na colecao `group_settings`.
+- A rota `GET/PATCH /api/group-settings` salva nome, foto, funcoes e tema por `groupId`.
+- A foto do grupo tambem usa `photoDataUrl` com persistencia no banco e fallback de `photoUrl`.
+- Tipos aceitos e limite seguem o padrao: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, ate `2MB`.
+
 ## Notificacao Push (Service Worker Nativo)
 
 - A aplicacao usa Web Push nativo com Service Worker e VAPID.
@@ -45,3 +61,4 @@ Aplicacao base em Next.js com App Router.
 
 - Fluxo detalhado: `docs/setup/next-setup.md`
 - Spec da feature: `docs/specs/features/configurar-ambiente-next/`
+- Spec de imagem em banco: `docs/specs/features/armazenamento-imagem-banco-componentes/`
