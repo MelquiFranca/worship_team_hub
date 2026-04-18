@@ -77,6 +77,14 @@ async function ensureMongoIndexes(db) {
       db.collection('scales').createIndex(
         { groupId: 1, date: -1, createdAt: -1 },
         { name: 'scales_group_date_created_at' }
+      ),
+      db.collection('scale_push_notification_dispatches').createIndex(
+        { groupId: 1, scaleId: 1, createdAt: -1 },
+        { name: 'scale_push_notifications_group_scale_created_at' }
+      ),
+      db.collection('scale_push_notification_dispatches').createIndex(
+        { groupId: 1, trigger: 1, createdAt: -1 },
+        { name: 'scale_push_notifications_group_trigger_created_at' }
       )
     ]);
   })().catch(() => {
@@ -94,6 +102,7 @@ export async function getMongoCollections() {
   return {
     db,
     components: db.collection('components'),
-    scales: db.collection('scales')
+    scales: db.collection('scales'),
+    scalePushNotificationDispatches: db.collection('scale_push_notification_dispatches')
   };
 }

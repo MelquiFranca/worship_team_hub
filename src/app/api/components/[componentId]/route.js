@@ -10,6 +10,14 @@ import {
   normalizeString
 } from '../../../../lib/api/validation.js';
 import { getMongoCollections } from '../../../../lib/db/mongodb.js';
+import {
+  normalizePushTargetsInput,
+  serializeComponentPushTargets
+} from '../../../../lib/notifications/pushTargets.js';
+import {
+  normalizePushSubscriptionsInput,
+  serializePushSubscriptions
+} from '../../../../lib/notifications/pushSubscriptions.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +29,8 @@ function serializeComponent(document) {
   const permissionType = ALLOWED_PERMISSION_TYPES.has(document.permissionType)
     ? document.permissionType
     : LEGACY_PERMISSION_TYPE_FALLBACK;
+  const pushTargets = serializeComponentPushTargets(document);
+  const pushSubscriptions = serializePushSubscriptions(document.pushSubscriptions);
 
   return {
     id: document._id.toString(),
@@ -32,6 +42,11 @@ function serializeComponent(document) {
     isActive: typeof document.isActive === 'boolean' ? document.isActive : true,
     photoUrl: document.photoUrl || '',
     photoProvided: Boolean(document.photoProvided),
+    pushTargets,
+    pushTargetCount: pushTargets.length,
+    hasPushTargets: pushTargets.length > 0,
+    pushSubscriptionCount: pushSubscriptions.length,
+    hasPushSubscription: pushSubscriptions.length > 0,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
   };
@@ -99,6 +114,26 @@ function buildPatchPayload(body) {
     }
 
     updates.photoProvided = body.photoProvided;
+  }
+
+  if (Object.hasOwn(body, 'pushTargets')) {
+    const pushTargets = normalizePushTargetsInput(body.pushTargets);
+
+    if (pushTargets === null) {
+      return { error: 'Informe pushTargets como string ou lista de strings.' };
+    }
+
+    updates.pushTargets = pushTargets;
+  }
+
+  if (Object.hasOwn(body, 'pushSubscriptions')) {
+    const pushSubscriptions = normalizePushSubscriptionsInput(body.pushSubscriptions);
+
+    if (pushSubscriptions === null) {
+      return { error: 'Informe pushSubscriptions como lista valida de subscriptions web push.' };
+    }
+
+    updates.pushSubscriptions = pushSubscriptions;
   }
 
   if (Object.hasOwn(body, 'isActive')) {

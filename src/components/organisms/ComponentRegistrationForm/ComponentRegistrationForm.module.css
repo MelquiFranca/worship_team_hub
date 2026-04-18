@@ -135,7 +135,8 @@
 .deactivateButton:focus-visible,
 .passwordToggle:focus-visible,
 .field input:focus-visible,
-.field select:focus-visible {
+.field select:focus-visible,
+.field textarea:focus-visible {
   outline: 3px solid var(--app-focus, #93c5fd);
   outline-offset: 1px;
 }
@@ -192,7 +193,8 @@
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   border: 1px solid var(--app-border-strong, #d4d4d8);
   border-radius: 10px;
@@ -203,11 +205,13 @@
 }
 
 .field input:hover,
-.field select:hover {
+.field select:hover,
+.field textarea:hover {
   background: var(--app-surface-elevated, #f8fbff);
 }
 
 .field input::placeholder {
+.field textarea::placeholder {
   color: var(--app-text-soft, #64748b);
 }
 

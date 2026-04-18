@@ -11,6 +11,11 @@ import {
   normalizeString
 } from '../../../lib/api/validation.js';
 import { getMongoCollections } from '../../../lib/db/mongodb.js';
+import {
+  normalizePushTargetsInput,
+  serializeComponentPushTargets
+} from '../../../lib/notifications/pushTargets.js';
+import { serializePushSubscriptions } from '../../../lib/notifications/pushSubscriptions.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +27,8 @@ function serializeComponent(document) {
   const permissionType = ALLOWED_PERMISSION_TYPES.has(document.permissionType)
     ? document.permissionType
     : LEGACY_PERMISSION_TYPE_FALLBACK;
+  const pushTargets = serializeComponentPushTargets(document);
+  const pushSubscriptions = serializePushSubscriptions(document.pushSubscriptions);
 
   return {
     id: document._id.toString(),
@@ -33,6 +40,11 @@ function serializeComponent(document) {
     isActive: typeof document.isActive === 'boolean' ? document.isActive : true,
     photoUrl: document.photoUrl || '',
     photoProvided: Boolean(document.photoProvided),
+    pushTargets,
+    pushTargetCount: pushTargets.length,
+    hasPushTargets: pushTargets.length > 0,
+    pushSubscriptionCount: pushSubscriptions.length,
+    hasPushSubscription: pushSubscriptions.length > 0,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
   };
@@ -46,8 +58,16 @@ function buildComponentPayload(body, groupId) {
   const permissionType = normalizeString(body?.permissionType);
   const photoUrl = normalizeString(body?.photoUrl);
   const photoProvided = Boolean(body?.photoProvided);
+  const pushTargets = normalizePushTargetsInput(body?.pushTargets);
 
-  if (!fullName || !birthDate || !username || !password.trim() || !ALLOWED_PERMISSION_TYPES.has(permissionType)) {
+  if (
+    !fullName ||
+    !birthDate ||
+    !username ||
+    !password.trim() ||
+    !ALLOWED_PERMISSION_TYPES.has(permissionType) ||
+    pushTargets === null
+  ) {
     return null;
   }
 
@@ -60,7 +80,8 @@ function buildComponentPayload(body, groupId) {
     normalizedUsername: normalizeLowercaseString(username),
     password,
     photoUrl,
-    photoProvided
+    photoProvided,
+    pushTargets
   };
 }
 
@@ -119,7 +140,7 @@ export async function POST(request) {
 
     if (!payload) {
       return jsonApiError(
-        'Informe fullName, birthDate, username, password e permissionType para continuar.',
+        'Informe fullName, birthDate, username, password, permissionType e pushTargets validos para continuar.',
         400,
         'BAD_REQUEST'
       );
@@ -153,6 +174,8 @@ export async function POST(request) {
       passwordHash,
       photoUrl: payload.photoUrl,
       photoProvided: payload.photoProvided,
+      pushTargets: payload.pushTargets,
+      pushSubscriptions: [],
       createdAt: now,
       updatedAt: now,
       metadata: {

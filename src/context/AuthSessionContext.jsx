@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { clearClientSessionData } from '@/lib/auth/clientSessionCleanup';
+import { registerClientPushSubscription } from '@/lib/notifications/registerClientPushSubscription';
 
 const AUTH_ME_ENDPOINT = '/api/auth/me';
 
@@ -134,6 +135,7 @@ export function AuthSessionProvider({ children }) {
   const [claims, setClaims] = useState(null);
   const [audience, setAudience] = useState(null);
   const [role, setRole] = useState(null);
+  const hasAttemptedPushRegistrationRef = useRef(false);
 
   const clearAuthState = useCallback((options = {}) => {
     const { clearClientData = false } = options;
@@ -218,6 +220,25 @@ export function AuthSessionProvider({ children }) {
     () => buildPermissions({ audience, role, isAuthenticated }),
     [audience, role, isAuthenticated]
   );
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !permissions.isComponentApp) {
+      if (!isAuthenticated) {
+        hasAttemptedPushRegistrationRef.current = false;
+      }
+      return;
+    }
+
+    if (hasAttemptedPushRegistrationRef.current) {
+      return;
+    }
+
+    hasAttemptedPushRegistrationRef.current = true;
+
+    registerClientPushSubscription().catch(() => {
+      // Registro push nao deve quebrar a sessao.
+    });
+  }, [isLoading, isAuthenticated, permissions.isComponentApp]);
 
   const value = useMemo(
     () => ({

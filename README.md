@@ -30,6 +30,17 @@ Aplicacao base em Next.js com App Router.
 - `npm run start`: inicia servidor de producao.
 - `npm run lint`: executa lint.
 
+## Notificacao Push (Service Worker Nativo)
+
+- A aplicacao usa Web Push nativo com Service Worker e VAPID.
+- Configure no `.env.local`:
+  - `PUSH_VAPID_PUBLIC_KEY`
+  - `PUSH_VAPID_PRIVATE_KEY`
+  - `PUSH_VAPID_SUBJECT` (ex.: `mailto:seu-email@dominio.com`)
+- O cliente (`component-app`) registra `PushSubscription` automaticamente via `PushManager`.
+- O backend envia notificacoes usando `web-push` diretamente para as subscriptions salvas dos componentes.
+- Sem chaves VAPID configuradas, os envios ficam desabilitados e a tentativa e registrada como falha de configuracao.
+
 ## Documentacao
 
 - Fluxo detalhado: `docs/setup/next-setup.md`

@@ -58,6 +58,17 @@ function getPhotoIndicator(photoFile) {
   return photoFile.name || photoFile.type || 'foto-selecionada';
 }
 
+function formatPushTargetsForInput(value) {
+  if (!Array.isArray(value)) {
+    return '';
+  }
+
+  return value
+    .filter((entry) => typeof entry === 'string' && entry.trim())
+    .map((entry) => entry.trim())
+    .join('\n');
+}
+
 function normalizeLoadedComponent(payload, fallbackId) {
   const source = payload?.item && typeof payload.item === 'object' ? payload.item : payload;
 
@@ -81,7 +92,8 @@ function normalizeLoadedComponent(payload, fallbackId) {
     permissionType: permission,
     photoUrl: typeof source.photoUrl === 'string' ? source.photoUrl : '',
     photoProvided: Boolean(source.photoProvided),
-    isActive: source.isActive !== false
+    isActive: source.isActive !== false,
+    pushTargets: Array.isArray(source.pushTargets) ? source.pushTargets : []
   };
 }
 
@@ -98,6 +110,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
   const [photoPreview, setPhotoPreview] = useState('');
   const [savedPhotoUrl, setSavedPhotoUrl] = useState('');
   const [savedPhotoProvided, setSavedPhotoProvided] = useState(false);
+  const [pushTargetsInput, setPushTargetsInput] = useState('');
   const [isComponentActive, setIsComponentActive] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
@@ -156,6 +169,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
         setPhotoFile(null);
         setSavedPhotoUrl(loaded.photoUrl);
         setSavedPhotoProvided(Boolean(loaded.photoProvided));
+        setPushTargetsInput(formatPushTargetsForInput(loaded.pushTargets));
         setIsComponentActive(loaded.isActive);
         setShowPassword(false);
       } catch (error) {
@@ -198,6 +212,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
     setPhotoPreview('');
     setSavedPhotoUrl('');
     setSavedPhotoProvided(false);
+    setPushTargetsInput('');
     setIsComponentActive(true);
     setShowPassword(false);
     setErrors({});
@@ -246,7 +261,8 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
         username: username.trim(),
         permissionType,
         photoUrl: selectedPhotoIndicator || savedPhotoUrl,
-        photoProvided: selectedPhotoIndicator ? true : savedPhotoProvided
+        photoProvided: selectedPhotoIndicator ? true : savedPhotoProvided,
+        pushTargets: pushTargetsInput
       };
 
       if (!isEditMode || password.trim()) {
@@ -521,6 +537,25 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
               {errors.password}
             </span>
           ) : null}
+        </div>
+
+        <div className={styles.field}>
+          <label htmlFor="pushTargets">Destinos push</label>
+          <textarea
+            id="pushTargets"
+            name="pushTargets"
+            value={pushTargetsInput}
+            onChange={(event) => {
+              clearFeedback();
+              setPushTargetsInput(event.target.value);
+            }}
+            placeholder="Um token por linha (ou separado por virgula)"
+            rows={4}
+            disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
+          />
+          <span className={styles.helpText}>
+            Opcional. Informe os tokens/subscriptions de push do componente para melhorar a entrega das notificacoes.
+          </span>
         </div>
 
         <div className={styles.field}>

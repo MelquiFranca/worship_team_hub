@@ -6,6 +6,11 @@ import { jsonApiError } from '../../../lib/api/errors.js';
 import { getTrimmedQueryParam, parseLimitParam, readJsonBody } from '../../../lib/api/request.js';
 import { isPlainObject, normalizeIsoDate, normalizeString } from '../../../lib/api/validation.js';
 import { getMongoCollections } from '../../../lib/db/mongodb.js';
+import {
+  createInitialScalePushNotificationState,
+  dispatchScalePushNotifications,
+  serializeScalePushNotification
+} from '../../../lib/notifications/scalePushNotifications.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,6 +49,7 @@ export function serializeScale(document) {
     playlist: document.playlist || [],
     playlistEditorComponentIds: document.playlistEditorComponentIds || [],
     imageEditorComponentIds: document.imageEditorComponentIds || [],
+    notification: serializeScalePushNotification(document?.notifications?.push),
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
   };
@@ -229,7 +235,11 @@ export async function POST(request) {
       );
     }
 
-    const { scales, components: componentsCollection } = await getMongoCollections();
+    const {
+      scales,
+      components: componentsCollection,
+      scalePushNotificationDispatches
+    } = await getMongoCollections();
     const componentIds = components.map((item) => item.componentId);
     const existingComponents = await componentsCollection
       .find({ groupId, _id: { $in: componentIds.map((componentId) => componentId) } })
@@ -276,6 +286,9 @@ export async function POST(request) {
       playlist,
       playlistEditorComponentIds: playlistEditorComponentIds ?? [],
       imageEditorComponentIds: imageEditorComponentIds ?? [],
+      notifications: {
+        push: createInitialScalePushNotificationState()
+      },
       createdAt: now,
       updatedAt: now,
       metadata: {
@@ -288,14 +301,46 @@ export async function POST(request) {
     };
 
     const result = await scales.insertOne(document);
+    const insertedScale = {
+      ...document,
+      _id: result.insertedId
+    };
+    let notificationDispatch = null;
+
+    try {
+      notificationDispatch = await dispatchScalePushNotifications({
+        collections: { scales, components: componentsCollection, scalePushNotificationDispatches },
+        scale: insertedScale,
+        groupId,
+        trigger: 'auto-create',
+        actor: {
+          userId: session.user.id,
+          audience: session.claims.aud
+        }
+      });
+    } catch (notificationError) {
+      notificationDispatch = {
+        trigger: 'auto-create',
+        status: 'failed',
+        message: 'A escala foi criada, mas ocorreu uma falha ao disparar a notificacao push.'
+      };
+    }
+
+    const scaleWithNotifications = notificationDispatch?.notifications
+      ? {
+        ...insertedScale,
+        notifications: {
+          ...(isPlainObject(insertedScale.notifications) ? insertedScale.notifications : {}),
+          push: notificationDispatch.notifications
+        }
+      }
+      : insertedScale;
 
     return NextResponse.json(
       {
         message: 'Escala cadastrada com sucesso.',
-        item: serializeScale({
-          ...document,
-          _id: result.insertedId
-        })
+        item: serializeScale(scaleWithNotifications),
+        notification: notificationDispatch
       },
       { status: 201 }
     );
