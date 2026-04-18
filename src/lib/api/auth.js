@@ -1,19 +1,25 @@
 import { AUTH_AUDIENCES, AUTH_COOKIE_NAMES } from '../auth/constants.js';
 import { AUTH_ERROR_CODES, createAuthError } from '../auth/errors.js';
 import { verifyAccessSession } from '../auth/service.js';
-import { authUsers } from '../../data/authUsers.js';
+import { loadAuthUsers } from '../auth/userSource.js';
 
 const AUTHORIZED_AUDIENCES = new Set(['admin-panel', 'group-app']);
+const SELF_SCOPED_AUDIENCES = new Set(['group-app', 'component-app']);
 
 function getAccessTokenFromRequest(request) {
   return request.cookies?.get(AUTH_COOKIE_NAMES.accessToken)?.value?.trim() || '';
 }
 
-export function requireApiAccessSession(request, users = authUsers) {
+export async function requireApiAccessSession(request, options = {}) {
+  const {
+    users,
+    allowedAudiences = AUTHORIZED_AUDIENCES
+  } = options;
+  const resolvedUsers = Array.isArray(users) ? users : await loadAuthUsers();
   const accessToken = getAccessTokenFromRequest(request);
-  const result = verifyAccessSession(users, accessToken);
+  const result = verifyAccessSession(resolvedUsers, accessToken);
 
-  if (!AUTHORIZED_AUDIENCES.has(result.claims.aud)) {
+  if (!allowedAudiences.has(result.claims.aud)) {
     throw createAuthError(
       AUTH_ERROR_CODES.AUDIENCE_FORBIDDEN,
       'A audiencia informada nao tem acesso a esta operacao.',
@@ -29,7 +35,7 @@ export function resolveRequestGroupId(claims, options = {}) {
   const bodyGroupId = typeof options.bodyGroupId === 'string' ? options.bodyGroupId.trim() : '';
   const queryGroupId = typeof options.queryGroupId === 'string' ? options.queryGroupId.trim() : '';
 
-  if (claims?.aud === 'group-app') {
+  if (SELF_SCOPED_AUDIENCES.has(claims?.aud)) {
     const claimGroupId = typeof claims.groupId === 'string' ? claims.groupId.trim() : '';
 
     if (!claimGroupId) {

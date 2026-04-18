@@ -73,16 +73,40 @@ function normalizeApiComponent(component) {
   return {
     id,
     name,
-    photo:
+    photo: normalizePhotoUrl(
       (typeof component.photo === 'string' && component.photo) ||
-      (typeof component.photoUrl === 'string' && component.photoUrl) ||
-      '',
+        (typeof component.photoUrl === 'string' && component.photoUrl) ||
+        ''
+    ),
     role:
       (typeof component.role === 'string' && component.role) ||
       (typeof component.function === 'string' && component.function) ||
       (typeof component.primaryFunction === 'string' && component.primaryFunction) ||
       'Componente'
   };
+}
+
+function normalizePhotoUrl(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(trimmedValue);
+
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return trimmedValue;
+    }
+  } catch {
+    // URL invalida: retorna vazio para fallback textual do avatar.
+  }
+
+  return '';
 }
 
 function normalizeComponentOptions(payload) {
@@ -153,6 +177,28 @@ function normalizeScalePlaylist(value) {
     .filter((item) => item.videoId || item.videoUrl || item.url);
 }
 
+function normalizePermissionComponentIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenIds = new Set();
+  const ids = [];
+
+  value.forEach((entry) => {
+    const componentId = typeof entry === 'string' ? entry.trim() : '';
+
+    if (!componentId || seenIds.has(componentId)) {
+      return;
+    }
+
+    seenIds.add(componentId);
+    ids.push(componentId);
+  });
+
+  return ids;
+}
+
 function normalizeScaleItem(payload) {
   const candidate =
     (payload?.item && typeof payload.item === 'object' && payload.item) ||
@@ -194,11 +240,20 @@ function normalizeScaleItem(payload) {
     })
     .filter(Boolean);
 
+  const permissionSource =
+    (candidate.permissions && typeof candidate.permissions === 'object' ? candidate.permissions : null) || candidate;
+
   return {
     date: typeof candidate.date === 'string' ? candidate.date : '',
     shift: typeof candidate.shift === 'string' ? candidate.shift : '',
     components,
-    playlist: normalizeScalePlaylist(candidate.playlist)
+    playlist: normalizeScalePlaylist(candidate.playlist),
+    playlistEditorComponentIds: normalizePermissionComponentIds(
+      permissionSource.playlistEditorComponentIds || permissionSource.playlistEditors
+    ),
+    imageEditorComponentIds: normalizePermissionComponentIds(
+      permissionSource.imageEditorComponentIds || permissionSource.imageEditors
+    )
   };
 }
 
@@ -210,7 +265,7 @@ function mergeScaleComponentsIntoOptions(currentOptions, scaleComponents) {
       byId.set(item.componentId, {
         id: item.componentId,
         name: item.componentName || 'Componente sem nome',
-        photo: item.componentPhoto || '',
+        photo: normalizePhotoUrl(item.componentPhoto || ''),
         role: 'Componente'
       });
     }
@@ -251,6 +306,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const [scaleDateError, setScaleDateError] = useState('');
   const [shift, setShift] = useState('');
   const [selectedComponentIds, setSelectedComponentIds] = useState([]);
+  const [playlistEditorComponentIds, setPlaylistEditorComponentIds] = useState([]);
+  const [imageEditorComponentIds, setImageEditorComponentIds] = useState([]);
   const [functionsByComponent, setFunctionsByComponent] = useState({});
   const [componentNotice, setComponentNotice] = useState({
     type: 'status',
@@ -358,6 +415,12 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
         setScaleDate(dateValue);
         setShift(scaleItem.shift || '');
         setSelectedComponentIds(selectedIds);
+        setPlaylistEditorComponentIds(
+          scaleItem.playlistEditorComponentIds.filter((componentId) => selectedIds.includes(componentId))
+        );
+        setImageEditorComponentIds(
+          scaleItem.imageEditorComponentIds.filter((componentId) => selectedIds.includes(componentId))
+        );
         setFunctionsByComponent(nextFunctions);
         setMissingFunctionIds([]);
         setPlaylist(scaleItem.playlist);
@@ -424,9 +487,29 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
         });
 
         setMissingFunctionIds((currentMissingIds) => currentMissingIds.filter((id) => id !== componentId));
+        setPlaylistEditorComponentIds((currentIds) => currentIds.filter((id) => id !== componentId));
+        setImageEditorComponentIds((currentIds) => currentIds.filter((id) => id !== componentId));
       }
 
       return nextIds;
+    });
+  };
+
+  const togglePermissionComponentId = (componentId, setter) => {
+    if (isEditLocked) {
+      return;
+    }
+
+    setter((currentIds) => {
+      if (currentIds.includes(componentId)) {
+        return currentIds.filter((id) => id !== componentId);
+      }
+
+      if (!selectedComponentIds.includes(componentId)) {
+        return currentIds;
+      }
+
+      return [...currentIds, componentId];
     });
   };
 
@@ -619,6 +702,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
     const allowedIds = new Set(componentOptions.map((component) => component.id));
 
     setSelectedComponentIds((currentIds) => currentIds.filter((id) => allowedIds.has(id)));
+    setPlaylistEditorComponentIds((currentIds) => currentIds.filter((id) => allowedIds.has(id)));
+    setImageEditorComponentIds((currentIds) => currentIds.filter((id) => allowedIds.has(id)));
     setFunctionsByComponent((currentFunctions) => {
       const nextFunctions = {};
 
@@ -678,6 +763,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
         componentId: component.id,
         function: functionsByComponent[component.id].trim()
       })),
+      playlistEditorComponentIds,
+      imageEditorComponentIds,
       playlist: playlist.map((item) => ({
         videoId: getVideoId(item) || '',
         title: item.title || '',
@@ -952,6 +1039,30 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                         </select>
                       </label>
                     ) : null}
+
+                    {isSelected ? (
+                      <div className={styles.permissionFieldset}>
+                        <span className={styles.permissionLabel}>Permissoes extras</span>
+                        <label className={styles.permissionToggle}>
+                          <input
+                            type="checkbox"
+                            checked={playlistEditorComponentIds.includes(component.id)}
+                            onChange={() => togglePermissionComponentId(component.id, setPlaylistEditorComponentIds)}
+                            disabled={isEditLocked}
+                          />
+                          <span>Editar playlist</span>
+                        </label>
+                        <label className={styles.permissionToggle}>
+                          <input
+                            type="checkbox"
+                            checked={imageEditorComponentIds.includes(component.id)}
+                            onChange={() => togglePermissionComponentId(component.id, setImageEditorComponentIds)}
+                            disabled={isEditLocked}
+                          />
+                          <span>Editar imagem</span>
+                        </label>
+                      </div>
+                    ) : null}
                   </article>
                 );
               })}
@@ -960,6 +1071,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
             <div className={styles.selectionSummary}>
               <span>{selectedComponents.length} componente(s) selecionado(s)</span>
               <span>{selectedFunctionsCount} funcao(oes) selecionada(s)</span>
+              <span>{playlistEditorComponentIds.length} com acesso a playlist</span>
+              <span>{imageEditorComponentIds.length} com acesso a imagem</span>
             </div>
           </section>
         </div>

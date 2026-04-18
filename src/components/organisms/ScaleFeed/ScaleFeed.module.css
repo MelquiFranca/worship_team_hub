@@ -223,6 +223,143 @@
   gap: 12px;
 }
 
+.playlistEditorWrap {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.playlistEditorHeader {
+  display: grid;
+  gap: 4px;
+}
+
+.playlistEditorHeader h3 {
+  margin: 0;
+  font-size: 0.83rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.playlistEditorHeader span {
+  font-size: 0.84rem;
+  color: var(--app-text-soft, #64748b);
+}
+
+.playlistEditorList {
+  display: grid;
+  gap: 10px;
+}
+
+.playlistAddForm {
+  display: grid;
+  gap: 8px;
+}
+
+.playlistFieldLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.playlistInputRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.playlistLinkInput {
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #0f172a);
+  font-size: 0.88rem;
+}
+
+.playlistAddButton {
+  border: 0;
+  border-radius: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  background: var(--app-accent-gradient-compact);
+  color: var(--app-on-accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.playlistAddButton:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.playlistEditorItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
+}
+
+.playlistEditorCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.playlistEditorCopy strong {
+  font-size: 0.9rem;
+}
+
+.playlistEditorCopy span {
+  font-size: 0.79rem;
+  color: var(--app-text-soft, #64748b);
+}
+
+.playlistRemoveButton {
+  border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 20%, white);
+  border-radius: 999px;
+  background: var(--app-danger-soft, #fef2f2);
+  color: var(--app-danger, #b91c1c);
+  font-weight: 700;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.playlistRemoveButton:hover {
+  filter: brightness(0.98);
+}
+
+.playlistRemoveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.playlistHint {
+  margin: 0;
+  color: var(--app-text-soft, #64748b);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.playlistFeedback {
+  margin: 0;
+  color: var(--app-info, #1d4ed8);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .videoFrameWrap {
   border-radius: 12px;
   overflow: hidden;
@@ -847,6 +984,15 @@
   }
 
   .imageGallery {
+    grid-template-columns: 1fr;
+  }
+
+  .playlistEditorItem {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .playlistInputRow {
     grid-template-columns: 1fr;
   }
 }

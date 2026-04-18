@@ -279,6 +279,38 @@
   gap: 8px;
 }
 
+.permissionFieldset {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--app-surface-muted, #f8fafc);
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
+}
+
+.permissionLabel {
+  color: var(--app-text-soft, #64748b);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.permissionToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--app-text, #0f172a);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.permissionToggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--app-accent, #f97316);
+}
+
 .functionFieldError .textInput {
   border-color: var(--app-danger, #b91c1c);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-danger, #b91c1c) 12%, transparent);

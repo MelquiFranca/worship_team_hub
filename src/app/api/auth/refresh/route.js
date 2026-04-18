@@ -8,7 +8,7 @@ import {
   refreshAuthSession,
   toAuthErrorResponse
 } from '../../../../lib/auth/index.js';
-import { authUsers as seededAuthUsers } from '../../../../data/authUsers.js';
+import { loadAuthUsers } from '../../../../lib/auth/userSource.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +36,8 @@ export async function POST(request) {
     '';
 
   try {
-    const result = refreshAuthSession(seededAuthUsers, refreshToken);
+    const authUsers = await loadAuthUsers();
+    const result = refreshAuthSession(authUsers, refreshToken);
     const response = NextResponse.json(createAuthSuccessPayload(result.user, result.session));
 
     setAuthCookies(response, buildAuthCookiePayload(result.tokens));

@@ -5,10 +5,19 @@ import { jsonApiError } from '../../../../lib/api/errors.js';
 import { getTrimmedQueryParam, readJsonBody } from '../../../../lib/api/request.js';
 import { isPlainObject, normalizeIsoDate, normalizeString } from '../../../../lib/api/validation.js';
 import { getMongoCollections } from '../../../../lib/db/mongodb.js';
-import { normalizePlaylist, normalizeScaleComponents, serializeScale } from '../route.js';
+import {
+  normalizePermissionComponentIds,
+  normalizePlaylist,
+  normalizeScaleComponents,
+  serializeScale
+} from '../route.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+const SCALE_READ_ALLOWED_AUDIENCES = new Set(['admin-panel', 'group-app', 'component-app']);
+const SCALE_PATCH_ALLOWED_AUDIENCES = new Set(['admin-panel', 'group-app', 'component-app']);
+const COMPONENT_APP_ALLOWED_PATCH_FIELDS = new Set(['playlist']);
+const COMBINING_MARKS_PATTERN = /[\u0300-\u036f]/g;
 
 function getScaleIdFromParams(params) {
   if (!params || typeof params !== 'object') {
@@ -61,6 +70,26 @@ function buildScalePatchPayload(body) {
     updates.playlist = playlist;
   }
 
+  if (Object.hasOwn(body, 'playlistEditorComponentIds')) {
+    const playlistEditorComponentIds = normalizePermissionComponentIds(body.playlistEditorComponentIds);
+
+    if (playlistEditorComponentIds === null) {
+      return { error: 'Informe playlistEditorComponentIds validos para continuar.' };
+    }
+
+    updates.playlistEditorComponentIds = playlistEditorComponentIds;
+  }
+
+  if (Object.hasOwn(body, 'imageEditorComponentIds')) {
+    const imageEditorComponentIds = normalizePermissionComponentIds(body.imageEditorComponentIds);
+
+    if (imageEditorComponentIds === null) {
+      return { error: 'Informe imageEditorComponentIds validos para continuar.' };
+    }
+
+    updates.imageEditorComponentIds = imageEditorComponentIds;
+  }
+
   if (Object.keys(updates).length === 0) {
     return { error: 'Informe ao menos um campo valido para atualizacao.' };
   }
@@ -68,9 +97,105 @@ function buildScalePatchPayload(body) {
   return { updates };
 }
 
+function normalizeComparableText(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    .normalize('NFD')
+    .replace(COMBINING_MARKS_PATTERN, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function getUsernameCandidates(user) {
+  const candidates = new Set();
+
+  if (typeof user?.username === 'string' && user.username.trim()) {
+    const normalizedUsername = user.username.trim().toLowerCase();
+    candidates.add(normalizedUsername);
+
+    if (normalizedUsername.includes('@')) {
+      const localPart = normalizedUsername.split('@')[0];
+      if (localPart) {
+        candidates.add(localPart);
+      }
+    }
+  }
+
+  if (typeof user?.email === 'string' && user.email.trim()) {
+    const email = user.email.trim().toLowerCase();
+    candidates.add(email);
+    const emailLocalPart = email.split('@')[0];
+    if (emailLocalPart) {
+      candidates.add(emailLocalPart);
+    }
+  }
+
+  return candidates;
+}
+
+function getNameCandidates(user) {
+  const candidates = new Set();
+
+  if (typeof user?.name === 'string' && user.name.trim()) {
+    candidates.add(normalizeComparableText(user.name));
+  }
+
+  return candidates;
+}
+
+async function resolveSessionComponentId(componentsCollection, groupId, scaleComponents, user) {
+  const componentIds = (Array.isArray(scaleComponents) ? scaleComponents : [])
+    .map((item) => normalizeString(item?.componentId))
+    .filter(Boolean);
+
+  if (!componentIds.length) {
+    return '';
+  }
+
+  const components = await componentsCollection
+    .find({ groupId, _id: { $in: componentIds } })
+    .project({ _id: 1, username: 1, fullName: 1 })
+    .toArray();
+
+  if (!components.length) {
+    return '';
+  }
+
+  const usernameCandidates = getUsernameCandidates(user);
+  const nameCandidates = getNameCandidates(user);
+
+  if (!usernameCandidates.size && !nameCandidates.size) {
+    return '';
+  }
+
+  const byUsername = components.find((component) =>
+    usernameCandidates.has(normalizeString(component?.username).toLowerCase())
+  );
+
+  if (byUsername) {
+    return byUsername._id;
+  }
+
+  const byName = components.find((component) =>
+    nameCandidates.has(normalizeComparableText(component?.fullName))
+  );
+
+  if (byName) {
+    return byName._id;
+  }
+
+  return '';
+}
+
 export async function GET(request, { params }) {
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request, {
+      allowedAudiences: SCALE_READ_ALLOWED_AUDIENCES
+    });
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
     const scaleId = getScaleIdFromParams(params);
@@ -108,7 +233,9 @@ export async function PATCH(request, { params }) {
   }
 
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request, {
+      allowedAudiences: SCALE_PATCH_ALLOWED_AUDIENCES
+    });
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, {
       bodyGroupId: typeof body.groupId === 'string' ? body.groupId : '',
@@ -133,6 +260,37 @@ export async function PATCH(request, { params }) {
       return jsonApiError('Escala nao encontrada para este grupo.', 404, 'NOT_FOUND');
     }
 
+    if (session.claims.aud === 'component-app') {
+      const requestedFields = Object.keys(parsed.updates);
+      const hasInvalidField = requestedFields.some((field) => !COMPONENT_APP_ALLOWED_PATCH_FIELDS.has(field));
+
+      if (hasInvalidField) {
+        return jsonApiError(
+          'Seu perfil nao possui permissao para atualizar estes campos da escala.',
+          403,
+          'FORBIDDEN'
+        );
+      }
+
+      const sessionComponentId = await resolveSessionComponentId(
+        components,
+        groupId,
+        existingScale.components,
+        session.user
+      );
+      const playlistEditors = Array.isArray(existingScale.playlistEditorComponentIds)
+        ? existingScale.playlistEditorComponentIds
+        : [];
+
+      if (!sessionComponentId || !playlistEditors.includes(sessionComponentId)) {
+        return jsonApiError(
+          'Seu perfil nao possui permissao para editar a playlist desta escala.',
+          403,
+          'FORBIDDEN'
+        );
+      }
+    }
+
     if (Object.hasOwn(parsed.updates, 'components')) {
       const componentIds = parsed.updates.components.map((item) => item.componentId);
       const existingComponents = await components
@@ -147,6 +305,38 @@ export async function PATCH(request, { params }) {
           'BAD_REQUEST'
         );
       }
+    }
+
+    const nextComponentIds = new Set(
+      (parsed.updates.components || existingScale.components || []).map((item) => item.componentId)
+    );
+    const currentPlaylistEditorComponentIds = Array.isArray(parsed.updates.playlistEditorComponentIds)
+      ? parsed.updates.playlistEditorComponentIds
+      : Array.isArray(existingScale.playlistEditorComponentIds)
+        ? existingScale.playlistEditorComponentIds
+        : [];
+    const currentImageEditorComponentIds = Array.isArray(parsed.updates.imageEditorComponentIds)
+      ? parsed.updates.imageEditorComponentIds
+      : Array.isArray(existingScale.imageEditorComponentIds)
+        ? existingScale.imageEditorComponentIds
+        : [];
+
+    const normalizedPlaylistEditorComponentIds = currentPlaylistEditorComponentIds.filter((componentId) =>
+      nextComponentIds.has(componentId)
+    );
+    const normalizedImageEditorComponentIds = currentImageEditorComponentIds.filter((componentId) =>
+      nextComponentIds.has(componentId)
+    );
+
+    if (
+      normalizedPlaylistEditorComponentIds.length !== currentPlaylistEditorComponentIds.length ||
+      normalizedImageEditorComponentIds.length !== currentImageEditorComponentIds.length
+    ) {
+      return jsonApiError(
+        'As permissoes de playlist e imagem precisam apontar para componentes selecionados na escala.',
+        400,
+        'BAD_REQUEST'
+      );
     }
 
     const nextDate = parsed.updates.date || existingScale.date;
@@ -176,6 +366,8 @@ export async function PATCH(request, { params }) {
 
     const updatePayload = {
       ...parsed.updates,
+      playlistEditorComponentIds: normalizedPlaylistEditorComponentIds,
+      imageEditorComponentIds: normalizedImageEditorComponentIds,
       updatedAt: now,
       metadata: nextMetadata
     };
@@ -214,7 +406,7 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request);
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
     const scaleId = getScaleIdFromParams(params);

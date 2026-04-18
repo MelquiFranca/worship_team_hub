@@ -76,6 +76,7 @@ export default function MainBottomNav() {
   const initials = useMemo(() => getInitials(settings.name || ''), [settings.name]);
   const canShowCreateMenu = !isAuthSessionLoading && Boolean(permissions.canInsertScale);
   const canShowSettingsLink = !isAuthSessionLoading && audience === 'group-app';
+  const visibleSlotCount = 3 + Number(canShowCreateMenu) + Number(canShowSettingsLink);
   const escalasActive = isActiveRoute(currentPathname, '/escalas');
   const componentesActive = isActiveRoute(currentPathname, '/componentes');
   const configuracoesActive = isActiveRoute(currentPathname, '/configuracoes-gerais-grupo');
@@ -149,7 +150,10 @@ export default function MainBottomNav() {
 
   return (
     <nav ref={navRef} className={styles.shell} aria-label="Menu principal">
-      <div className={styles.inner}>
+      <div
+        className={styles.inner}
+        style={{ '--main-bottom-nav-columns': visibleSlotCount }}
+      >
         <Link
           href="/escalas"
           className={`${styles.item} ${escalasActive ? styles.itemActive : ''}`}

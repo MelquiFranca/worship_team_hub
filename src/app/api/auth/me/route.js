@@ -7,7 +7,7 @@ import {
   toAuthErrorResponse,
   verifyAccessSession
 } from '../../../../lib/auth/index.js';
-import { authUsers } from '../../../../data/authUsers.js';
+import { loadAuthUsers } from '../../../../lib/auth/userSource.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +28,7 @@ export async function GET(request) {
     getBearerToken(request);
 
   try {
+    const authUsers = await loadAuthUsers();
     const result = verifyAccessSession(authUsers, accessToken);
 
     return NextResponse.json(

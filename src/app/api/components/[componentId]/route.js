@@ -128,7 +128,7 @@ function buildPatchPayload(body) {
 
 export async function GET(request, { params }) {
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request);
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
     const componentId = getComponentIdFromParams(params);
@@ -166,7 +166,7 @@ export async function PATCH(request, { params }) {
   }
 
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request);
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, {
       bodyGroupId: typeof body.groupId === 'string' ? body.groupId : '',

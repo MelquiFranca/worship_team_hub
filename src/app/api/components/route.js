@@ -66,7 +66,9 @@ function buildComponentPayload(body, groupId) {
 
 export async function GET(request) {
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request, {
+      allowedAudiences: new Set(['admin-panel', 'group-app', 'component-app'])
+    });
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
     const limit = parseLimitParam(request);
@@ -107,7 +109,7 @@ export async function POST(request) {
   }
 
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request);
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, {
       bodyGroupId: typeof body.groupId === 'string' ? body.groupId : '',

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { requestJson } from '@/lib/api/http';
 import styles from './ScaleFeed.module.css';
 
 const COMPONENTS_VIEW = 'components';
@@ -13,7 +14,7 @@ const IMAGES_VIEW = 'images';
 const MESSAGE_TYPE_TEXT = 'text';
 const CURRENT_USER_ID = 'current-user';
 const COMPONENT_APP_PERMISSION_MESSAGE =
-  'Seu perfil de componente pode visualizar componentes, playlist, imagens e enviar mensagens, mas notificacoes e edicao estao desativadas.';
+  'Seu perfil de componente pode visualizar os cards e enviar mensagens, mas notificacoes e edicao geral continuam bloqueadas.';
 const CURRENT_USER_BADGE_LABEL = 'Você';
 
 const COMBINING_MARKS_PATTERN = /[\u0300-\u036f]/g;
@@ -107,6 +108,10 @@ function isCurrentUserMember(member, authUser) {
   return memberSlugCandidates.some((candidate) => userSlugCandidates.includes(candidate));
 }
 
+function getCurrentUserMemberId(members, authUser) {
+  return (Array.isArray(members) ? members : []).find((member) => isCurrentUserMember(member, authUser))?.id || null;
+}
+
 function createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift) {
   return {
     id: `uploaded-${scaleId}-${Date.now()}`,
@@ -144,6 +149,141 @@ function collectImageLibrary(scales) {
   });
 
   return imageLibrary;
+}
+
+function normalizePermissionComponentIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenIds = new Set();
+  const ids = [];
+
+  value.forEach((entry) => {
+    const componentId = typeof entry === 'string' ? entry.trim() : '';
+
+    if (!componentId || seenIds.has(componentId)) {
+      return;
+    }
+
+    seenIds.add(componentId);
+    ids.push(componentId);
+  });
+
+  return ids;
+}
+
+function extractScalePermissionData(payload) {
+  const candidate =
+    (payload?.item && typeof payload.item === 'object' && payload.item) ||
+    (payload?.data && typeof payload.data === 'object' && payload.data) ||
+    (payload?.scale && typeof payload.scale === 'object' && payload.scale) ||
+    (payload && typeof payload === 'object' ? payload : null);
+
+  if (!candidate) {
+    return null;
+  }
+
+  const permissionSource =
+    (candidate.permissions && typeof candidate.permissions === 'object' ? candidate.permissions : null) || candidate;
+
+  return {
+    playlistEditorComponentIds: normalizePermissionComponentIds(
+      permissionSource.playlistEditorComponentIds || permissionSource.playlistEditors
+    ),
+    imageEditorComponentIds: normalizePermissionComponentIds(
+      permissionSource.imageEditorComponentIds || permissionSource.imageEditors
+    )
+  };
+}
+
+function normalizeScalePlaylist(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item, index) => {
+      const videoId =
+        (typeof item?.videoId === 'string' && item.videoId.trim()) ||
+        (typeof item?.id === 'string' && item.id.trim()) ||
+        '';
+      const title =
+        (typeof item?.title === 'string' && item.title.trim()) ||
+        `Video ${index + 1}`;
+
+      return {
+        id: videoId || `playlist-${index}`,
+        videoId,
+        title,
+        channelTitle: typeof item?.channelTitle === 'string' ? item.channelTitle : '',
+        url: typeof item?.url === 'string' ? item.url : '',
+        videoUrl:
+          (typeof item?.videoUrl === 'string' && item.videoUrl) ||
+          (typeof item?.url === 'string' && item.url) ||
+          '',
+        thumbnailUrl: typeof item?.thumbnailUrl === 'string' ? item.thumbnailUrl : ''
+      };
+    })
+    .filter((item) => item.videoId || item.videoUrl || item.url);
+}
+
+function extractVideoIdFromUrl(videoUrl) {
+  try {
+    const parsedUrl = new URL(videoUrl);
+    const host = parsedUrl.hostname.toLowerCase();
+
+    if (host.includes('youtube.com')) {
+      if (parsedUrl.pathname.startsWith('/shorts/')) {
+        return parsedUrl.pathname.split('/')[2] || '';
+      }
+
+      return parsedUrl.searchParams.get('v') || '';
+    }
+
+    if (host.includes('youtu.be')) {
+      return parsedUrl.pathname.replace('/', '');
+    }
+
+    if (host.includes('vimeo.com')) {
+      return parsedUrl.pathname.split('/').filter(Boolean)[0] || '';
+    }
+
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+function isSupportedPlaylistUrl(value) {
+  try {
+    const parsedUrl = new URL(value);
+    const host = parsedUrl.hostname.toLowerCase();
+
+    return (
+      host.includes('youtube.com') ||
+      host.includes('youtu.be') ||
+      host.includes('vimeo.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function createPlaylistItemFromLink(rawUrl, currentLength) {
+  const url = rawUrl.trim();
+  const extractedVideoId = extractVideoIdFromUrl(url);
+  const fallbackId = `manual-${Date.now()}`;
+
+  return {
+    id: extractedVideoId || fallbackId,
+    videoId: extractedVideoId || fallbackId,
+    title: `Link adicionado ${currentLength + 1}`,
+    channelTitle: 'Link manual',
+    url,
+    videoUrl: url,
+    thumbnailUrl: ''
+  };
 }
 
 function toEmbedUrl(videoUrl) {
@@ -318,7 +458,7 @@ function ScaleImagePanel({
   scaleShift,
   currentImage,
   imageLibrary,
-  isComponentApp,
+  canEditImage,
   onRestrictedAction,
   onRemoveImage,
   onSelectImage,
@@ -366,7 +506,7 @@ function ScaleImagePanel({
   }, [isFullscreenOpen]);
 
   const handleOpenUpload = () => {
-    if (isComponentApp) {
+    if (!canEditImage) {
       onRestrictedAction?.();
       return;
     }
@@ -387,7 +527,7 @@ function ScaleImagePanel({
   };
 
   const handleSelectImageFromGallery = (image) => {
-    if (isComponentApp) {
+    if (!canEditImage) {
       onRestrictedAction?.();
       return;
     }
@@ -433,9 +573,9 @@ function ScaleImagePanel({
               type="button"
               className={styles.imageRemoveButton}
               onClick={onRemoveImage}
-              disabled={isComponentApp}
+              disabled={!canEditImage}
               aria-label={`Remover imagem da escala de ${scaleDate} (${scaleShift})`}
-              aria-disabled={isComponentApp}
+              aria-disabled={!canEditImage}
               title="Remover imagem"
             >
               <IconRemove />
@@ -478,6 +618,10 @@ function ScaleImagePanel({
               </div>
             </div>
           ) : null}
+
+          {!canEditImage ? (
+            <p className={styles.imageHint}>Somente componentes autorizados podem editar esta imagem.</p>
+          ) : null}
         </div>
       ) : (
         <div className={styles.imageEmptyState}>
@@ -503,9 +647,9 @@ function ScaleImagePanel({
               type="button"
               className={styles.imagePrimaryButton}
               onClick={handleOpenUpload}
-              disabled={isComponentApp}
+              disabled={!canEditImage}
               aria-label={`Fazer upload de imagem para a escala de ${scaleDate} (${scaleShift})`}
-              aria-disabled={isComponentApp}
+              aria-disabled={!canEditImage}
             >
               Upload do dispositivo
             </button>
@@ -518,6 +662,10 @@ function ScaleImagePanel({
               aria-label={`Selecionar imagem do dispositivo para a escala de ${scaleDate} (${scaleShift})`}
             />
           </div>
+
+          {!canEditImage ? (
+            <p className={styles.imageHint}>Somente componentes autorizados podem editar esta imagem.</p>
+          ) : null}
 
           {imageLibrary.length && isGalleryVisible ? (
             <div className={styles.imageChoices} id={galleryId}>
@@ -600,11 +748,124 @@ function ComponentsPanel({ members, currentUser }) {
   );
 }
 
-function PlaylistPanel({ playlist }) {
+function PlaylistPanel({
+  scaleId,
+  playlist,
+  canEditPlaylist,
+  isSavingPlaylist,
+  onRestrictedAction,
+  onPersistPlaylist
+}) {
+  const linkFieldId = `playlist-link-${makeDomId(scaleId)}`;
+  const emptyLinkFieldId = `playlist-link-empty-${makeDomId(scaleId)}`;
+  const [draftLink, setDraftLink] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [feedback, setFeedback] = useState('');
+
+  useEffect(() => {
+    setCurrentIndex((prevIndex) => (playlist.length ? Math.min(prevIndex, playlist.length - 1) : 0));
+    setFeedback('');
+  }, [playlist]);
+
+  const addVideoLink = async (event) => {
+    event.preventDefault();
+
+    if (!canEditPlaylist) {
+      setFeedback('Seu perfil nao tem permissao para editar esta playlist.');
+      onRestrictedAction?.();
+      return;
+    }
+
+    const nextLink = draftLink.trim();
+    if (!nextLink) {
+      setFeedback('Cole um link antes de adicionar.');
+      return;
+    }
+
+    if (!isSupportedPlaylistUrl(nextLink)) {
+      setFeedback('Use um link valido de YouTube ou Vimeo.');
+      return;
+    }
+
+    const nextItem = createPlaylistItemFromLink(nextLink, playlist.length);
+    const alreadyExists = playlist.some(
+      (item) =>
+        (nextItem.videoId && (item.videoId === nextItem.videoId || item.id === nextItem.videoId)) ||
+        item.videoUrl === nextItem.videoUrl
+    );
+
+    if (alreadyExists) {
+      setFeedback('Este link ja existe na playlist desta escala.');
+      return;
+    }
+
+    const nextPlaylist = [...playlist, nextItem];
+
+    try {
+      await onPersistPlaylist(nextPlaylist);
+      setDraftLink('');
+      setCurrentIndex(nextPlaylist.length - 1);
+      setFeedback('Link adicionado e salvo na playlist da escala.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Nao foi possivel adicionar o link na playlist.');
+    }
+  };
+
+  const removeVideo = async (videoId) => {
+    if (!canEditPlaylist) {
+      setFeedback('Seu perfil nao tem permissao para editar esta playlist.');
+      onRestrictedAction?.();
+      return;
+    }
+
+    const nextPlaylist = playlist.filter((item) => item.id !== videoId && item.videoId !== videoId);
+
+    try {
+      await onPersistPlaylist(nextPlaylist);
+      setCurrentIndex((prev) => (nextPlaylist.length ? Math.min(prev, nextPlaylist.length - 1) : 0));
+      setFeedback(
+        nextPlaylist.length
+          ? 'Video removido e playlist atualizada no banco.'
+          : 'Video removido. A playlist desta escala ficou vazia.'
+      );
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Nao foi possivel remover o video da playlist.');
+    }
+  };
 
   if (!playlist.length) {
-    return <p className={styles.emptyState}>Nenhum video disponivel nesta playlist.</p>;
+    return (
+      <div className={styles.playlistPanel}>
+        {canEditPlaylist ? (
+          <form className={styles.playlistAddForm} onSubmit={addVideoLink}>
+            <label className={styles.playlistFieldLabel} htmlFor={emptyLinkFieldId}>
+              Adicionar novo link
+            </label>
+            <div className={styles.playlistInputRow}>
+              <input
+                id={emptyLinkFieldId}
+                type="url"
+                className={styles.playlistLinkInput}
+                placeholder="https://youtube.com/watch?v=..."
+                value={draftLink}
+                onChange={(event) => setDraftLink(event.target.value)}
+                autoComplete="off"
+              />
+              <button type="submit" className={styles.playlistAddButton} disabled={isSavingPlaylist}>
+                {isSavingPlaylist ? 'Salvando...' : 'Adicionar'}
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        <p className={styles.emptyState}>Nenhum video disponivel nesta playlist.</p>
+        {feedback ? (
+          <p className={styles.playlistFeedback} role="status" aria-live="polite">
+            {feedback}
+          </p>
+        ) : null}
+      </div>
+    );
   }
 
   const currentVideo = playlist[currentIndex];
@@ -661,6 +922,65 @@ function PlaylistPanel({ playlist }) {
           />
         ))}
       </div>
+
+      <div className={styles.playlistEditorWrap}>
+        <div className={styles.playlistEditorHeader}>
+          <h3>{canEditPlaylist ? 'Editar playlist' : 'Playlist da escala'}</h3>
+          <span>{canEditPlaylist ? 'Adicione links e remova videos da lista.' : 'Visualizacao apenas.'}</span>
+        </div>
+
+        {canEditPlaylist ? (
+          <>
+            <form className={styles.playlistAddForm} onSubmit={addVideoLink}>
+              <label className={styles.playlistFieldLabel} htmlFor={linkFieldId}>
+                Novo link da playlist
+              </label>
+              <div className={styles.playlistInputRow}>
+                <input
+                  id={linkFieldId}
+                  type="url"
+                  className={styles.playlistLinkInput}
+                  placeholder="https://youtube.com/watch?v=..."
+                  value={draftLink}
+                  onChange={(event) => setDraftLink(event.target.value)}
+                  autoComplete="off"
+                />
+                <button type="submit" className={styles.playlistAddButton} disabled={isSavingPlaylist}>
+                  {isSavingPlaylist ? 'Salvando...' : 'Adicionar'}
+                </button>
+              </div>
+            </form>
+
+            <div className={styles.playlistEditorList}>
+              {playlist.map((item, index) => (
+              <article key={item.id} className={styles.playlistEditorItem}>
+                <div className={styles.playlistEditorCopy}>
+                  <strong>{index + 1}. {item.title}</strong>
+                  <span>{item.channelTitle || 'Canal nao informado'}</span>
+                </div>
+                <button
+                  type="button"
+                  className={styles.playlistRemoveButton}
+                  disabled={isSavingPlaylist}
+                  onClick={() => removeVideo(item.id || item.videoId)}
+                  aria-label={`Remover ${item.title} da playlist`}
+                >
+                  Remover
+                </button>
+              </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className={styles.playlistHint}>Somente componentes autorizados podem editar esta playlist.</p>
+        )}
+      </div>
+
+      {feedback ? (
+        <p className={styles.playlistFeedback} role="status" aria-live="polite">
+          {feedback}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -837,10 +1157,31 @@ function ScaleCard({
   const [activeView, setActiveView] = useState(COMPONENTS_VIEW);
   const [notifyFeedback, setNotifyFeedback] = useState('');
   const [currentImage, setCurrentImage] = useState(() => scale.imageAttachment || null);
+  const [currentPlaylist, setCurrentPlaylist] = useState(() => normalizeScalePlaylist(scale.playlist));
   const [imageFeedback, setImageFeedback] = useState('');
+  const [playlistFeedback, setPlaylistFeedback] = useState('');
+  const [isPlaylistSaving, setIsPlaylistSaving] = useState(false);
   const scaleDate = scale?.date || 'Data nao informada';
   const scaleShift = scale?.shift || 'Turno nao informado';
+  const hasResolvedAuthSession = Boolean(currentUser);
+  const currentUserMemberId = useMemo(() => getCurrentUserMemberId(scale.members, currentUser), [scale.members, currentUser]);
+  const playlistEditorComponentIds = Array.isArray(scale.playlistEditorComponentIds)
+    ? scale.playlistEditorComponentIds
+    : [];
+  const imageEditorComponentIds = Array.isArray(scale.imageEditorComponentIds)
+    ? scale.imageEditorComponentIds
+    : [];
+  const canEditPlaylist =
+    hasResolvedAuthSession &&
+    (!isComponentApp || (currentUserMemberId ? playlistEditorComponentIds.includes(currentUserMemberId) : false));
+  const canEditImage =
+    hasResolvedAuthSession &&
+    (!isComponentApp || (currentUserMemberId ? imageEditorComponentIds.includes(currentUserMemberId) : false));
   const detailsId = `scale-card-${makeDomId(scale?.id || `${scaleDate}-${scaleShift}`)}-details`;
+
+  useEffect(() => {
+    setCurrentPlaylist(normalizeScalePlaylist(scale.playlist));
+  }, [scale.playlist]);
 
   const handleNotify = () => {
     if (isComponentApp) {
@@ -860,8 +1201,8 @@ function ScaleCard({
   }, [currentImage]);
 
   const handleRemoveImage = () => {
-    if (isComponentApp) {
-      setImageFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
+    if (!canEditImage) {
+      setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
       return;
     }
 
@@ -874,8 +1215,8 @@ function ScaleCard({
   };
 
   const handleSelectImage = (image) => {
-    if (isComponentApp) {
-      setImageFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
+    if (!canEditImage) {
+      setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
       return;
     }
 
@@ -884,8 +1225,8 @@ function ScaleCard({
   };
 
   const handleUploadImage = (file) => {
-    if (isComponentApp) {
-      setImageFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
+    if (!canEditImage) {
+      setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
       return;
     }
 
@@ -896,6 +1237,40 @@ function ScaleCard({
     const nextImage = createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift);
     setCurrentImage(nextImage);
     setImageFeedback(`Imagem enviada do dispositivo para ${scaleDate} (${scaleShift}).`);
+  };
+
+  const persistPlaylist = async (nextPlaylist) => {
+    if (!canEditPlaylist) {
+      throw new Error('Seu perfil nao tem permissao para editar esta playlist.');
+    }
+
+    setIsPlaylistSaving(true);
+
+    try {
+      const payload = await requestJson(`/api/scales/${encodeURIComponent(scaleId)}`, {
+        method: 'PATCH',
+        body: {
+          playlist: nextPlaylist.map((item) => ({
+            videoId: item.videoId || item.id || '',
+            title: item.title || '',
+            channelTitle: item.channelTitle || '',
+            url: item.url || item.videoUrl || '',
+            videoUrl: item.videoUrl || item.url || '',
+            thumbnailUrl: item.thumbnailUrl || ''
+          }))
+        }
+      });
+
+      const nextSavedPlaylist = normalizeScalePlaylist(payload?.item?.playlist || nextPlaylist);
+      setCurrentPlaylist(nextSavedPlaylist);
+      setPlaylistFeedback('Playlist salva com sucesso.');
+      return nextSavedPlaylist;
+    } catch (error) {
+      setPlaylistFeedback(error instanceof Error ? error.message : 'Nao foi possivel salvar a playlist.');
+      throw error;
+    } finally {
+      setIsPlaylistSaving(false);
+    }
   };
 
   return (
@@ -929,7 +1304,16 @@ function ScaleCard({
           {activeView === COMPONENTS_VIEW ? (
             <ComponentsPanel members={scale.members} currentUser={currentUser} />
           ) : null}
-          {activeView === PLAYLIST_VIEW ? <PlaylistPanel playlist={scale.playlist} /> : null}
+          {activeView === PLAYLIST_VIEW ? (
+            <PlaylistPanel
+              scaleId={scaleId}
+              playlist={currentPlaylist}
+              canEditPlaylist={canEditPlaylist}
+              isSavingPlaylist={isPlaylistSaving}
+              onRestrictedAction={() => setNotifyFeedback('Seu perfil nao tem permissao para editar esta playlist.')}
+              onPersistPlaylist={persistPlaylist}
+            />
+          ) : null}
           {activeView === COMMENTS_VIEW ? (
             <CommentsPanel scaleId={scaleId} initialMessages={scale.messages} />
           ) : null}
@@ -940,8 +1324,8 @@ function ScaleCard({
               scaleShift={scaleShift}
               currentImage={currentImage}
               imageLibrary={imageLibrary}
-              isComponentApp={isComponentApp}
-              onRestrictedAction={() => setImageFeedback(COMPONENT_APP_PERMISSION_MESSAGE)}
+              canEditImage={canEditImage}
+              onRestrictedAction={() => setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.')}
               onRemoveImage={handleRemoveImage}
               onSelectImage={handleSelectImage}
               onUploadImage={handleUploadImage}
@@ -1042,6 +1426,12 @@ function ScaleCard({
             {imageFeedback}
           </p>
         ) : null}
+
+        {playlistFeedback ? (
+          <p className={styles.cardNotice} role="status" aria-live="polite">
+            {playlistFeedback}
+          </p>
+        ) : null}
       </div>
     </article>
   );
@@ -1051,9 +1441,68 @@ export default function ScaleFeed({ scales }) {
   const router = useRouter();
   const [feedback, setFeedback] = useState('');
   const [expandedScaleIds, setExpandedScaleIds] = useState({});
-  const imageLibrary = useMemo(() => collectImageLibrary(scales), [scales]);
+  const [hydratedScales, setHydratedScales] = useState(() => scales);
+  const imageLibrary = useMemo(() => collectImageLibrary(hydratedScales), [hydratedScales]);
   const { user: authUser, permissions, isLoading: isAuthSessionLoading } = useAuthSession();
   const isComponentApp = !isAuthSessionLoading && Boolean(permissions.isComponentApp);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadScalePermissions() {
+      if (!Array.isArray(scales) || !scales.length) {
+        setHydratedScales([]);
+        return;
+      }
+
+      const listAlreadyHasPermissions = scales.every(
+        (scale) =>
+          Array.isArray(scale?.playlistEditorComponentIds) &&
+          Array.isArray(scale?.imageEditorComponentIds)
+      );
+
+      if (listAlreadyHasPermissions) {
+        setHydratedScales(scales);
+        return;
+      }
+
+      try {
+        const nextScales = await Promise.all(
+          scales.map(async (scale) => {
+            if (!scale?.id) {
+              return scale;
+            }
+
+            try {
+              const payload = await requestJson(`/api/scales/${encodeURIComponent(scale.id)}`, {
+                method: 'GET',
+                cache: 'no-store'
+              });
+              const permissionData = extractScalePermissionData(payload);
+
+              return permissionData ? { ...scale, ...permissionData } : scale;
+            } catch {
+              return scale;
+            }
+          })
+        );
+
+        if (isActive) {
+          setHydratedScales(nextScales);
+        }
+      } catch {
+        if (isActive) {
+          setHydratedScales(scales);
+        }
+      }
+    }
+
+    loadScalePermissions();
+
+    return () => {
+      isActive = false;
+    };
+  }, [scales]);
 
   useEffect(() => {
     if (isAuthSessionLoading) {
@@ -1096,12 +1545,12 @@ export default function ScaleFeed({ scales }) {
         </p>
       ) : null}
 
-      {!scales.length ? (
+      {!hydratedScales.length ? (
         <p className={styles.emptyState}>Nenhuma escala encontrada.</p>
       ) : null}
 
       <div className={styles.feedList}>
-        {scales.map((scale, index) => {
+        {hydratedScales.map((scale, index) => {
           const scaleId = scale?.id || `${scale?.date || 'sem-data'}-${scale?.shift || 'sem-turno'}-${index}`;
           return (
             <ScaleCard

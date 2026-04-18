@@ -58,6 +58,8 @@ export const scales = [
         videoUrl: 'https://www.youtube.com/watch?v=8lR2NQ9nY8Q'
       }
     ],
+    playlistEditorComponentIds: ['m1', 'm4'],
+    imageEditorComponentIds: ['m1'],
     imageAttachment: {
       id: 'img-escala-2026-04-12-manha',
       src: 'https://i.pravatar.cc/640?img=52',
@@ -135,6 +137,8 @@ export const scales = [
         videoUrl: 'https://youtu.be/KS44J5wDxUc?si=T7Vi5aum2BfzzBGU'
       }
     ],
+    playlistEditorComponentIds: ['m6'],
+    imageEditorComponentIds: [],
     messages: [
       {
         id: 'msg-3',

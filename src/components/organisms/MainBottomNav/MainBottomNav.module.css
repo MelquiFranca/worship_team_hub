@@ -10,7 +10,7 @@
   pointer-events: auto;
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--main-bottom-nav-columns, 5), minmax(0, 1fr));
   gap: 4px;
   align-items: center;
   padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
@@ -232,7 +232,7 @@
   }
 
   .inner {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--main-bottom-nav-columns, 5), minmax(0, 1fr));
     gap: 6px;
     padding: 8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   }

@@ -7,7 +7,7 @@ import {
   isAuthError,
   toAuthErrorResponse
 } from '../../../../lib/auth/index.js';
-import { authUsers } from '../../../../data/authUsers.js';
+import { loadAuthUsers } from '../../../../lib/auth/userSource.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,6 +42,7 @@ export async function POST(request) {
   }
 
   try {
+    const authUsers = await loadAuthUsers();
     const result = authenticateWithPassword(authUsers, body);
     const response = NextResponse.json(createAuthSuccessPayload(result.user, result.session));
 

@@ -18,6 +18,8 @@ export function serializeScale(document) {
     shift: document.shift,
     components: document.components || [],
     playlist: document.playlist || [],
+    playlistEditorComponentIds: document.playlistEditorComponentIds || [],
+    imageEditorComponentIds: document.imageEditorComponentIds || [],
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
   };
@@ -86,9 +88,42 @@ export function normalizePlaylist(value) {
   return items;
 }
 
+export function normalizePermissionComponentIds(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const seenIds = new Set();
+  const ids = [];
+
+  for (const entry of value) {
+    const componentId = normalizeString(entry);
+
+    if (!componentId || seenIds.has(componentId)) {
+      return null;
+    }
+
+    seenIds.add(componentId);
+    ids.push(componentId);
+  }
+
+  return ids;
+}
+
+function filterPermissionComponentIds(componentIds, allowedIds) {
+  const allowedIdSet = new Set(allowedIds);
+  return componentIds.filter((componentId) => allowedIdSet.has(componentId));
+}
+
 export async function GET(request) {
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request, {
+      allowedAudiences: new Set(['admin-panel', 'group-app', 'component-app'])
+    });
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
     const limit = parseLimitParam(request);
@@ -128,7 +163,7 @@ export async function POST(request) {
   }
 
   try {
-    const session = requireApiAccessSession(request);
+    const session = await requireApiAccessSession(request);
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, {
       bodyGroupId: typeof body.groupId === 'string' ? body.groupId : '',
@@ -138,10 +173,12 @@ export async function POST(request) {
     const shift = normalizeString(body.shift);
     const components = normalizeScaleComponents(body.components);
     const playlist = normalizePlaylist(body.playlist);
+    const playlistEditorComponentIds = normalizePermissionComponentIds(body.playlistEditorComponentIds);
+    const imageEditorComponentIds = normalizePermissionComponentIds(body.imageEditorComponentIds);
 
-    if (!date || !shift || !components || playlist === null) {
+    if (!date || !shift || !components || playlist === null || playlistEditorComponentIds === null || imageEditorComponentIds === null) {
       return jsonApiError(
-        'Informe date, shift e components validos para cadastrar a escala.',
+        'Informe date, shift, components e permissoes validas para cadastrar a escala.',
         400,
         'BAD_REQUEST'
       );
@@ -162,6 +199,28 @@ export async function POST(request) {
       );
     }
 
+    if (
+      Array.isArray(playlistEditorComponentIds) &&
+      (filterPermissionComponentIds(playlistEditorComponentIds, componentIds).length !== playlistEditorComponentIds.length)
+    ) {
+      return jsonApiError(
+        'As permissoes de playlist e imagem precisam apontar para componentes selecionados na escala.',
+        400,
+        'BAD_REQUEST'
+      );
+    }
+
+    if (
+      Array.isArray(imageEditorComponentIds) &&
+      filterPermissionComponentIds(imageEditorComponentIds, componentIds).length !== imageEditorComponentIds.length
+    ) {
+      return jsonApiError(
+        'As permissoes de playlist e imagem precisam apontar para componentes selecionados na escala.',
+        400,
+        'BAD_REQUEST'
+      );
+    }
+
     const now = new Date().toISOString();
     const document = {
       _id: crypto.randomUUID(),
@@ -170,6 +229,8 @@ export async function POST(request) {
       shift,
       components,
       playlist,
+      playlistEditorComponentIds: playlistEditorComponentIds ?? [],
+      imageEditorComponentIds: imageEditorComponentIds ?? [],
       createdAt: now,
       updatedAt: now,
       metadata: {

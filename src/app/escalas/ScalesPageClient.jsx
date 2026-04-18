@@ -55,6 +55,28 @@ function normalizePlaylist(playlist) {
   }));
 }
 
+function normalizePermissionComponentIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenIds = new Set();
+  const items = [];
+
+  value.forEach((entry) => {
+    const componentId = normalizeString(entry);
+
+    if (!componentId || seenIds.has(componentId)) {
+      return;
+    }
+
+    seenIds.add(componentId);
+    items.push(componentId);
+  });
+
+  return items;
+}
+
 function normalizeScales(scaleItems, componentsById) {
   if (!Array.isArray(scaleItems)) {
     return [];
@@ -92,6 +114,8 @@ function normalizeScales(scaleItems, componentsById) {
       canEdit: scale?.canEdit !== false,
       members,
       playlist: normalizePlaylist(scale?.playlist),
+      playlistEditorComponentIds: normalizePermissionComponentIds(scale?.playlistEditorComponentIds),
+      imageEditorComponentIds: normalizePermissionComponentIds(scale?.imageEditorComponentIds),
       messages: Array.isArray(scale?.messages) ? scale.messages : [],
       imageAttachment: scale?.imageAttachment || null
     };
