@@ -10,6 +10,10 @@ import {
   normalizeLowercaseString,
   normalizeString
 } from '../../../lib/api/validation.js';
+import {
+  parseComponentPhotoInput,
+  serializeComponentPhoto
+} from '../../../lib/components/photo.js';
 import { getMongoCollections } from '../../../lib/db/mongodb.js';
 import {
   normalizePushTargetsInput,
@@ -29,6 +33,7 @@ function serializeComponent(document) {
     : LEGACY_PERMISSION_TYPE_FALLBACK;
   const pushTargets = serializeComponentPushTargets(document);
   const pushSubscriptions = serializePushSubscriptions(document.pushSubscriptions);
+  const photoDataUrl = serializeComponentPhoto(document);
 
   return {
     id: document._id.toString(),
@@ -39,7 +44,8 @@ function serializeComponent(document) {
     permissionType,
     isActive: typeof document.isActive === 'boolean' ? document.isActive : true,
     photoUrl: document.photoUrl || '',
-    photoProvided: Boolean(document.photoProvided),
+    photoDataUrl,
+    photoProvided: Boolean(document.photoProvided || photoDataUrl),
     pushTargets,
     pushTargetCount: pushTargets.length,
     hasPushTargets: pushTargets.length > 0,
@@ -57,8 +63,8 @@ function buildComponentPayload(body, groupId) {
   const password = typeof body?.password === 'string' ? body.password : '';
   const permissionType = normalizeString(body?.permissionType);
   const photoUrl = normalizeString(body?.photoUrl);
-  const photoProvided = Boolean(body?.photoProvided);
   const pushTargets = normalizePushTargetsInput(body?.pushTargets);
+  const photoInput = parseComponentPhotoInput(body, { allowRemoval: false });
 
   if (
     !fullName ||
@@ -71,6 +77,10 @@ function buildComponentPayload(body, groupId) {
     return null;
   }
 
+  if (photoInput.error) {
+    return { error: photoInput.error };
+  }
+
   return {
     groupId,
     fullName,
@@ -80,7 +90,10 @@ function buildComponentPayload(body, groupId) {
     normalizedUsername: normalizeLowercaseString(username),
     password,
     photoUrl,
-    photoProvided,
+    photo: photoInput.photo,
+    photoProvided:
+      photoInput.photoProvided ??
+      Boolean(photoInput.photo || photoUrl || body?.photoProvided),
     pushTargets
   };
 }
@@ -146,6 +159,10 @@ export async function POST(request) {
       );
     }
 
+    if (payload.error) {
+      return jsonApiError(payload.error, 400, 'BAD_REQUEST');
+    }
+
     const { components } = await getMongoCollections();
     const existingComponent = await components.findOne({
       groupId: payload.groupId,
@@ -173,6 +190,7 @@ export async function POST(request) {
       isActive: true,
       passwordHash,
       photoUrl: payload.photoUrl,
+      ...(payload.photo ? { photo: payload.photo } : {}),
       photoProvided: payload.photoProvided,
       pushTargets: payload.pushTargets,
       pushSubscriptions: [],

@@ -210,7 +210,7 @@
   background: var(--app-surface-elevated, #f8fbff);
 }
 
-.field input::placeholder {
+.field input::placeholder,
 .field textarea::placeholder {
   color: var(--app-text-soft, #64748b);
 }

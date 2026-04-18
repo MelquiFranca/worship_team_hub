@@ -9,6 +9,10 @@ import {
   normalizeLowercaseString,
   normalizeString
 } from '../../../../lib/api/validation.js';
+import {
+  parseComponentPhotoInput,
+  serializeComponentPhoto
+} from '../../../../lib/components/photo.js';
 import { getMongoCollections } from '../../../../lib/db/mongodb.js';
 import {
   normalizePushTargetsInput,
@@ -31,6 +35,7 @@ function serializeComponent(document) {
     : LEGACY_PERMISSION_TYPE_FALLBACK;
   const pushTargets = serializeComponentPushTargets(document);
   const pushSubscriptions = serializePushSubscriptions(document.pushSubscriptions);
+  const photoDataUrl = serializeComponentPhoto(document);
 
   return {
     id: document._id.toString(),
@@ -41,7 +46,8 @@ function serializeComponent(document) {
     permissionType,
     isActive: typeof document.isActive === 'boolean' ? document.isActive : true,
     photoUrl: document.photoUrl || '',
-    photoProvided: Boolean(document.photoProvided),
+    photoDataUrl,
+    photoProvided: Boolean(document.photoProvided || photoDataUrl),
     pushTargets,
     pushTargetCount: pushTargets.length,
     hasPushTargets: pushTargets.length > 0,
@@ -60,8 +66,9 @@ function getComponentIdFromParams(params) {
   return normalizeString(params.componentId);
 }
 
-function buildPatchPayload(body) {
+function buildPatchPayload(body, photoInput) {
   const updates = {};
+  const unset = {};
 
   if (Object.hasOwn(body, 'fullName')) {
     const fullName = normalizeString(body.fullName);
@@ -108,12 +115,26 @@ function buildPatchPayload(body) {
     updates.photoUrl = normalizeString(body.photoUrl);
   }
 
-  if (Object.hasOwn(body, 'photoProvided')) {
-    if (typeof body.photoProvided !== 'boolean') {
-      return { error: 'Informe photoProvided como booleano.' };
-    }
+  if (photoInput?.error) {
+    return { error: photoInput.error };
+  }
 
-    updates.photoProvided = body.photoProvided;
+  if (photoInput?.removePhoto) {
+    unset.photo = '';
+    updates.photoProvided = false;
+  }
+
+  if (photoInput?.photo) {
+    updates.photo = photoInput.photo;
+    updates.photoProvided = true;
+  }
+
+  if (photoInput?.photoUrl !== undefined) {
+    updates.photoUrl = photoInput.photoUrl;
+  }
+
+  if (photoInput?.photoProvided !== undefined && !photoInput?.removePhoto && !photoInput?.photo) {
+    updates.photoProvided = photoInput.photoProvided;
   }
 
   if (Object.hasOwn(body, 'pushTargets')) {
@@ -155,10 +176,12 @@ function buildPatchPayload(body) {
   }
 
   if (Object.keys(updates).length === 0) {
-    return { error: 'Informe ao menos um campo valido para atualizacao.' };
+    if (Object.keys(unset).length === 0) {
+      return { error: 'Informe ao menos um campo valido para atualizacao.' };
+    }
   }
 
-  return { updates };
+  return { updates, unset };
 }
 
 export async function GET(request, { params }) {
@@ -213,7 +236,8 @@ export async function PATCH(request, { params }) {
       return jsonApiError('Informe componentId valido para continuar.', 400, 'BAD_REQUEST');
     }
 
-    const parsed = buildPatchPayload(body);
+    const photoInput = parseComponentPhotoInput(body, { allowRemoval: true });
+    const parsed = buildPatchPayload(body, photoInput);
 
     if (parsed.error) {
       return jsonApiError(parsed.error, 400, 'BAD_REQUEST');
@@ -256,9 +280,13 @@ export async function PATCH(request, { params }) {
       metadata: nextMetadata
     };
 
+    const updateDocument = Object.keys(parsed.unset).length
+      ? { $set: updatePayload, $unset: parsed.unset }
+      : { $set: updatePayload };
+
     await components.updateOne(
       { _id: componentId, groupId },
-      { $set: updatePayload }
+      updateDocument
     );
 
     const updatedComponent = await components.findOne({ _id: componentId, groupId });

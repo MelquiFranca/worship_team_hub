@@ -75,6 +75,7 @@ function normalizeApiComponent(component) {
     name,
     photo: normalizePhotoUrl(
       (typeof component.photo === 'string' && component.photo) ||
+        (typeof component.photoDataUrl === 'string' && component.photoDataUrl) ||
         (typeof component.photoUrl === 'string' && component.photoUrl) ||
         ''
     ),
@@ -94,6 +95,10 @@ function normalizePhotoUrl(value) {
   const trimmedValue = value.trim();
   if (!trimmedValue) {
     return '';
+  }
+
+  if (trimmedValue.startsWith('data:image/')) {
+    return trimmedValue;
   }
 
   try {
@@ -234,6 +239,7 @@ function normalizeScaleItem(payload) {
           `Componente ${index + 1}`,
         componentPhoto:
           (typeof item?.photo === 'string' && item.photo) ||
+          (typeof item?.photoDataUrl === 'string' && item.photoDataUrl) ||
           (typeof item?.photoUrl === 'string' && item.photoUrl) ||
           ''
       };

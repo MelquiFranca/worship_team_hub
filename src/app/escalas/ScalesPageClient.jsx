@@ -36,6 +36,7 @@ function normalizeComponentCatalog(items) {
       normalizeString(item?.displayName) ||
       'Componente sem nome';
     const photo =
+      normalizeString(item?.photoDataUrl) ||
       normalizeString(item?.photoUrl) ||
       normalizeString(item?.photo) ||
       `https://i.pravatar.cc/120?u=${encodeURIComponent(id)}`;

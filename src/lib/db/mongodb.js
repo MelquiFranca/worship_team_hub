@@ -74,6 +74,10 @@ async function ensureMongoIndexes(db) {
         { groupId: 1, createdAt: -1 },
         { name: 'components_group_created_at' }
       ),
+      db.collection('group_settings').createIndex(
+        { groupId: 1 },
+        { unique: true, name: 'group_settings_group_unique' }
+      ),
       db.collection('scales').createIndex(
         { groupId: 1, date: -1, createdAt: -1 },
         { name: 'scales_group_date_created_at' }
@@ -102,6 +106,7 @@ export async function getMongoCollections() {
   return {
     db,
     components: db.collection('components'),
+    groupSettings: db.collection('group_settings'),
     scales: db.collection('scales'),
     scalePushNotificationDispatches: db.collection('scale_push_notification_dispatches')
   };

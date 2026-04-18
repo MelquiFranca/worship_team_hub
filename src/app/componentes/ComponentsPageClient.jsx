@@ -17,6 +17,7 @@ function normalizeComponent(item, index) {
     (typeof item?.displayName === 'string' && item.displayName.trim()) ||
     'Componente sem nome';
   const photo =
+    (typeof item?.photoDataUrl === 'string' && item.photoDataUrl.trim()) ||
     (typeof item?.photoUrl === 'string' && item.photoUrl.trim()) ||
     (typeof item?.photo === 'string' && item.photo.trim()) ||
     '';

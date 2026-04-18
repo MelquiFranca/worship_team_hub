@@ -6,6 +6,7 @@ import { useGroupSettings } from '@/context/GroupSettingsContext';
 import styles from './GroupGeneralSettings.module.css';
 
 const ACCEPTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const GROUP_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 
 function buildPresetPhoto(seed, primary, secondary, accent) {
   const svg = `
@@ -61,19 +62,26 @@ export default function GroupGeneralSettings() {
     feedback,
     validationErrors,
     isDirty,
+    isSaving,
     lastSavedAt,
     isReady,
     groupThemeOptions,
     availableFunctionOptions,
+    functionOptions,
     setGroupName,
     setGroupPhoto,
     setThemeName,
     toggleAvailableFunction,
+    addFunctionOption,
+    removeFunctionOption,
     saveSettings
   } = useGroupSettings();
 
   const fileInputRef = useRef(null);
   const [fileError, setFileError] = useState('');
+  const [newFunctionName, setNewFunctionName] = useState('');
+  const [newFunctionHint, setNewFunctionHint] = useState('');
+  const [functionEditorMessage, setFunctionEditorMessage] = useState('');
 
   const selectedFunctions = useMemo(() => new Set(settings.availableFunctions), [settings.availableFunctions]);
   const photoInitials = useMemo(() => {
@@ -113,6 +121,12 @@ export default function GroupGeneralSettings() {
       return;
     }
 
+    if (file.size > GROUP_PHOTO_MAX_BYTES) {
+      setFileError('A imagem deve ter no maximo 2MB.');
+      event.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
@@ -128,9 +142,38 @@ export default function GroupGeneralSettings() {
     fileInputRef.current?.click();
   }
 
-  function handleSave() {
-    saveSettings();
+  async function handleSave() {
+    await saveSettings();
   }
+
+  function handleAddFunctionType() {
+    const result = addFunctionOption(newFunctionName, newFunctionHint);
+
+    if (!result.ok) {
+      setFunctionEditorMessage(result.message || 'Nao foi possivel adicionar a funcao.');
+      return;
+    }
+
+    setNewFunctionName('');
+    setNewFunctionHint('');
+    setFunctionEditorMessage('Novo tipo de funcao adicionado.');
+  }
+
+  function handleRemoveFunctionType(functionId) {
+    const result = removeFunctionOption(functionId);
+
+    if (!result.ok) {
+      setFunctionEditorMessage(result.message || 'Nao foi possivel excluir a funcao.');
+      return;
+    }
+
+    setFunctionEditorMessage('Tipo de funcao excluido.');
+  }
+
+  const customFunctionOptions = useMemo(
+    () => functionOptions.filter((option) => option.isCustom),
+    [functionOptions]
+  );
 
   return (
     <article className={styles.shell}>
@@ -287,9 +330,64 @@ export default function GroupGeneralSettings() {
             })}
           </div>
 
+          <div className={styles.functionEditor}>
+            <div className={styles.functionEditorFields}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Novo tipo de funcao</span>
+                <input
+                  className={styles.textInput}
+                  type="text"
+                  value={newFunctionName}
+                  onChange={(event) => setNewFunctionName(event.target.value)}
+                  placeholder="Ex.: Saxofone"
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Descricao curta (opcional)</span>
+                <input
+                  className={styles.textInput}
+                  type="text"
+                  value={newFunctionHint}
+                  onChange={(event) => setNewFunctionHint(event.target.value)}
+                  placeholder="Ex.: Melodias e solos"
+                />
+              </label>
+            </div>
+            <button type="button" className={styles.secondaryButton} onClick={handleAddFunctionType}>
+              Adicionar tipo
+            </button>
+
+            {customFunctionOptions.length ? (
+              <div className={styles.customFunctionList}>
+                {customFunctionOptions.map((option) => (
+                  <div key={option.id} className={styles.customFunctionItem}>
+                    <div>
+                      <strong>{option.label}</strong>
+                      <span>{option.hint || 'Funcao personalizada'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.removeFunctionButton}
+                      onClick={() => handleRemoveFunctionType(option.id)}
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.fieldMeta}>Nenhuma funcao personalizada cadastrada.</p>
+            )}
+
+            {functionEditorMessage ? <p className={styles.fieldMeta}>{functionEditorMessage}</p> : null}
+          </div>
+
           <p className={styles.fieldMeta}>
             Selecione ao menos uma funcao para manter o cadastro de escalas consistente.
           </p>
+          {validationErrors.functionOptions ? (
+            <p className={styles.errorText}>{validationErrors.functionOptions}</p>
+          ) : null}
           {validationErrors.availableFunctions ? (
             <p className={styles.errorText}>{validationErrors.availableFunctions}</p>
           ) : null}
@@ -364,8 +462,13 @@ export default function GroupGeneralSettings() {
           >
             Limpar foto
           </button>
-          <button type="button" className={styles.primaryButton} onClick={handleSave} disabled={!isReady || !isDirty}>
-            Salvar configuracoes
+          <button
+            type="button"
+            className={styles.primaryButton}
+            onClick={handleSave}
+            disabled={!isReady || !isDirty || isSaving}
+          >
+            {isSaving ? 'Salvando...' : 'Salvar configuracoes'}
           </button>
         </div>
       </footer>

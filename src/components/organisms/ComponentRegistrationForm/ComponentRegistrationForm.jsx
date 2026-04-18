@@ -6,6 +6,9 @@ import { useAuthSession } from '@/context/AuthSessionContext';
 import { requestJson } from '@/lib/api/http';
 import styles from './ComponentRegistrationForm.module.css';
 
+const PHOTO_UPLOAD_MAX_SIZE_BYTES = 2 * 1024 * 1024;
+const ACCEPTED_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+
 function validateForm(values, options = {}) {
   const { isEditMode = false } = options;
   const nextErrors = {};
@@ -50,12 +53,43 @@ function toLocalIsoDate(date) {
   return `${year}-${month}-${day}`;
 }
 
-function getPhotoIndicator(photoFile) {
-  if (!photoFile) {
+function normalizePhotoValue(value) {
+  return typeof value === 'string' ? value : '';
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!result) {
+        reject(new Error('Nao foi possivel preparar a imagem para upload.'));
+        return;
+      }
+
+      resolve(result);
+    };
+
+    reader.onerror = () => reject(new Error('Nao foi possivel ler o arquivo selecionado.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function validatePhotoFile(file) {
+  if (!file) {
     return '';
   }
 
-  return photoFile.name || photoFile.type || 'foto-selecionada';
+  if (!ACCEPTED_PHOTO_MIME_TYPES.has(file.type)) {
+    return 'Formato de imagem invalido. Use PNG, JPG, WebP ou GIF.';
+  }
+
+  if (file.size > PHOTO_UPLOAD_MAX_SIZE_BYTES) {
+    return 'A imagem deve ter no maximo 2MB.';
+  }
+
+  return '';
 }
 
 function formatPushTargetsForInput(value) {
@@ -90,7 +124,8 @@ function normalizeLoadedComponent(payload, fallbackId) {
     birthDate: typeof source.birthDate === 'string' ? source.birthDate : '',
     username: typeof source.username === 'string' ? source.username : '',
     permissionType: permission,
-    photoUrl: typeof source.photoUrl === 'string' ? source.photoUrl : '',
+    photoUrl: normalizePhotoValue(source.photoUrl),
+    photoDataUrl: normalizePhotoValue(source.photoDataUrl),
     photoProvided: Boolean(source.photoProvided),
     isActive: source.isActive !== false,
     pushTargets: Array.isArray(source.pushTargets) ? source.pushTargets : []
@@ -108,6 +143,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
   const [permissionType, setPermissionType] = useState('');
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
+  const [savedPhotoDataUrl, setSavedPhotoDataUrl] = useState('');
   const [savedPhotoUrl, setSavedPhotoUrl] = useState('');
   const [savedPhotoProvided, setSavedPhotoProvided] = useState(false);
   const [pushTargetsInput, setPushTargetsInput] = useState('');
@@ -167,6 +203,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
         setPassword('');
         setPermissionType(loaded.permissionType);
         setPhotoFile(null);
+        setSavedPhotoDataUrl(loaded.photoDataUrl);
         setSavedPhotoUrl(loaded.photoUrl);
         setSavedPhotoProvided(Boolean(loaded.photoProvided));
         setPushTargetsInput(formatPushTargetsForInput(loaded.pushTargets));
@@ -210,6 +247,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
     setPermissionType('');
     setPhotoFile(null);
     setPhotoPreview('');
+    setSavedPhotoDataUrl('');
     setSavedPhotoUrl('');
     setSavedPhotoProvided(false);
     setPushTargetsInput('');
@@ -254,16 +292,25 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
     clearFeedback();
 
     try {
-      const selectedPhotoIndicator = getPhotoIndicator(photoFile);
+      let nextPhotoDataUrl = '';
+
+      if (photoFile) {
+        nextPhotoDataUrl = await readFileAsDataUrl(photoFile);
+      }
+
       const payload = {
         fullName: fullName.trim(),
         birthDate: birthDate instanceof Date ? toLocalIsoDate(birthDate) : birthDate,
         username: username.trim(),
         permissionType,
-        photoUrl: selectedPhotoIndicator || savedPhotoUrl,
-        photoProvided: selectedPhotoIndicator ? true : savedPhotoProvided,
+        photoUrl: savedPhotoUrl,
+        photoProvided: nextPhotoDataUrl ? true : savedPhotoProvided,
         pushTargets: pushTargetsInput
       };
+
+      if (nextPhotoDataUrl) {
+        payload.photoDataUrl = nextPhotoDataUrl;
+      }
 
       if (!isEditMode || password.trim()) {
         payload.password = password;
@@ -286,11 +333,18 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
 
       setFeedback({ type: 'success', message: successMessage });
 
+      const updatedItem = responsePayload?.item && typeof responsePayload.item === 'object' ? responsePayload.item : null;
+      const returnedPhotoDataUrl = normalizePhotoValue(updatedItem?.photoDataUrl);
+      const returnedPhotoUrl = normalizePhotoValue(updatedItem?.photoUrl);
+      const returnedPhotoProvided =
+        typeof updatedItem?.photoProvided === 'boolean'
+          ? updatedItem.photoProvided
+          : Boolean(returnedPhotoDataUrl || returnedPhotoUrl);
+
       if (isEditMode) {
-        if (selectedPhotoIndicator) {
-          setSavedPhotoUrl(selectedPhotoIndicator);
-          setSavedPhotoProvided(true);
-        }
+        setSavedPhotoDataUrl(returnedPhotoDataUrl || nextPhotoDataUrl || savedPhotoDataUrl);
+        setSavedPhotoUrl(returnedPhotoUrl || savedPhotoUrl);
+        setSavedPhotoProvided(returnedPhotoProvided);
         setPassword('');
         setPhotoFile(null);
         setPhotoPreview('');
@@ -351,12 +405,21 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
 
   function handlePhotoChange(event) {
     const nextFile = event.target.files?.[0] || null;
+    const validationMessage = validatePhotoFile(nextFile);
+
+    if (validationMessage) {
+      setFeedback({ type: 'error', message: validationMessage });
+      setPhotoFile(null);
+      event.target.value = '';
+      return;
+    }
+
     clearFeedback();
     setPhotoFile(nextFile);
   }
 
   const todayIso = toLocalIsoDate(new Date());
-  const displayedPhoto = photoPreview || savedPhotoUrl;
+  const displayedPhoto = photoPreview || savedPhotoDataUrl || savedPhotoUrl;
 
   return (
     <section
@@ -423,7 +486,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
             onChange={handlePhotoChange}
           />
 
-          <span className={styles.helpText}>PNG, JPG ou WebP. Opcional.</span>
+          <span className={styles.helpText}>PNG, JPG, GIF ou WebP. Maximo de 2MB. Opcional.</span>
         </div>
       </div>
 
