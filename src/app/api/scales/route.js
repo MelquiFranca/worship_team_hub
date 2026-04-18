@@ -10,7 +10,7 @@ import { getMongoCollections } from '../../../lib/db/mongodb.js';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function serializeScale(document) {
+export function serializeScale(document) {
   return {
     id: document._id.toString(),
     groupId: document.groupId,
@@ -23,7 +23,7 @@ function serializeScale(document) {
   };
 }
 
-function normalizeScaleComponents(value) {
+export function normalizeScaleComponents(value) {
   if (!Array.isArray(value) || value.length === 0) {
     return null;
   }
@@ -57,7 +57,7 @@ function normalizeScaleComponents(value) {
   return items;
 }
 
-function normalizePlaylist(value) {
+export function normalizePlaylist(value) {
   if (value === undefined) {
     return [];
   }

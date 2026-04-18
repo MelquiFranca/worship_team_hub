@@ -93,6 +93,26 @@
   font-size: 0.93rem;
 }
 
+.loadingMessage,
+.permissionMessage {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 0.93rem;
+}
+
+.loadingMessage {
+  border: 1px solid color-mix(in srgb, var(--app-info, #0369a1) 18%, white);
+  background: var(--app-info-soft, #eff6ff);
+  color: var(--app-info, #0369a1);
+}
+
+.permissionMessage {
+  border: 1px solid color-mix(in srgb, var(--app-warning, #c2410c) 22%, white);
+  background: var(--app-warning-soft, #fff7ed);
+  color: var(--app-warning, #c2410c);
+}
+
 .successMessage {
   border: 1px solid color-mix(in srgb, var(--app-success, #166534) 20%, white);
   background: var(--app-success-soft, #f0fdf4);
@@ -502,6 +522,27 @@
   padding: 8px 12px;
   background: var(--app-danger-soft, #fef2f2);
   color: var(--app-danger, #b91c1c);
+}
+
+.actionRow {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.deleteButton {
+  min-height: 46px;
+  border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 26%, white);
+  border-radius: 12px;
+  background: var(--app-danger-soft, #fef2f2);
+  color: var(--app-danger, #b91c1c);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.deleteButton:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
 }
 
 .emptyState {

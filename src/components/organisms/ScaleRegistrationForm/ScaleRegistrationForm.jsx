@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import Calendar from '@/components/molecules/Calendar/Calendar';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
 import { scales as existingScales } from '@/data/scales';
@@ -103,6 +104,121 @@ function formatScaleDateForPayload(date) {
   return `${year}-${month}-${day}`;
 }
 
+function parseScaleDate(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmedValue)) {
+    const [year, month, day] = trimmedValue.split('-').map((item) => Number(item));
+    const parsedDate = new Date(year, month - 1, day);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }
+
+  const parsedDate = new Date(trimmedValue);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+function normalizeScalePlaylist(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item, index) => {
+      const videoId =
+        (typeof item?.videoId === 'string' && item.videoId.trim()) ||
+        (typeof item?.id === 'string' && item.id.trim()) ||
+        '';
+      const title =
+        (typeof item?.title === 'string' && item.title.trim()) ||
+        `Video ${index + 1}`;
+
+      return {
+        ...item,
+        videoId,
+        id: videoId || `playlist-${index}`,
+        title,
+        channelTitle: typeof item?.channelTitle === 'string' ? item.channelTitle : '',
+        url: typeof item?.url === 'string' ? item.url : '',
+        videoUrl:
+          (typeof item?.videoUrl === 'string' && item.videoUrl) ||
+          (typeof item?.url === 'string' && item.url) ||
+          '',
+        thumbnailUrl: typeof item?.thumbnailUrl === 'string' ? item.thumbnailUrl : ''
+      };
+    })
+    .filter((item) => item.videoId || item.videoUrl || item.url);
+}
+
+function normalizeScaleItem(payload) {
+  const candidate =
+    (payload?.item && typeof payload.item === 'object' && payload.item) ||
+    (payload?.data && typeof payload.data === 'object' && payload.data) ||
+    (payload?.scale && typeof payload.scale === 'object' && payload.scale) ||
+    (payload && typeof payload === 'object' ? payload : null);
+
+  if (!candidate) {
+    return null;
+  }
+
+  const components = (Array.isArray(candidate.components) ? candidate.components : [])
+    .map((item, index) => {
+      const componentId =
+        (typeof item?.componentId === 'string' && item.componentId.trim()) ||
+        (typeof item?.id === 'string' && item.id.trim()) ||
+        '';
+
+      if (!componentId) {
+        return null;
+      }
+
+      return {
+        componentId,
+        function:
+          (typeof item?.function === 'string' && item.function.trim()) ||
+          (typeof item?.role === 'string' && item.role.trim()) ||
+          '',
+        componentName:
+          (typeof item?.componentName === 'string' && item.componentName.trim()) ||
+          (typeof item?.name === 'string' && item.name.trim()) ||
+          (typeof item?.component?.name === 'string' && item.component.name.trim()) ||
+          `Componente ${index + 1}`,
+        componentPhoto:
+          (typeof item?.photo === 'string' && item.photo) ||
+          (typeof item?.photoUrl === 'string' && item.photoUrl) ||
+          ''
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    date: typeof candidate.date === 'string' ? candidate.date : '',
+    shift: typeof candidate.shift === 'string' ? candidate.shift : '',
+    components,
+    playlist: normalizeScalePlaylist(candidate.playlist)
+  };
+}
+
+function mergeScaleComponentsIntoOptions(currentOptions, scaleComponents) {
+  const byId = new Map(currentOptions.map((component) => [component.id, component]));
+
+  scaleComponents.forEach((item) => {
+    if (!byId.has(item.componentId)) {
+      byId.set(item.componentId, {
+        id: item.componentId,
+        name: item.componentName || 'Componente sem nome',
+        photo: item.componentPhoto || '',
+        role: 'Componente'
+      });
+    }
+  });
+
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
 function getVideoId(item) {
   return item.videoId || item.id?.videoId || item.id;
 }
@@ -122,8 +238,13 @@ function isSupportedYouTubeUrl(rawUrl) {
   }
 }
 
-export default function ScaleRegistrationForm() {
+export default function ScaleRegistrationForm({ scaleId = '' }) {
+  const { permissions, isLoading: isAuthSessionLoading } = useAuthSession();
   const { settings, availableFunctionOptions } = useGroupSettings();
+  const normalizedScaleId = typeof scaleId === 'string' ? scaleId.trim() : '';
+  const isEditMode = Boolean(normalizedScaleId);
+  const isComponentApp = !isAuthSessionLoading && Boolean(permissions.isComponentApp);
+  const isEditLocked = isEditMode && isComponentApp;
   const fallbackComponentOptions = useMemo(() => normalizeComponentPool(existingScales), []);
   const [componentOptions, setComponentOptions] = useState(fallbackComponentOptions);
   const [scaleDate, setScaleDate] = useState(null);
@@ -148,6 +269,9 @@ export default function ScaleRegistrationForm() {
   const [submitError, setSubmitError] = useState('');
   const [missingFunctionIds, setMissingFunctionIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isScaleLoading, setIsScaleLoading] = useState(isEditMode);
+  const [scaleLoadError, setScaleLoadError] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -196,6 +320,72 @@ export default function ScaleRegistrationForm() {
     };
   }, [fallbackComponentOptions]);
 
+  useEffect(() => {
+    if (!isEditMode) {
+      setIsScaleLoading(false);
+      setScaleLoadError('');
+      return;
+    }
+
+    let isActive = true;
+
+    async function loadScaleById() {
+      setIsScaleLoading(true);
+      setScaleLoadError('');
+
+      try {
+        const payload = await requestJson(`/api/scales/${encodeURIComponent(normalizedScaleId)}`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        const scaleItem = normalizeScaleItem(payload);
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!scaleItem) {
+          throw new Error('Nao foi possivel carregar os dados da escala para edicao.');
+        }
+
+        const dateValue = parseScaleDate(scaleItem.date);
+        const selectedIds = scaleItem.components.map((item) => item.componentId);
+        const nextFunctions = scaleItem.components.reduce((accumulator, item) => {
+          accumulator[item.componentId] = item.function;
+          return accumulator;
+        }, {});
+
+        setScaleDate(dateValue);
+        setShift(scaleItem.shift || '');
+        setSelectedComponentIds(selectedIds);
+        setFunctionsByComponent(nextFunctions);
+        setMissingFunctionIds([]);
+        setPlaylist(scaleItem.playlist);
+        setComponentOptions((currentOptions) => mergeScaleComponentsIntoOptions(currentOptions, scaleItem.components));
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setScaleLoadError(
+          error instanceof Error
+            ? error.message
+            : 'Nao foi possivel carregar a escala para edicao. Tente novamente.'
+        );
+      } finally {
+        if (isActive) {
+          setIsScaleLoading(false);
+        }
+      }
+    }
+
+    loadScaleById();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isEditMode, normalizedScaleId]);
+
   const selectedComponents = useMemo(
     () => componentOptions.filter((component) => selectedComponentIds.includes(component.id)),
     [componentOptions, selectedComponentIds]
@@ -216,6 +406,10 @@ export default function ScaleRegistrationForm() {
   }, [availableFunctionOptions, settings.availableFunctions]);
 
   const toggleComponent = (componentId) => {
+    if (isEditLocked) {
+      return;
+    }
+
     setSelectedComponentIds((currentIds) => {
       const isSelected = currentIds.includes(componentId);
       const nextIds = isSelected
@@ -237,6 +431,10 @@ export default function ScaleRegistrationForm() {
   };
 
   const updateFunction = (componentId, value) => {
+    if (isEditLocked) {
+      return;
+    }
+
     setFunctionsByComponent((currentFunctions) => ({
       ...currentFunctions,
       [componentId]: value
@@ -271,6 +469,10 @@ export default function ScaleRegistrationForm() {
   const searchYouTube = async (event) => {
     event?.preventDefault?.();
 
+    if (isEditLocked) {
+      return;
+    }
+
     const term = query.trim();
     if (!term) {
       setSearchStatus('error');
@@ -301,6 +503,10 @@ export default function ScaleRegistrationForm() {
   };
 
   const addToPlaylist = (item) => {
+    if (isEditLocked) {
+      return;
+    }
+
     const result = appendToPlaylist(item);
 
     if (result.added) {
@@ -315,6 +521,10 @@ export default function ScaleRegistrationForm() {
 
   const loadPreview = async (event) => {
     event?.preventDefault?.();
+
+    if (isEditLocked) {
+      return;
+    }
 
     const trimmedUrl = videoUrl.trim();
 
@@ -358,6 +568,10 @@ export default function ScaleRegistrationForm() {
   };
 
   const handleVideoUrlChange = (event) => {
+    if (isEditLocked) {
+      return;
+    }
+
     setVideoUrl(event.target.value);
     if (previewItem || previewStatus !== 'idle' || previewMessage) {
       setPreviewItem(null);
@@ -367,6 +581,10 @@ export default function ScaleRegistrationForm() {
   };
 
   const addPreviewToPlaylist = () => {
+    if (isEditLocked) {
+      return;
+    }
+
     if (!previewItem) {
       return;
     }
@@ -390,6 +608,10 @@ export default function ScaleRegistrationForm() {
   };
 
   const removeFromPlaylist = (videoId) => {
+    if (isEditLocked) {
+      return;
+    }
+
     setPlaylist((currentPlaylist) => currentPlaylist.filter((item) => getVideoId(item) !== videoId));
   };
 
@@ -412,6 +634,12 @@ export default function ScaleRegistrationForm() {
   }, [componentOptions]);
 
   const handleSubmit = async () => {
+    if (isEditLocked) {
+      setSubmitError('Seu perfil de componente nao tem permissao para editar esta escala.');
+      setSubmitMessage('');
+      return;
+    }
+
     const validationErrors = [];
 
     if (!scaleDate) {
@@ -465,36 +693,90 @@ export default function ScaleRegistrationForm() {
     setSubmitMessage('');
 
     try {
-      const responsePayload = await requestJson('/api/scales', {
-        method: 'POST',
-        body: payload
-      });
+      const responsePayload = await requestJson(
+        isEditMode ? `/api/scales/${encodeURIComponent(normalizedScaleId)}` : '/api/scales',
+        {
+          method: isEditMode ? 'PATCH' : 'POST',
+          body: payload
+        }
+      );
 
       const successMessage =
         typeof responsePayload?.message === 'string' && responsePayload.message.trim()
           ? responsePayload.message.trim()
-          : `Escala cadastrada com sucesso em ${formatDate(scaleDate)}.`;
+          : isEditMode
+            ? `Escala atualizada com sucesso para ${formatDate(scaleDate)}.`
+            : `Escala cadastrada com sucesso em ${formatDate(scaleDate)}.`;
 
       setSubmitMessage(successMessage);
     } catch (error) {
       setSubmitError(
-        error instanceof Error ? error.message : 'Nao foi possivel cadastrar a escala agora. Tente novamente.'
+        error instanceof Error
+          ? error.message
+          : isEditMode
+            ? 'Nao foi possivel atualizar a escala agora. Tente novamente.'
+            : 'Nao foi possivel cadastrar a escala agora. Tente novamente.'
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleDelete = async () => {
+    if (!isEditMode) {
+      return;
+    }
+
+    if (isEditLocked) {
+      setSubmitError('Seu perfil de componente nao tem permissao para excluir esta escala.');
+      setSubmitMessage('');
+      return;
+    }
+
+    if (!window.confirm('Tem certeza que deseja excluir esta escala? Esta acao nao pode ser desfeita.')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setSubmitError('');
+    setSubmitMessage('');
+
+    try {
+      const responsePayload = await requestJson(`/api/scales/${encodeURIComponent(normalizedScaleId)}`, {
+        method: 'DELETE'
+      });
+
+      const successMessage =
+        typeof responsePayload?.message === 'string' && responsePayload.message.trim()
+          ? responsePayload.message.trim()
+          : 'Escala excluida com sucesso.';
+
+      setSubmitMessage(successMessage);
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : 'Nao foi possivel excluir a escala agora. Tente novamente.'
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const formAriaLabel = isEditMode ? 'Edicao de escalas' : 'Cadastro de escalas';
+  const heroKicker = isEditMode ? 'Edicao de escalas' : 'Cadastro de escalas';
+  const heroTitle = isEditMode
+    ? 'Atualize a escala, revise funcoes e ajuste a playlist em um so fluxo.'
+    : 'Monte a escala, atribua funcoes e feche a playlist em um so fluxo.';
+  const heroDescription = isEditMode
+    ? 'Revise os dados carregados da escala selecionada e aplique os ajustes necessarios antes de salvar.'
+    : 'A tela segue a identidade visual das escalas do projeto, com cards limpos, gradientes quentes e foco na leitura rapida do que ja foi selecionado.';
+
   return (
-    <section className={styles.page} aria-label="Cadastro de escalas">
+    <section className={styles.page} aria-label={formAriaLabel}>
       <header className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>Cadastro de escalas</p>
-          <h1>Monte a escala, atribua funcoes e feche a playlist em um so fluxo.</h1>
-          <p className={styles.description}>
-            A tela segue a identidade visual das escalas do projeto, com cards limpos, gradientes quentes e foco na
-            leitura rapida do que ja foi selecionado.
-          </p>
+          <p className={styles.kicker}>{heroKicker}</p>
+          <h1>{heroTitle}</h1>
+          <p className={styles.description}>{heroDescription}</p>
         </div>
 
         <div className={styles.heroStats} aria-label="Resumo da escala">
@@ -527,7 +809,25 @@ export default function ScaleRegistrationForm() {
         </p>
       ) : null}
 
-      <div className={styles.formGrid} role="form" aria-label="Cadastro de escalas">
+      {scaleLoadError ? (
+        <p className={styles.errorMessage} role="alert">
+          {scaleLoadError}
+        </p>
+      ) : null}
+
+      {isScaleLoading ? (
+        <p className={styles.loadingMessage} role="status" aria-live="polite">
+          Carregando dados da escala para edicao...
+        </p>
+      ) : null}
+
+      {isEditLocked ? (
+        <p className={styles.permissionMessage} role="status" aria-live="polite">
+          Seu perfil de componente pode visualizar esta escala, mas edicao e exclusao estao bloqueadas.
+        </p>
+      ) : null}
+
+      <div className={styles.formGrid} role="form" aria-label={formAriaLabel}>
         <div className={styles.mainColumn}>
           <section className={styles.card}>
             <div className={styles.cardHeader}>
@@ -547,6 +847,7 @@ export default function ScaleRegistrationForm() {
                     setScaleDateError('');
                   }
                 }}
+                disabled={isEditLocked}
                 required
                 error={scaleDateError}
                 helperText="Selecione dia, mes e ano. No topo do calendario, ajuste a navegacao para chegar ao ano desejado."
@@ -562,6 +863,7 @@ export default function ScaleRegistrationForm() {
                       type="button"
                       className={`${styles.shiftButton} ${shift === option ? styles.shiftButtonActive : ''}`}
                       onClick={() => setShift(option)}
+                      disabled={isEditLocked}
                       aria-pressed={shift === option}
                     >
                       {option}
@@ -601,6 +903,7 @@ export default function ScaleRegistrationForm() {
                       type="button"
                       className={styles.componentToggle}
                       onClick={() => toggleComponent(component.id)}
+                      disabled={isEditLocked}
                       aria-pressed={isSelected}
                     >
                       <span className={styles.componentAvatar} aria-hidden="true">
@@ -638,6 +941,7 @@ export default function ScaleRegistrationForm() {
                           className={styles.textInput}
                           value={functionsByComponent[component.id] || ''}
                           onChange={(event) => updateFunction(component.id, event.target.value)}
+                          disabled={isEditLocked}
                         >
                           <option value="">Selecione uma funcao</option>
                           {functionSelectOptions.map((option) => (
@@ -675,6 +979,7 @@ export default function ScaleRegistrationForm() {
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
+                  disabled={isEditLocked}
                   placeholder="Pesquisar musica, ministerio ou louvor"
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
@@ -683,7 +988,12 @@ export default function ScaleRegistrationForm() {
                   }}
                 />
               </label>
-              <button className={styles.primaryButton} type="button" onClick={searchYouTube} disabled={searchStatus === 'loading'}>
+              <button
+                className={styles.primaryButton}
+                type="button"
+                onClick={searchYouTube}
+                disabled={searchStatus === 'loading' || isEditLocked}
+              >
                 {searchStatus === 'loading' ? 'Buscando...' : 'Buscar'}
               </button>
             </div>
@@ -723,7 +1033,7 @@ export default function ScaleRegistrationForm() {
                           type="button"
                           className={styles.secondaryButton}
                           onClick={() => addToPlaylist(item)}
-                          disabled={isAdded}
+                          disabled={isAdded || isEditLocked}
                         >
                           {isAdded ? 'Adicionado' : 'Adicionar na playlist'}
                         </button>
@@ -755,6 +1065,7 @@ export default function ScaleRegistrationForm() {
                   type="url"
                   value={videoUrl}
                   onChange={handleVideoUrlChange}
+                  disabled={isEditLocked}
                   placeholder="https://www.youtube.com/watch?v=..."
                   inputMode="url"
                   autoComplete="off"
@@ -764,7 +1075,7 @@ export default function ScaleRegistrationForm() {
                 className={styles.primaryButton}
                 type="button"
                 onClick={loadPreview}
-                disabled={previewStatus === 'loading'}
+                disabled={previewStatus === 'loading' || isEditLocked}
               >
                 {previewStatus === 'loading' ? 'Carregando preview...' : 'Validar e carregar preview'}
               </button>
@@ -803,7 +1114,12 @@ export default function ScaleRegistrationForm() {
                   </a>
                 </div>
 
-                <button type="button" className={styles.secondaryButton} onClick={addPreviewToPlaylist}>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={addPreviewToPlaylist}
+                  disabled={isEditLocked}
+                >
                   Adicionar na playlist
                 </button>
               </article>
@@ -834,6 +1150,7 @@ export default function ScaleRegistrationForm() {
                         type="button"
                         className={styles.playlistRemove}
                         onClick={() => removeFromPlaylist(videoId)}
+                        disabled={isEditLocked}
                       >
                         Remover
                       </button>
@@ -871,9 +1188,26 @@ export default function ScaleRegistrationForm() {
               </div>
             </div>
 
-            <button className={styles.primaryButton} type="button" onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? 'Salvando...' : 'Salvar escala'}
-            </button>
+            <div className={styles.actionRow}>
+              {isEditMode ? (
+                <button
+                  className={styles.deleteButton}
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={isDeleting || isSubmitting || isEditLocked || isScaleLoading}
+                >
+                  {isDeleting ? 'Excluindo...' : 'Excluir escala'}
+                </button>
+              ) : null}
+              <button
+                className={styles.primaryButton}
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting || isDeleting || isEditLocked || isScaleLoading}
+              >
+                {isSubmitting ? 'Salvando...' : isEditMode ? 'Salvar alteracoes' : 'Salvar escala'}
+              </button>
+            </div>
           </section>
         </aside>
       </div>

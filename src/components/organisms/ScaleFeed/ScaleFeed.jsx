@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import styles from './ScaleFeed.module.css';
@@ -1047,6 +1048,7 @@ function ScaleCard({
 }
 
 export default function ScaleFeed({ scales }) {
+  const router = useRouter();
   const [feedback, setFeedback] = useState('');
   const [expandedScaleIds, setExpandedScaleIds] = useState({});
   const imageLibrary = useMemo(() => collectImageLibrary(scales), [scales]);
@@ -1078,7 +1080,7 @@ export default function ScaleFeed({ scales }) {
       return;
     }
 
-    setFeedback(`Acao de edicao disparada para ${scale.date} (${scale.shift}).`);
+    router.push(`/cadastro-escalas?scaleId=${encodeURIComponent(scale.id)}`);
   };
 
   return (
