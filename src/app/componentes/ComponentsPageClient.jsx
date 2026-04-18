@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import ComponentsGallery from '@/components/organisms/ComponentsGallery/ComponentsGallery';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { requestJson } from '@/lib/api/http';
 import styles from './page.module.css';
 
@@ -19,11 +20,13 @@ function normalizeComponent(item, index) {
     (typeof item?.photoUrl === 'string' && item.photoUrl.trim()) ||
     (typeof item?.photo === 'string' && item.photo.trim()) ||
     '';
+  const isActive = typeof item?.isActive === 'boolean' ? item.isActive : true;
 
-  return { id, name, photo };
+  return { id, name, photo, isActive };
 }
 
 export default function ComponentsPageClient() {
+  const { audience, isLoading: isAuthLoading } = useAuthSession();
   const [components, setComponents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -74,5 +77,5 @@ export default function ComponentsPageClient() {
     );
   }
 
-  return <ComponentsGallery components={components} />;
+  return <ComponentsGallery components={components} canEdit={Boolean(!isAuthLoading && audience === 'group-app')} />;
 }

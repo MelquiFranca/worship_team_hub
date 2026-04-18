@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Calendar from '@/components/molecules/Calendar/Calendar';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { requestJson } from '@/lib/api/http';
 import styles from './ComponentRegistrationForm.module.css';
 
-function validateForm(values) {
+function validateForm(values, options = {}) {
+  const { isEditMode = false } = options;
   const nextErrors = {};
 
   if (!values.fullName.trim()) {
@@ -20,7 +22,7 @@ function validateForm(values) {
     nextErrors.username = 'Informe o usuário.';
   }
 
-  if (!values.password.trim()) {
+  if (!isEditMode && !values.password.trim()) {
     nextErrors.password = 'Informe a senha.';
   }
 
@@ -56,7 +58,37 @@ function getPhotoIndicator(photoFile) {
   return photoFile.name || photoFile.type || 'foto-selecionada';
 }
 
-export default function ComponentRegistrationForm() {
+function normalizeLoadedComponent(payload, fallbackId) {
+  const source = payload?.item && typeof payload.item === 'object' ? payload.item : payload;
+
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  const permission =
+    typeof source.permissionType === 'string' && ['group-app', 'component-app'].includes(source.permissionType)
+      ? source.permissionType
+      : '';
+
+  return {
+    id:
+      (typeof source.id === 'string' && source.id.trim()) ||
+      (typeof source._id === 'string' && source._id.trim()) ||
+      fallbackId,
+    fullName: typeof source.fullName === 'string' ? source.fullName : '',
+    birthDate: typeof source.birthDate === 'string' ? source.birthDate : '',
+    username: typeof source.username === 'string' ? source.username : '',
+    permissionType: permission,
+    photoUrl: typeof source.photoUrl === 'string' ? source.photoUrl : '',
+    photoProvided: Boolean(source.photoProvided),
+    isActive: source.isActive !== false
+  };
+}
+
+export default function ComponentRegistrationForm({ componentId = '' }) {
+  const { audience, isLoading: isAuthLoading } = useAuthSession();
+  const isEditMode = Boolean(componentId);
+  const canManageComponent = !isAuthLoading && audience === 'group-app';
   const [fullName, setFullName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [username, setUsername] = useState('');
@@ -64,10 +96,15 @@ export default function ComponentRegistrationForm() {
   const [permissionType, setPermissionType] = useState('');
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
+  const [savedPhotoUrl, setSavedPhotoUrl] = useState('');
+  const [savedPhotoProvided, setSavedPhotoProvided] = useState(false);
+  const [isComponentActive, setIsComponentActive] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [feedback, setFeedback] = useState({ type: 'idle', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingComponent, setIsFetchingComponent] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
 
   const previewFallback = useMemo(() => getInitials(fullName || 'Foto'), [fullName]);
 
@@ -83,6 +120,70 @@ export default function ComponentRegistrationForm() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [photoFile]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadComponent() {
+      if (!isEditMode) {
+        return;
+      }
+
+      if (!canManageComponent) {
+        setFeedback({
+          type: 'error',
+          message: 'Seu perfil nao possui permissao para editar componentes.'
+        });
+        return;
+      }
+
+      setIsFetchingComponent(true);
+      setFeedback({ type: 'idle', message: '' });
+      setErrors({});
+
+      try {
+        const responsePayload = await requestJson(`/api/components/${componentId}`);
+        const loaded = normalizeLoadedComponent(responsePayload, componentId);
+
+        if (!isMounted || !loaded) {
+          return;
+        }
+
+        setFullName(loaded.fullName);
+        setBirthDate(loaded.birthDate);
+        setUsername(loaded.username);
+        setPassword('');
+        setPermissionType(loaded.permissionType);
+        setPhotoFile(null);
+        setSavedPhotoUrl(loaded.photoUrl);
+        setSavedPhotoProvided(Boolean(loaded.photoProvided));
+        setIsComponentActive(loaded.isActive);
+        setShowPassword(false);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setFeedback({
+          type: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Nao foi possivel carregar os dados do componente para edicao.'
+        });
+      } finally {
+        if (isMounted) {
+          setIsFetchingComponent(false);
+        }
+      }
+    }
+
+    loadComponent();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [canManageComponent, componentId, isEditMode]);
+
   function clearFeedback() {
     setFeedback({ type: 'idle', message: '' });
   }
@@ -95,6 +196,9 @@ export default function ComponentRegistrationForm() {
     setPermissionType('');
     setPhotoFile(null);
     setPhotoPreview('');
+    setSavedPhotoUrl('');
+    setSavedPhotoProvided(false);
+    setIsComponentActive(true);
     setShowPassword(false);
     setErrors({});
   }
@@ -102,13 +206,24 @@ export default function ComponentRegistrationForm() {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    const nextErrors = validateForm({
-      fullName,
-      birthDate,
-      username,
-      password,
-      permissionType
-    });
+    if (isEditMode && !canManageComponent) {
+      setFeedback({
+        type: 'error',
+        message: 'Seu perfil nao possui permissao para editar componentes.'
+      });
+      return;
+    }
+
+    const nextErrors = validateForm(
+      {
+        fullName,
+        birthDate,
+        username,
+        password,
+        permissionType
+      },
+      { isEditMode }
+    );
 
     setErrors(nextErrors);
 
@@ -124,34 +239,97 @@ export default function ComponentRegistrationForm() {
     clearFeedback();
 
     try {
+      const selectedPhotoIndicator = getPhotoIndicator(photoFile);
       const payload = {
         fullName: fullName.trim(),
         birthDate: birthDate instanceof Date ? toLocalIsoDate(birthDate) : birthDate,
         username: username.trim(),
-        password,
         permissionType,
-        photoUrl: getPhotoIndicator(photoFile),
-        photoProvided: Boolean(photoFile)
+        photoUrl: selectedPhotoIndicator || savedPhotoUrl,
+        photoProvided: selectedPhotoIndicator ? true : savedPhotoProvided
       };
-      const responsePayload = await requestJson('/api/components', {
-        method: 'POST',
-        body: payload
+
+      if (!isEditMode || password.trim()) {
+        payload.password = password;
+      }
+
+      const responsePayload = await requestJson(
+        isEditMode ? `/api/components/${componentId}` : '/api/components',
+        {
+          method: isEditMode ? 'PATCH' : 'POST',
+          body: payload
+        }
+      );
+
+      const successMessage =
+        typeof responsePayload?.message === 'string' && responsePayload.message.trim()
+          ? responsePayload.message.trim()
+          : isEditMode
+            ? 'Componente atualizado com sucesso.'
+            : 'Componente cadastrado com sucesso.';
+
+      setFeedback({ type: 'success', message: successMessage });
+
+      if (isEditMode) {
+        if (selectedPhotoIndicator) {
+          setSavedPhotoUrl(selectedPhotoIndicator);
+          setSavedPhotoProvided(true);
+        }
+        setPassword('');
+        setPhotoFile(null);
+        setPhotoPreview('');
+      } else {
+        resetForm();
+      }
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : isEditMode
+              ? 'Nao foi possivel atualizar o componente agora. Tente novamente.'
+              : 'Nao foi possivel cadastrar o componente agora. Tente novamente.'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeactivate() {
+    if (!isEditMode || !componentId || isDeactivating || !isComponentActive) {
+      return;
+    }
+
+    const confirmed = window.confirm('Deseja inativar este componente? Essa acao pode ser revertida depois.');
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeactivating(true);
+    clearFeedback();
+
+    try {
+      const responsePayload = await requestJson(`/api/components/${componentId}`, {
+        method: 'PATCH',
+        body: { isActive: false }
       });
 
       const successMessage =
         typeof responsePayload?.message === 'string' && responsePayload.message.trim()
           ? responsePayload.message.trim()
-          : 'Componente cadastrado com sucesso.';
+          : 'Componente inativado com sucesso.';
 
+      setIsComponentActive(false);
       setFeedback({ type: 'success', message: successMessage });
-      resetForm();
     } catch (error) {
       setFeedback({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Nao foi possivel cadastrar o componente agora. Tente novamente.'
+        message: error instanceof Error ? error.message : 'Nao foi possivel inativar o componente agora.'
       });
     } finally {
-      setIsSubmitting(false);
+      setIsDeactivating(false);
     }
   }
 
@@ -162,9 +340,14 @@ export default function ComponentRegistrationForm() {
   }
 
   const todayIso = toLocalIsoDate(new Date());
+  const displayedPhoto = photoPreview || savedPhotoUrl;
 
   return (
-    <section className={styles.card} aria-label="Formulario de cadastro de componentes">
+    <section
+      className={styles.card}
+      aria-label={isEditMode ? 'Formulario de edicao de componente' : 'Formulario de cadastro de componentes'}
+      aria-busy={isFetchingComponent || isSubmitting || isDeactivating}
+    >
       {feedback.message ? (
         <p
           className={`${styles.feedback} ${
@@ -177,11 +360,27 @@ export default function ComponentRegistrationForm() {
         </p>
       ) : null}
 
+      {isEditMode ? (
+        <p className={`${styles.modeBadge} ${isComponentActive ? styles.modeBadgeActive : styles.modeBadgeInactive}`}>
+          {isComponentActive ? 'Modo edicao • componente ativo' : 'Modo edicao • componente inativo'}
+        </p>
+      ) : null}
+
+      {isEditMode && !canManageComponent && !isAuthLoading ? (
+        <p className={styles.permissionNotice} role="alert">
+          Seu perfil nao possui permissao para editar ou inativar este componente.
+        </p>
+      ) : null}
+
       <div className={styles.photoArea}>
         <div className={styles.photoPreview}>
-          {photoPreview ? (
+          {displayedPhoto ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={photoPreview} alt="Preview da foto selecionada" className={styles.photoImage} />
+            <img
+              src={displayedPhoto}
+              alt={photoPreview ? 'Preview da foto selecionada' : 'Foto atual do componente'}
+              className={styles.photoImage}
+            />
           ) : (
             <div className={styles.photoFallback} aria-hidden="true">
               {previewFallback || 'Foto'}
@@ -191,10 +390,14 @@ export default function ComponentRegistrationForm() {
 
         <div className={styles.photoCopy}>
           <strong>Foto do componente</strong>
-          <p>Escolha uma imagem opcional para visualizar antes de enviar o cadastro.</p>
+          <p>
+            {isEditMode
+              ? 'Atualize a imagem se desejar. Se nao selecionar uma nova foto, a atual sera mantida.'
+              : 'Escolha uma imagem opcional para visualizar antes de enviar o cadastro.'}
+          </p>
 
           <label className={styles.fileButton} htmlFor="component-photo">
-            Selecionar foto
+            {isEditMode ? 'Trocar foto' : 'Selecionar foto'}
           </label>
           <input
             id="component-photo"
@@ -207,6 +410,12 @@ export default function ComponentRegistrationForm() {
           <span className={styles.helpText}>PNG, JPG ou WebP. Opcional.</span>
         </div>
       </div>
+
+      {isEditMode && isFetchingComponent ? (
+        <p className={styles.loadingState} role="status" aria-live="polite">
+          Carregando dados do componente...
+        </p>
+      ) : null}
 
       <form className={styles.form} onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
         <div className={styles.field}>
@@ -224,6 +433,7 @@ export default function ComponentRegistrationForm() {
             aria-invalid={Boolean(errors.fullName)}
             aria-describedby={errors.fullName ? 'fullName-error' : undefined}
             placeholder="Digite o nome completo"
+            disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
           />
           {errors.fullName ? (
             <span className={styles.error} id="fullName-error" role="alert">
@@ -246,6 +456,7 @@ export default function ComponentRegistrationForm() {
           helperText="Selecione dia, mes e ano. No topo do calendario, ajuste a navegacao para chegar ao ano desejado."
           maxDate={todayIso}
           name="birthDate"
+          disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
         />
 
         <div className={styles.field}>
@@ -263,6 +474,7 @@ export default function ComponentRegistrationForm() {
             aria-invalid={Boolean(errors.username)}
             aria-describedby={errors.username ? 'username-error' : undefined}
             placeholder="Crie um usuário"
+            disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
           />
           {errors.username ? (
             <span className={styles.error} id="username-error" role="alert">
@@ -283,20 +495,27 @@ export default function ComponentRegistrationForm() {
                 clearFeedback();
                 setPassword(event.target.value);
               }}
-              autoComplete="new-password"
+              autoComplete={isEditMode ? 'current-password' : 'new-password'}
               aria-invalid={Boolean(errors.password)}
-              aria-describedby={errors.password ? 'password-error' : undefined}
-              placeholder="Digite uma senha"
+              aria-describedby={errors.password ? 'password-error' : 'password-help'}
+              placeholder={isEditMode ? 'Preencha somente para alterar a senha' : 'Digite uma senha'}
+              disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
             />
             <button
               type="button"
               className={styles.passwordToggle}
               onClick={() => setShowPassword((current) => !current)}
               aria-pressed={showPassword}
+              disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
             >
               {showPassword ? 'Ocultar' : 'Mostrar'}
             </button>
           </div>
+          {isEditMode ? (
+            <span className={styles.helpText} id="password-help">
+              Em edicao, a senha e opcional.
+            </span>
+          ) : null}
           {errors.password ? (
             <span className={styles.error} id="password-error" role="alert">
               {errors.password}
@@ -317,6 +536,7 @@ export default function ComponentRegistrationForm() {
             aria-invalid={Boolean(errors.permissionType)}
             aria-describedby={errors.permissionType ? 'permissionType-error' : undefined}
             required
+            disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
           >
             <option value="">Selecione o tipo de permissao</option>
             <option value="group-app">group-app</option>
@@ -329,9 +549,38 @@ export default function ComponentRegistrationForm() {
           ) : null}
         </div>
 
-        <button type="submit" className={styles.submitButton} disabled={isSubmitting}>
-          {isSubmitting ? 'Cadastrando...' : 'Cadastrar componente'}
-        </button>
+        <div className={styles.actions}>
+          <button
+            type="submit"
+            className={styles.submitButton}
+            disabled={isSubmitting || isFetchingComponent || isDeactivating || (isEditMode && !canManageComponent)}
+          >
+            {isSubmitting
+              ? isEditMode
+                ? 'Salvando alteracoes...'
+                : 'Cadastrando...'
+              : isEditMode
+                ? 'Salvar alteracoes'
+                : 'Cadastrar componente'}
+          </button>
+
+          {isEditMode ? (
+            <button
+              type="button"
+              className={styles.deactivateButton}
+              onClick={handleDeactivate}
+              disabled={
+                isSubmitting ||
+                isFetchingComponent ||
+                isDeactivating ||
+                !isComponentActive ||
+                !canManageComponent
+              }
+            >
+              {isDeactivating ? 'Inativando...' : isComponentActive ? 'Inativar componente' : 'Componente inativo'}
+            </button>
+          ) : null}
+        </div>
       </form>
     </section>
   );

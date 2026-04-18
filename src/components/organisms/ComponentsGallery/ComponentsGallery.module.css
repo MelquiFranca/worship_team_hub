@@ -31,6 +31,29 @@
   padding: 12px;
   display: grid;
   gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.componentBlockInteractive {
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.componentBlockInteractive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow-medium, 0 8px 22px rgba(15, 23, 42, 0.08));
+  border-color: var(--app-focus, #93c5fd);
+}
+
+.componentBlockInteractive:focus-visible {
+  outline: 3px solid var(--app-focus, #93c5fd);
+  outline-offset: 2px;
+}
+
+.componentBlockInactive {
+  opacity: 0.62;
+  border-style: dashed;
 }
 
 .photoWrap {
@@ -62,6 +85,19 @@
   text-align: center;
   font-size: 0.93rem;
   line-height: 1.25;
+}
+
+.statusBadge {
+  justify-self: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 30%, white);
+  background: var(--app-danger-soft, #fef2f2);
+  color: var(--app-danger, #b91c1c);
+  font-size: 0.74rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 6px 9px;
 }
 
 .emptyState {

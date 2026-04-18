@@ -28,6 +28,40 @@
   color: var(--app-danger, #b91c1c);
 }
 
+.modeBadge {
+  margin: 0;
+  width: fit-content;
+  font-size: 0.78rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  padding: 8px 10px;
+}
+
+.modeBadgeActive {
+  color: var(--app-info, #1d4ed8);
+  background: var(--app-info-soft, #eff6ff);
+  border: 1px solid var(--app-info-strong-soft, #dbeafe);
+}
+
+.modeBadgeInactive {
+  color: var(--app-danger, #b91c1c);
+  background: var(--app-danger-soft, #fef2f2);
+  border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 20%, white);
+}
+
+.permissionNotice {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 20%, white);
+  border-radius: 10px;
+  background: var(--app-danger-soft, #fef2f2);
+  color: var(--app-danger, #b91c1c);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  padding: 10px 12px;
+}
+
 .photoArea {
   display: grid;
   grid-template-columns: 96px 1fr;
@@ -98,6 +132,7 @@
 
 .fileButton:focus-visible,
 .submitButton:focus-visible,
+.deactivateButton:focus-visible,
 .passwordToggle:focus-visible,
 .field input:focus-visible,
 .field select:focus-visible {
@@ -133,6 +168,16 @@
 .form {
   display: grid;
   gap: 14px;
+}
+
+.loadingState {
+  margin: 0;
+  border: 1px dashed var(--app-border-strong, #d4d4d8);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--app-text-soft, #64748b);
+  background: var(--app-surface-muted, #f8fafc);
 }
 
 .field {
@@ -188,6 +233,11 @@
   background: var(--app-surface-muted, #f1f5f9);
 }
 
+.actions {
+  display: grid;
+  gap: 10px;
+}
+
 .submitButton {
   border: 0;
   border-radius: 10px;
@@ -207,6 +257,26 @@
   cursor: progress;
   opacity: 0.75;
   filter: none;
+}
+
+.deactivateButton {
+  border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 30%, white);
+  border-radius: 10px;
+  background: var(--app-danger-soft, #fef2f2);
+  color: var(--app-danger, #b91c1c);
+  font: inherit;
+  font-weight: 700;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.deactivateButton:hover {
+  filter: brightness(0.98);
+}
+
+.deactivateButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 @media (max-width: 560px) {
