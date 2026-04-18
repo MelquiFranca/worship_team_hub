@@ -5,6 +5,9 @@ import ScaleFeed from '@/components/organisms/ScaleFeed/ScaleFeed';
 import { requestJson } from '@/lib/api/http';
 import styles from './page.module.css';
 
+const SCALE_TIME_SCOPE_CURRENT_AND_FUTURE = 'current-and-future';
+const SCALE_TIME_SCOPE_ALL = 'all';
+
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -126,6 +129,7 @@ export default function ScalesPageClient() {
   const [scales, setScales] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [timeScope, setTimeScope] = useState(SCALE_TIME_SCOPE_CURRENT_AND_FUTURE);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -134,7 +138,7 @@ export default function ScalesPageClient() {
     try {
       const [componentsPayload, scalesPayload] = await Promise.all([
         requestJson('/api/components?limit=100'),
-        requestJson('/api/scales?limit=100')
+        requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent(timeScope)}`)
       ]);
 
       const componentsById = normalizeComponentCatalog(componentsPayload?.items);
@@ -150,7 +154,7 @@ export default function ScalesPageClient() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [timeScope]);
 
   useEffect(() => {
     fetchData();
@@ -175,5 +179,21 @@ export default function ScalesPageClient() {
     );
   }
 
-  return <ScaleFeed scales={scales} />;
+  return (
+    <ScaleFeed
+      scales={scales}
+      timeScope={timeScope}
+      onChangeTimeScope={setTimeScope}
+      timeScopeOptions={[
+        {
+          value: SCALE_TIME_SCOPE_CURRENT_AND_FUTURE,
+          label: 'Hoje e futuras'
+        },
+        {
+          value: SCALE_TIME_SCOPE_ALL,
+          label: 'Todas'
+        }
+      ]}
+    />
+  );
 }

@@ -9,6 +9,30 @@ import { getMongoCollections } from '../../../lib/db/mongodb.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+const SCALE_TIME_SCOPE_CURRENT_AND_FUTURE = 'current-and-future';
+const SCALE_TIME_SCOPE_ALL = 'all';
+
+function getCurrentLocalIsoDate(now = new Date()) {
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function parseScaleTimeScope(request) {
+  const rawValue = getTrimmedQueryParam(request, 'timeScope');
+
+  if (!rawValue) {
+    return SCALE_TIME_SCOPE_CURRENT_AND_FUTURE;
+  }
+
+  if (rawValue === SCALE_TIME_SCOPE_CURRENT_AND_FUTURE || rawValue === SCALE_TIME_SCOPE_ALL) {
+    return rawValue;
+  }
+
+  return null;
+}
 
 export function serializeScale(document) {
   return {
@@ -127,13 +151,26 @@ export async function GET(request) {
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
     const limit = parseLimitParam(request);
+    const timeScope = parseScaleTimeScope(request);
 
     if (limit === null && getTrimmedQueryParam(request, 'limit')) {
       return jsonApiError('Informe um limit entre 1 e 100.', 400, 'BAD_REQUEST');
     }
 
+    if (timeScope === null) {
+      return jsonApiError(
+        'Informe um timeScope valido: current-and-future ou all.',
+        400,
+        'BAD_REQUEST'
+      );
+    }
+
     const { scales } = await getMongoCollections();
-    const query = scales.find({ groupId }).sort({ date: -1, createdAt: -1 });
+    const currentLocalIsoDate = getCurrentLocalIsoDate();
+    const mongoFilter = timeScope === SCALE_TIME_SCOPE_ALL
+      ? { groupId }
+      : { groupId, date: { $gte: currentLocalIsoDate } };
+    const query = scales.find(mongoFilter).sort({ date: -1, createdAt: -1 });
 
     if (limit) {
       query.limit(limit);
@@ -141,7 +178,15 @@ export async function GET(request) {
 
     const items = (await query.toArray()).map(serializeScale);
 
-    return NextResponse.json({ items, count: items.length, groupId });
+    return NextResponse.json({
+      items,
+      count: items.length,
+      groupId,
+      filters: {
+        timeScope,
+        currentLocalIsoDate
+      }
+    });
   } catch (error) {
     if (isAuthError(error)) {
       return toAuthErrorResponse(NextResponse.json, error);

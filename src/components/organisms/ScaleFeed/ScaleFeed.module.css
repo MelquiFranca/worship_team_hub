@@ -7,6 +7,14 @@
   padding: 0 8px;
 }
 
+.feedHeaderTopRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .feedHeader h1 {
   margin: 0;
   font-size: 1.8rem;
@@ -15,6 +23,29 @@
 .feedHeader p {
   margin-top: 4px;
   color: var(--app-text-muted, #4b5563);
+}
+
+.feedFilterControl {
+  display: grid;
+  gap: 4px;
+}
+
+.feedFilterControl label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.feedFilterSelect {
+  min-height: 36px;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
+  border-radius: 10px;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #0f172a);
+  font-size: 0.88rem;
+  padding: 0 30px 0 12px;
 }
 
 .feedback {
@@ -943,6 +974,11 @@
 .toggleButton:focus-visible,
 .navButton:focus-visible,
 .dot:focus-visible {
+  outline: 3px solid var(--app-focus, #93c5fd);
+  outline-offset: 1px;
+}
+
+.feedFilterSelect:focus-visible {
   outline: 3px solid var(--app-focus, #93c5fd);
   outline-offset: 1px;
 }

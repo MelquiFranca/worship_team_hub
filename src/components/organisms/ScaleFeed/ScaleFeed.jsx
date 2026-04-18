@@ -1156,6 +1156,7 @@ function ScaleCard({
 }) {
   const [activeView, setActiveView] = useState(COMPONENTS_VIEW);
   const [notifyFeedback, setNotifyFeedback] = useState('');
+  const [isNotifying, setIsNotifying] = useState(false);
   const [currentImage, setCurrentImage] = useState(() => scale.imageAttachment || null);
   const [currentPlaylist, setCurrentPlaylist] = useState(() => normalizeScalePlaylist(scale.playlist));
   const [imageFeedback, setImageFeedback] = useState('');
@@ -1183,13 +1184,41 @@ function ScaleCard({
     setCurrentPlaylist(normalizeScalePlaylist(scale.playlist));
   }, [scale.playlist]);
 
-  const handleNotify = () => {
+  const handleNotify = async () => {
     if (isComponentApp) {
       setNotifyFeedback(COMPONENT_APP_PERMISSION_MESSAGE);
       return;
     }
 
-    setNotifyFeedback(`Notificacao enviada para ${scaleDate} (${scaleShift}).`);
+    if (isNotifying) {
+      return;
+    }
+
+    if (!scaleId) {
+      setNotifyFeedback('Nao foi possivel identificar a escala para notificar.');
+      return;
+    }
+
+    setIsNotifying(true);
+
+    try {
+      const payload = await requestJson(`/api/scales/${encodeURIComponent(scaleId)}/notify`, {
+        method: 'POST'
+      });
+      const apiMessageCandidates = [
+        payload?.message,
+        payload?.detail,
+        payload?.data?.message,
+        payload?.item?.message,
+        payload?.notification?.message
+      ];
+      const apiMessage = apiMessageCandidates.find((value) => typeof value === 'string' && value.trim())?.trim();
+      setNotifyFeedback(apiMessage || `Notificacao reenviada para ${scaleDate} (${scaleShift}).`);
+    } catch (error) {
+      setNotifyFeedback(error instanceof Error ? error.message : 'Nao foi possivel reenviar a notificacao.');
+    } finally {
+      setIsNotifying(false);
+    }
   };
 
   useEffect(() => {
@@ -1392,10 +1421,12 @@ function ScaleCard({
                 isComponentApp ? styles.iconButtonDisabledPermission : ''
               }`}
               onClick={handleNotify}
-              disabled={isComponentApp}
-              aria-label={`Notificar equipe da escala de ${scaleDate} (${scaleShift})`}
-              aria-disabled={isComponentApp}
-              title="Notificar"
+              disabled={isComponentApp || isNotifying}
+              aria-label={`${
+                isNotifying ? 'Enviando notificacao para equipe da escala' : 'Notificar equipe da escala'
+              } de ${scaleDate} (${scaleShift})`}
+              aria-disabled={isComponentApp || isNotifying}
+              title={isNotifying ? 'Enviando notificacao' : 'Notificar'}
             >
               <IconBell />
             </button>
@@ -1437,7 +1468,12 @@ function ScaleCard({
   );
 }
 
-export default function ScaleFeed({ scales }) {
+export default function ScaleFeed({
+  scales,
+  timeScope = 'current-and-future',
+  onChangeTimeScope,
+  timeScopeOptions = []
+}) {
   const router = useRouter();
   const [feedback, setFeedback] = useState('');
   const [expandedScaleIds, setExpandedScaleIds] = useState({});
@@ -1535,8 +1571,28 @@ export default function ScaleFeed({ scales }) {
   return (
     <section className={styles.feedPage} aria-label="Feed de escalas">
       <header className={styles.feedHeader}>
-        <h1>Escalas</h1>
-        <p>Visualize componentes, playlists e comentarios em formato de feed.</p>
+        <div className={styles.feedHeaderTopRow}>
+          <h1>Escalas</h1>
+          {typeof onChangeTimeScope === 'function' && timeScopeOptions.length ? (
+            <div className={styles.feedFilterControl}>
+              <label htmlFor="scales-time-scope">Filtro</label>
+              <select
+                id="scales-time-scope"
+                className={styles.feedFilterSelect}
+                value={timeScope}
+                onChange={(event) => onChangeTimeScope(event.target.value)}
+                aria-label="Filtrar periodo das escalas"
+              >
+                {timeScopeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+        </div>
+        <p>Por padrao, exibindo escalas de hoje e datas futuras.</p>
       </header>
 
       {feedback ? (
