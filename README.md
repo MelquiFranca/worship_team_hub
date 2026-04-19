@@ -46,6 +46,13 @@ Aplicacao base em Next.js com App Router.
 - A foto do grupo tambem usa `photoDataUrl` com persistencia no banco e fallback de `photoUrl`.
 - Tipos aceitos e limite seguem o padrao: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, ate `2MB`.
 
+## Listagem administrativa de grupos
+
+- A tela `/admin/grupos` nao usa mais dados ficticios em codigo.
+- A listagem agora e carregada diretamente do MongoDB (colecao `groups`).
+- A foto de cada grupo prioriza `group_settings.photo/photoUrl`, com fallback para `groups.photoUrl`.
+- Quando nao ha foto, a interface exibe placeholder com as iniciais do grupo.
+
 ## Notificacao Push (Service Worker Nativo)
 
 - A aplicacao usa Web Push nativo com Service Worker e VAPID.
@@ -62,3 +69,4 @@ Aplicacao base em Next.js com App Router.
 - Fluxo detalhado: `docs/setup/next-setup.md`
 - Spec da feature: `docs/specs/features/configurar-ambiente-next/`
 - Spec de imagem em banco: `docs/specs/features/armazenamento-imagem-banco-componentes/`
+- Spec de integracao da listagem de grupos no banco: `docs/specs/features/integracao-grupos-admin-banco/`
