@@ -19,7 +19,7 @@ export const authUsers = [
     email: 'avivah@ministerio.com',
     username: 'avivah@ministerio.com',
     role: AUTH_ROLES.GROUP_OWNER,
-    groupId: 'grupo-avivah',
+    groupId: '607c71ca0171590015ff9c91',
     passwordHash: createPasswordHash('123456', {
       salt: 'group-owner-seed-salt-v1'
     })
@@ -30,7 +30,7 @@ export const authUsers = [
     email: 'lucas.andrade@escalas.app',
     username: 'lucas.andrade',
     role: AUTH_ROLES.COMPONENT,
-    groupId: 'grupo-avivah',
+    groupId: '607c71ca0171590015ff9c91',
     passwordHash: createPasswordHash('123456', {
       salt: 'component-seed-salt-v1'
     })

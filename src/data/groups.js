@@ -1,7 +1,7 @@
 export const groups = [
   {
-    id: 'grupo-avivah',
-    name: 'Ministério Avivah',
+    id: '607c71ca0171590015ff9c91',
+    name: 'Ministério Shekinah',
     status: 'active',
     photo: 'https://i.pravatar.cc/240?img=12'
   },

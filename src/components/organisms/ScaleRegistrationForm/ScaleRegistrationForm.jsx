@@ -281,7 +281,7 @@ function mergeScaleComponentsIntoOptions(currentOptions, scaleComponents) {
 }
 
 function getVideoId(item) {
-  return item.videoId || item.id?.videoId || item.id;
+  return item.videoId || item.playlistId || item.id?.videoId || item.id;
 }
 
 function formatResultKey(item) {
@@ -619,14 +619,14 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
     if (!trimmedUrl) {
       setPreviewStatus('error');
-      setPreviewMessage('Cole um link valido de video do YouTube antes de validar.');
+      setPreviewMessage('Cole um link valido do YouTube ou YouTube Music antes de validar.');
       setPreviewItem(null);
       return;
     }
 
     if (!isSupportedYouTubeUrl(trimmedUrl)) {
       setPreviewStatus('error');
-      setPreviewMessage('O link precisa ser do YouTube. Use youtube.com, youtu.be ou shorts.');
+      setPreviewMessage('O link precisa ser do YouTube/YouTube Music (video, musica ou playlist).');
       setPreviewItem(null);
       return;
     }
@@ -646,7 +646,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
       setPreviewStatus('success');
       setPreviewMessage(
         payload.previewSource === 'fallback'
-          ? 'Preview carregado com metadados basicos do video.'
+          ? 'Preview carregado com metadados basicos do link.'
           : ''
       );
     } catch (error) {
@@ -1173,19 +1173,19 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <h2>Adicionar por link</h2>
-              <p>Cole um link valido do YouTube, carregue o preview e adicione na playlist.</p>
+              <p>Cole um link do YouTube/YouTube Music (musica, video ou playlist), carregue o preview e adicione.</p>
             </div>
 
             <div className={styles.searchForm}>
               <label className={styles.fieldGroup}>
-                <span className={styles.fieldLabel}>URL do video</span>
+                <span className={styles.fieldLabel}>URL do link</span>
                 <input
                   className={styles.searchInput}
                   type="url"
                   value={videoUrl}
                   onChange={handleVideoUrlChange}
                   disabled={isEditLocked}
-                  placeholder="https://www.youtube.com/watch?v=..."
+                  placeholder="https://music.youtube.com/watch?v=... ou .../playlist?list=..."
                   inputMode="url"
                   autoComplete="off"
                 />
@@ -1224,12 +1224,16 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
                 <div className={styles.previewCopy}>
                   <span className={styles.previewBadge}>
-                    {previewItem.previewSource === 'fallback' ? 'Preview basico' : 'Preview confirmado'}
+                    {previewItem.previewSource === 'fallback'
+                      ? 'Preview basico'
+                      : previewItem.entityType === 'playlist'
+                        ? 'Preview de playlist'
+                        : 'Preview confirmado'}
                   </span>
                   <strong>{previewItem.title}</strong>
                   <span>{previewItem.channelTitle}</span>
                   <a className={styles.previewUrl} href={previewItem.url} target="_blank" rel="noreferrer noopener">
-                    Abrir video no YouTube
+                    {previewItem.entityType === 'playlist' ? 'Abrir playlist no YouTube' : 'Abrir no YouTube'}
                   </a>
                 </div>
 

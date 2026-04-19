@@ -7,7 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate:components:backup-prd:dry": "node scripts/migrations/migrate-components-backup-prd.cjs --dry-run",
+    "migrate:components:backup-prd": "node scripts/migrations/migrate-components-backup-prd.cjs"
   },
   "engines": {
     "node": "22.14.0"

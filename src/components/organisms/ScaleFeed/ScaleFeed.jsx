@@ -234,6 +234,10 @@ function extractVideoIdFromUrl(videoUrl) {
     const host = parsedUrl.hostname.toLowerCase();
 
     if (host.includes('youtube.com')) {
+      if (parsedUrl.pathname.startsWith('/embed/')) {
+        return parsedUrl.pathname.split('/')[2] || '';
+      }
+
       if (parsedUrl.pathname.startsWith('/shorts/')) {
         return parsedUrl.pathname.split('/')[2] || '';
       }
@@ -247,6 +251,21 @@ function extractVideoIdFromUrl(videoUrl) {
 
     if (host.includes('vimeo.com')) {
       return parsedUrl.pathname.split('/').filter(Boolean)[0] || '';
+    }
+
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+function extractPlaylistIdFromUrl(videoUrl) {
+  try {
+    const parsedUrl = new URL(videoUrl);
+    const host = parsedUrl.hostname.toLowerCase();
+
+    if (host.includes('youtube.com')) {
+      return parsedUrl.searchParams.get('list') || '';
     }
 
     return '';
@@ -273,12 +292,16 @@ function isSupportedPlaylistUrl(value) {
 function createPlaylistItemFromLink(rawUrl, currentLength) {
   const url = rawUrl.trim();
   const extractedVideoId = extractVideoIdFromUrl(url);
+  const extractedPlaylistId = extractPlaylistIdFromUrl(url);
+  const syntheticPlaylistVideoId = extractedPlaylistId ? `playlist:${extractedPlaylistId}` : '';
   const fallbackId = `manual-${Date.now()}`;
+  const effectiveId = extractedVideoId || syntheticPlaylistVideoId || fallbackId;
+  const linkKindLabel = extractedPlaylistId && !extractedVideoId ? 'Playlist' : 'Link';
 
   return {
-    id: extractedVideoId || fallbackId,
-    videoId: extractedVideoId || fallbackId,
-    title: `Link adicionado ${currentLength + 1}`,
+    id: effectiveId,
+    videoId: effectiveId,
+    title: `${linkKindLabel} adicionado ${currentLength + 1}`,
     channelTitle: 'Link manual',
     url,
     videoUrl: url,
@@ -302,7 +325,17 @@ function toEmbedUrl(videoUrl) {
       }
 
       const videoId = parsedUrl.searchParams.get('v');
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+      const playlistId = parsedUrl.searchParams.get('list');
+
+      if (videoId) {
+        return `https://www.youtube.com/embed/${videoId}`;
+      }
+
+      if (playlistId) {
+        return `https://www.youtube.com/embed/videoseries?list=${playlistId}`;
+      }
+
+      return null;
     }
 
     if (host.includes('youtu.be')) {
@@ -783,7 +816,7 @@ function PlaylistPanel({
     }
 
     if (!isSupportedPlaylistUrl(nextLink)) {
-      setFeedback('Use um link valido de YouTube ou Vimeo.');
+      setFeedback('Use um link valido de YouTube, YouTube Music ou Vimeo.');
       return;
     }
 
@@ -825,8 +858,8 @@ function PlaylistPanel({
       setCurrentIndex((prev) => (nextPlaylist.length ? Math.min(prev, nextPlaylist.length - 1) : 0));
       setFeedback(
         nextPlaylist.length
-          ? 'Video removido e playlist atualizada no banco.'
-          : 'Video removido. A playlist desta escala ficou vazia.'
+          ? 'Item removido e playlist atualizada no banco.'
+          : 'Item removido. A playlist desta escala ficou vazia.'
       );
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Nao foi possivel remover o video da playlist.');
@@ -846,7 +879,7 @@ function PlaylistPanel({
                 id={emptyLinkFieldId}
                 type="url"
                 className={styles.playlistLinkInput}
-                placeholder="https://youtube.com/watch?v=..."
+                placeholder="https://music.youtube.com/watch?v=... ou .../playlist?list=..."
                 value={draftLink}
                 onChange={(event) => setDraftLink(event.target.value)}
                 autoComplete="off"
@@ -940,7 +973,7 @@ function PlaylistPanel({
                   id={linkFieldId}
                   type="url"
                   className={styles.playlistLinkInput}
-                  placeholder="https://youtube.com/watch?v=..."
+                  placeholder="https://music.youtube.com/watch?v=... ou .../playlist?list=..."
                   value={draftLink}
                   onChange={(event) => setDraftLink(event.target.value)}
                   autoComplete="off"
@@ -1010,13 +1043,72 @@ function MessageBubble({ message }) {
   );
 }
 
-function CommentsPanel({ scaleId, initialMessages }) {
-  const [messages, setMessages] = useState(() => (initialMessages || []).map(normalizeMessage));
+function CommentsPanel({
+  scaleId,
+  initialMessages,
+  currentUserMemberId,
+  currentUserId,
+  canSendMessage,
+  isSendingMessage,
+  onSendMessage
+}) {
+  const ownAuthorIds = useMemo(
+    () => [currentUserMemberId, currentUserId].filter((value) => typeof value === 'string' && value.trim()),
+    [currentUserId, currentUserMemberId]
+  );
+
+  const [messages, setMessages] = useState(() => {
+    const baseMessages = (initialMessages || []).map(normalizeMessage);
+
+    if (!ownAuthorIds.length) {
+      return baseMessages;
+    }
+
+    return baseMessages.map((message) =>
+      ownAuthorIds.includes(message.meta.authorId)
+        ? {
+          ...message,
+          meta: {
+            ...message.meta,
+            authorId: CURRENT_USER_ID
+          }
+        }
+        : message
+    );
+  });
   const [draft, setDraft] = useState('');
   const [feedback, setFeedback] = useState('');
 
-  const handleSubmit = (event) => {
+  useEffect(() => {
+    const baseMessages = (initialMessages || []).map(normalizeMessage);
+
+    if (!ownAuthorIds.length) {
+      setMessages(baseMessages);
+      return;
+    }
+
+    setMessages(
+      baseMessages.map((message) =>
+        ownAuthorIds.includes(message.meta.authorId)
+          ? {
+            ...message,
+            meta: {
+              ...message.meta,
+              authorId: CURRENT_USER_ID
+            }
+          }
+          : message
+      )
+    );
+  }, [initialMessages, ownAuthorIds]);
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (!canSendMessage) {
+      setFeedback('Seu perfil nao possui permissao para enviar mensagens neste chat.');
+      return;
+    }
 
     const nextText = draft.trim();
     if (!nextText) {
@@ -1024,17 +1116,13 @@ function CommentsPanel({ scaleId, initialMessages }) {
       return;
     }
 
-    const nextMessage = createTextMessage({
-      id: `${scaleId}-msg-${Date.now()}`,
-      text: nextText,
-      authorId: CURRENT_USER_ID,
-      authorName: 'Voce',
-      createdAt: new Date().toISOString()
-    });
-
-    setMessages((current) => [...current, nextMessage]);
-    setDraft('');
-    setFeedback('Mensagem enviada.');
+    try {
+      await onSendMessage(nextText);
+      setDraft('');
+      setFeedback('Mensagem enviada.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Nao foi possivel enviar a mensagem.');
+    }
   };
 
   return (
@@ -1060,8 +1148,14 @@ function CommentsPanel({ scaleId, initialMessages }) {
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Escreva uma mensagem"
             autoComplete="off"
+            disabled={!canSendMessage || isSendingMessage}
           />
-          <button type="submit" className={styles.sendButton} aria-label="Enviar mensagem">
+          <button
+            type="submit"
+            className={styles.sendButton}
+            aria-label="Enviar mensagem"
+            disabled={!canSendMessage || isSendingMessage}
+          >
             <IconSend />
           </button>
         </div>
@@ -1159,8 +1253,10 @@ function ScaleCard({
   const [isNotifying, setIsNotifying] = useState(false);
   const [currentImage, setCurrentImage] = useState(() => scale.imageAttachment || null);
   const [currentPlaylist, setCurrentPlaylist] = useState(() => normalizeScalePlaylist(scale.playlist));
+  const [currentMessages, setCurrentMessages] = useState(() => (Array.isArray(scale.messages) ? scale.messages : []));
   const [imageFeedback, setImageFeedback] = useState('');
   const [playlistFeedback, setPlaylistFeedback] = useState('');
+  const [isMessageSending, setIsMessageSending] = useState(false);
   const [isPlaylistSaving, setIsPlaylistSaving] = useState(false);
   const scaleDate = scale?.date || 'Data nao informada';
   const scaleShift = scale?.shift || 'Turno nao informado';
@@ -1178,11 +1274,17 @@ function ScaleCard({
   const canEditImage =
     hasResolvedAuthSession &&
     (!isComponentApp || (currentUserMemberId ? imageEditorComponentIds.includes(currentUserMemberId) : false));
+  const canSendComments =
+    hasResolvedAuthSession;
   const detailsId = `scale-card-${makeDomId(scale?.id || `${scaleDate}-${scaleShift}`)}-details`;
 
   useEffect(() => {
     setCurrentPlaylist(normalizeScalePlaylist(scale.playlist));
   }, [scale.playlist]);
+
+  useEffect(() => {
+    setCurrentMessages(Array.isArray(scale.messages) ? scale.messages : []);
+  }, [scale.messages]);
 
   const handleNotify = async () => {
     if (isComponentApp) {
@@ -1302,6 +1404,31 @@ function ScaleCard({
     }
   };
 
+  const persistComment = async (text) => {
+    if (!canSendComments) {
+      throw new Error('Seu perfil nao possui permissao para enviar mensagens neste chat.');
+    }
+
+    if (!scaleId) {
+      throw new Error('Nao foi possivel identificar a escala para envio de mensagem.');
+    }
+
+    setIsMessageSending(true);
+
+    try {
+      const payload = await requestJson(`/api/scales/${encodeURIComponent(scaleId)}/messages`, {
+        method: 'POST',
+        body: { text }
+      });
+
+      const savedMessage = normalizeMessage(payload?.item);
+      setCurrentMessages((current) => [...current, savedMessage]);
+      return savedMessage;
+    } finally {
+      setIsMessageSending(false);
+    }
+  };
+
   return (
     <article className={`${styles.scaleCard} ${isExpanded ? styles.scaleCardExpanded : ''}`}>
       <header className={styles.cardHeader}>
@@ -1344,7 +1471,15 @@ function ScaleCard({
             />
           ) : null}
           {activeView === COMMENTS_VIEW ? (
-            <CommentsPanel scaleId={scaleId} initialMessages={scale.messages} />
+            <CommentsPanel
+              scaleId={scaleId}
+              initialMessages={currentMessages}
+              currentUserMemberId={currentUserMemberId}
+              currentUserId={currentUser?.id || null}
+              canSendMessage={canSendComments}
+              isSendingMessage={isMessageSending}
+              onSendMessage={persistComment}
+            />
           ) : null}
           {activeView === IMAGES_VIEW ? (
             <ScaleImagePanel

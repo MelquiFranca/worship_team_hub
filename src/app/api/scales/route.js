@@ -16,6 +16,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const SCALE_TIME_SCOPE_CURRENT_AND_FUTURE = 'current-and-future';
 const SCALE_TIME_SCOPE_ALL = 'all';
+const SCALE_MESSAGE_TYPE_TEXT = 'text';
 
 function getCurrentLocalIsoDate(now = new Date()) {
   const year = String(now.getFullYear());
@@ -47,12 +48,53 @@ export function serializeScale(document) {
     shift: document.shift,
     components: document.components || [],
     playlist: document.playlist || [],
+    messages: normalizeScaleMessages(document.messages),
     playlistEditorComponentIds: document.playlistEditorComponentIds || [],
     imageEditorComponentIds: document.imageEditorComponentIds || [],
     notification: serializeScalePushNotification(document?.notifications?.push),
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
   };
+}
+
+export function normalizeScaleMessages(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!isPlainObject(entry)) {
+        return null;
+      }
+
+      const id = normalizeString(entry.id);
+      const type = normalizeString(entry.type) || SCALE_MESSAGE_TYPE_TEXT;
+      const text = normalizeString(entry?.payload?.text);
+      const authorId = normalizeString(entry?.meta?.authorId);
+      const authorName = normalizeString(entry?.meta?.authorName);
+      const createdAt = normalizeString(entry?.meta?.createdAt);
+      const status = normalizeString(entry?.meta?.status) || 'sent';
+
+      if (!id || type !== SCALE_MESSAGE_TYPE_TEXT || !text || !authorName || !createdAt) {
+        return null;
+      }
+
+      return {
+        id,
+        type,
+        payload: {
+          text
+        },
+        meta: {
+          authorId: authorId || 'unknown',
+          authorName,
+          createdAt,
+          status
+        }
+      };
+    })
+    .filter(Boolean);
 }
 
 export function normalizeScaleComponents(value) {
@@ -284,6 +326,7 @@ export async function POST(request) {
       shift,
       components,
       playlist,
+      messages: [],
       playlistEditorComponentIds: playlistEditorComponentIds ?? [],
       imageEditorComponentIds: imageEditorComponentIds ?? [],
       notifications: {

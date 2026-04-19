@@ -4,6 +4,7 @@ import { serializePushSubscriptions } from './pushSubscriptions.js';
 
 const AUTO_CREATE_TRIGGER = 'auto-create';
 const MANUAL_RESEND_TRIGGER = 'manual-resend';
+const CHAT_MESSAGE_TRIGGER = 'chat-message';
 const DEFAULT_PUSH_NOTIFICATION_STATE = Object.freeze({
   totalDispatches: 0,
   autoDispatches: 0,
@@ -57,6 +58,10 @@ function normalizeUniqueStringArray(value) {
 
 function normalizeTrigger(trigger) {
   return trigger === AUTO_CREATE_TRIGGER ? AUTO_CREATE_TRIGGER : MANUAL_RESEND_TRIGGER;
+}
+
+function normalizeChatTrigger() {
+  return CHAT_MESSAGE_TRIGGER;
 }
 
 function getWebPushEnv() {
@@ -116,6 +121,33 @@ function buildPushPayload({ scale, trigger }) {
       date: normalizeString(scale?.date),
       shift: normalizeString(scale?.shift),
       trigger,
+      path: '/escalas'
+    }
+  });
+}
+
+function buildChatMessagePushPayload({ scale, message, trigger }) {
+  const authorName = normalizeString(message?.meta?.authorName) || 'Equipe';
+  const messageText = normalizeString(message?.payload?.text);
+  const bodyPrefix = `${authorName}: `;
+  const maxBodyLength = 140;
+  const normalizedText =
+    messageText.length > maxBodyLength
+      ? `${messageText.slice(0, maxBodyLength - 3)}...`
+      : messageText;
+
+  return JSON.stringify({
+    type: 'scale-chat-message',
+    trigger,
+    title: `Nova mensagem na escala ${normalizeString(scale?.date)} (${normalizeString(scale?.shift)})`,
+    body: `${bodyPrefix}${normalizedText || 'Nova mensagem recebida.'}`,
+    data: {
+      scaleId: normalizeString(scale?._id),
+      groupId: normalizeString(scale?.groupId),
+      date: normalizeString(scale?.date),
+      shift: normalizeString(scale?.shift),
+      trigger,
+      messageId: normalizeString(message?.id),
       path: '/escalas'
     }
   });
@@ -435,5 +467,205 @@ export async function dispatchScalePushNotifications({
       vapidConfigured: canSendNativePush
     },
     notifications: nextState
+  };
+}
+
+export async function dispatchScaleChatMessagePushNotifications({
+  collections,
+  scale,
+  groupId,
+  message,
+  actor,
+  excludeComponentIds = []
+}) {
+  const resolvedGroupId = normalizeString(groupId || scale?.groupId);
+  const scaleId = normalizeString(scale?._id);
+
+  if (!collections?.components || !collections?.scalePushNotificationDispatches) {
+    throw new Error('Colecoes de notificacao push indisponiveis.');
+  }
+
+  if (!resolvedGroupId || !scaleId) {
+    throw new Error('Escala invalida para notificacao push de chat.');
+  }
+
+  const dispatchTrigger = normalizeChatTrigger();
+  const now = new Date().toISOString();
+  const scaleComponents = Array.isArray(scale?.components) ? scale.components : [];
+  const selectedComponentIds = normalizeUniqueStringArray(
+    scaleComponents.map((entry) => normalizeString(entry?.componentId))
+  );
+  const excludedComponentIds = new Set(normalizeUniqueStringArray(excludeComponentIds));
+  const componentDocuments = selectedComponentIds.length
+    ? await collections.components
+      .find({ groupId: resolvedGroupId, _id: { $in: selectedComponentIds } })
+      .project({ _id: 1, fullName: 1, username: 1, isActive: 1, pushSubscriptions: 1 })
+      .toArray()
+    : [];
+  const componentById = new Map(componentDocuments.map((document) => [document._id, document]));
+  const recipients = [];
+  const staleSubscriptionsByComponentId = new Map();
+  const canSendNativePush = ensureWebPushConfigured();
+  const pushPayload = buildChatMessagePushPayload({ scale, message, trigger: dispatchTrigger });
+
+  for (const entry of scaleComponents) {
+    const componentId = normalizeString(entry?.componentId);
+
+    if (excludedComponentIds.has(componentId)) {
+      continue;
+    }
+
+    const componentDocument = componentById.get(componentId);
+    const recipient = buildRecipientBase(entry, componentDocument);
+
+    if (!componentId || !componentDocument) {
+      recipient.status = 'failed-component-not-found';
+      recipient.errorCode = 'COMPONENT_NOT_FOUND';
+      recipient.errorMessage = 'Componente selecionado nao encontrado para disparo da notificacao.';
+      recipients.push(recipient);
+      continue;
+    }
+
+    if (componentDocument.isActive === false) {
+      recipient.status = 'skipped-inactive-component';
+      recipient.errorCode = 'COMPONENT_INACTIVE';
+      recipient.errorMessage = 'Componente inativo ignorado no disparo da notificacao.';
+      recipients.push(recipient);
+      continue;
+    }
+
+    if (!canSendNativePush) {
+      recipient.status = 'failed-provider';
+      recipient.errorCode = 'VAPID_NOT_CONFIGURED';
+      recipient.errorMessage = 'Push VAPID nao configurado no servidor.';
+      recipients.push(recipient);
+      continue;
+    }
+
+    const deliveryResult = await deliverToRecipient({
+      component: componentDocument,
+      payload: pushPayload
+    });
+
+    recipient.targetCount = deliveryResult.targetCount;
+
+    if (!deliveryResult.targetCount) {
+      recipient.status = 'skipped-missing-subscription';
+      recipient.errorCode = 'MISSING_PUSH_SUBSCRIPTION';
+      recipient.errorMessage = 'Componente sem subscription de web push registrada.';
+      recipients.push(recipient);
+      continue;
+    }
+
+    if (deliveryResult.deliveredCount > 0) {
+      recipient.status = 'delivered';
+      recipient.deliveredAt = now;
+      recipient.errorCode = deliveryResult.failedCount > 0 ? 'PARTIAL_DELIVERY' : null;
+      recipient.errorMessage =
+        deliveryResult.failedCount > 0
+          ? 'Entrega parcial: uma ou mais subscriptions falharam.'
+          : null;
+    } else {
+      recipient.status = 'failed-delivery';
+      recipient.errorCode = 'PUSH_DELIVERY_FAILED';
+      recipient.errorMessage = 'Falha no envio para todas as subscriptions do componente.';
+    }
+
+    if (deliveryResult.removedEndpoints.length) {
+      staleSubscriptionsByComponentId.set(componentId, deliveryResult.removedEndpoints);
+    }
+
+    recipients.push(recipient);
+  }
+
+  for (const [componentId, staleEndpoints] of staleSubscriptionsByComponentId.entries()) {
+    const component = componentById.get(componentId);
+
+    if (!component) {
+      continue;
+    }
+
+    const nextSubscriptions = serializePushSubscriptions(component.pushSubscriptions).filter(
+      (subscription) => !staleEndpoints.includes(subscription.endpoint)
+    );
+
+    await collections.components.updateOne(
+      { _id: componentId, groupId: resolvedGroupId },
+      {
+        $set: {
+          pushSubscriptions: nextSubscriptions,
+          updatedAt: now,
+          'metadata.source': 'push-cleanup'
+        }
+      }
+    );
+  }
+
+  const counters = recipients.reduce(
+    (accumulator, recipient) => {
+      accumulator.totalRecipients += 1;
+
+      if (recipient.status === 'delivered') {
+        accumulator.delivered += 1;
+        return accumulator;
+      }
+
+      if (recipient.status.startsWith('failed-')) {
+        accumulator.failed += 1;
+        return accumulator;
+      }
+
+      accumulator.skipped += 1;
+      return accumulator;
+    },
+    {
+      totalRecipients: 0,
+      delivered: 0,
+      failed: 0,
+      skipped: 0
+    }
+  );
+
+  const dispatchId = crypto.randomUUID();
+  const deliveryMode = canSendNativePush ? 'native-web-push' : 'disabled-no-vapid';
+  const dispatchDocument = {
+    _id: dispatchId,
+    groupId: resolvedGroupId,
+    scaleId,
+    trigger: dispatchTrigger,
+    type: 'scale-chat-message',
+    createdAt: now,
+    actor: {
+      userId: normalizeString(actor?.userId) || null,
+      audience: normalizeString(actor?.audience) || null
+    },
+    scaleSnapshot: {
+      date: normalizeString(scale?.date) || null,
+      shift: normalizeString(scale?.shift) || null,
+      componentCount: scaleComponents.length
+    },
+    messageSnapshot: {
+      id: normalizeString(message?.id) || null,
+      authorName: normalizeString(message?.meta?.authorName) || null,
+      text: normalizeString(message?.payload?.text) || null
+    },
+    provider: {
+      deliveryMode,
+      vapidConfigured: canSendNativePush
+    },
+    counters,
+    recipients
+  };
+
+  await collections.scalePushNotificationDispatches.insertOne(dispatchDocument);
+
+  return {
+    dispatchId,
+    trigger: dispatchTrigger,
+    counters,
+    provider: {
+      deliveryMode,
+      vapidConfigured: canSendNativePush
+    }
   };
 }

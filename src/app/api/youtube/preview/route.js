@@ -6,7 +6,11 @@ function isSupportedYouTubeHost(hostname) {
   return hostname === 'youtu.be' || hostname === 'youtube.com' || hostname.endsWith('.youtube.com');
 }
 
-function extractYouTubeVideoId(parsedUrl) {
+function normalizeId(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function extractYouTubeResource(parsedUrl) {
   const host = parsedUrl.hostname.toLowerCase();
 
   if (!isSupportedYouTubeHost(host)) {
@@ -14,22 +18,38 @@ function extractYouTubeVideoId(parsedUrl) {
   }
 
   if (host === 'youtu.be') {
-    const shortId = parsedUrl.pathname.replace('/', '').split('/')[0];
-    return shortId || null;
+    const videoId = normalizeId(parsedUrl.pathname.replace('/', '').split('/')[0]);
+    return videoId ? { kind: 'video', videoId } : null;
   }
 
   if (parsedUrl.pathname.startsWith('/shorts/')) {
-    const shortId = parsedUrl.pathname.split('/')[2];
-    return shortId || null;
+    const videoId = normalizeId(parsedUrl.pathname.split('/')[2]);
+    return videoId ? { kind: 'video', videoId } : null;
   }
 
   if (parsedUrl.pathname.startsWith('/embed/')) {
-    const embedId = parsedUrl.pathname.split('/')[2];
-    return embedId || null;
+    const videoId = normalizeId(parsedUrl.pathname.split('/')[2]);
+    return videoId ? { kind: 'video', videoId } : null;
   }
 
   if (parsedUrl.pathname === '/watch') {
-    return parsedUrl.searchParams.get('v');
+    const videoId = normalizeId(parsedUrl.searchParams.get('v'));
+    const playlistId = normalizeId(parsedUrl.searchParams.get('list'));
+
+    if (videoId) {
+      return { kind: 'video', videoId };
+    }
+
+    if (playlistId) {
+      return { kind: 'playlist', playlistId };
+    }
+
+    return null;
+  }
+
+  if (parsedUrl.pathname === '/playlist') {
+    const playlistId = normalizeId(parsedUrl.searchParams.get('list'));
+    return playlistId ? { kind: 'playlist', playlistId } : null;
   }
 
   return null;
@@ -37,6 +57,10 @@ function extractYouTubeVideoId(parsedUrl) {
 
 function buildFallbackThumbnail(videoId) {
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+}
+
+function buildFallbackPlaylistThumbnail(playlistId) {
+  return `https://i.ytimg.com/vi_webp/videoseries/${playlistId}/hqdefault.webp`;
 }
 
 async function fetchOEmbedPreview(videoUrl) {
@@ -51,6 +75,66 @@ async function fetchOEmbedPreview(videoUrl) {
   }
 
   return response.json();
+}
+
+async function fetchVideoMetadataFromApi(videoId, apiKey) {
+  const endpoint = new URL('https://www.googleapis.com/youtube/v3/videos');
+  endpoint.searchParams.set('part', 'snippet');
+  endpoint.searchParams.set('id', videoId);
+  endpoint.searchParams.set('key', apiKey);
+
+  const response = await fetch(endpoint.toString(), { cache: 'no-store' });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json();
+  const item = Array.isArray(payload?.items) ? payload.items[0] : null;
+
+  if (!item) {
+    return null;
+  }
+
+  return {
+    title: item?.snippet?.title || '',
+    channelTitle: item?.snippet?.channelTitle || '',
+    thumbnailUrl:
+      item?.snippet?.thumbnails?.medium?.url ||
+      item?.snippet?.thumbnails?.high?.url ||
+      item?.snippet?.thumbnails?.default?.url ||
+      ''
+  };
+}
+
+async function fetchPlaylistMetadataFromApi(playlistId, apiKey) {
+  const endpoint = new URL('https://www.googleapis.com/youtube/v3/playlists');
+  endpoint.searchParams.set('part', 'snippet');
+  endpoint.searchParams.set('id', playlistId);
+  endpoint.searchParams.set('key', apiKey);
+
+  const response = await fetch(endpoint.toString(), { cache: 'no-store' });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json();
+  const item = Array.isArray(payload?.items) ? payload.items[0] : null;
+
+  if (!item) {
+    return null;
+  }
+
+  return {
+    title: item?.snippet?.title || '',
+    channelTitle: item?.snippet?.channelTitle || '',
+    thumbnailUrl:
+      item?.snippet?.thumbnails?.medium?.url ||
+      item?.snippet?.thumbnails?.high?.url ||
+      item?.snippet?.thumbnails?.default?.url ||
+      ''
+  };
 }
 
 export async function GET(request) {
@@ -72,41 +156,92 @@ export async function GET(request) {
     );
   }
 
-  const videoId = extractYouTubeVideoId(parsedUrl);
+  const resource = extractYouTubeResource(parsedUrl);
 
-  if (!videoId) {
+  if (!resource) {
     return NextResponse.json(
       {
         message:
-          'O link informado nao e suportado. Use um video do youtube.com, youtu.be ou shorts do YouTube.'
+          'O link informado nao e suportado. Use um link de musica/video ou playlist do YouTube/YouTube Music.'
       },
       { status: 400 }
     );
   }
 
-  const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const fallbackThumbnailUrl = buildFallbackThumbnail(videoId);
+  if (resource.kind === 'video') {
+    const videoId = resource.videoId;
+    const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const fallbackThumbnailUrl = buildFallbackThumbnail(videoId);
+    const apiKey = process.env.YOUTUBE_API_KEY?.trim();
 
-  let title = 'Video do YouTube';
+    let title = 'Video do YouTube';
+    let channelTitle = 'Canal do YouTube';
+    let thumbnailUrl = fallbackThumbnailUrl;
+    let previewSource = 'fallback';
+
+    try {
+      const oEmbedPayload = await fetchOEmbedPreview(canonicalUrl);
+
+      if (oEmbedPayload) {
+        title = oEmbedPayload.title || title;
+        channelTitle = oEmbedPayload.author_name || channelTitle;
+        thumbnailUrl = oEmbedPayload.thumbnail_url || thumbnailUrl;
+        previewSource = 'oembed';
+      } else if (apiKey) {
+        const videoMetadata = await fetchVideoMetadataFromApi(videoId, apiKey);
+
+        if (videoMetadata) {
+          title = videoMetadata.title || title;
+          channelTitle = videoMetadata.channelTitle || channelTitle;
+          thumbnailUrl = videoMetadata.thumbnailUrl || thumbnailUrl;
+          previewSource = 'youtube-api';
+        }
+      }
+    } catch {
+      previewSource = 'fallback';
+    }
+
+    return NextResponse.json({
+      entityType: 'video',
+      videoId,
+      title,
+      channelTitle,
+      thumbnailUrl,
+      url: canonicalUrl,
+      previewSource
+    });
+  }
+
+  const playlistId = resource.playlistId;
+  const canonicalUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
+  const fallbackThumbnailUrl = buildFallbackPlaylistThumbnail(playlistId);
+  const apiKey = process.env.YOUTUBE_API_KEY?.trim();
+  const syntheticVideoId = `playlist:${playlistId}`;
+
+  let title = 'Playlist do YouTube';
   let channelTitle = 'Canal do YouTube';
   let thumbnailUrl = fallbackThumbnailUrl;
   let previewSource = 'fallback';
 
   try {
-    const oEmbedPayload = await fetchOEmbedPreview(canonicalUrl);
+    if (apiKey) {
+      const playlistMetadata = await fetchPlaylistMetadataFromApi(playlistId, apiKey);
 
-    if (oEmbedPayload) {
-      title = oEmbedPayload.title || title;
-      channelTitle = oEmbedPayload.author_name || channelTitle;
-      thumbnailUrl = oEmbedPayload.thumbnail_url || thumbnailUrl;
-      previewSource = 'oembed';
+      if (playlistMetadata) {
+        title = playlistMetadata.title || title;
+        channelTitle = playlistMetadata.channelTitle || channelTitle;
+        thumbnailUrl = playlistMetadata.thumbnailUrl || thumbnailUrl;
+        previewSource = 'youtube-api';
+      }
     }
   } catch {
     previewSource = 'fallback';
   }
 
   return NextResponse.json({
-    videoId,
+    entityType: 'playlist',
+    videoId: syntheticVideoId,
+    playlistId,
     title,
     channelTitle,
     thumbnailUrl,

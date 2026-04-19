@@ -13,3 +13,4 @@ pnpm-debug.log*
 .env.production.local
 .DS_Store
 skills
+scripts/migrations
