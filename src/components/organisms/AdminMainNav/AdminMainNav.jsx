@@ -186,7 +186,7 @@ export default function AdminMainNav() {
             <div id="admin-main-nav-add-menu" className={styles.popover} role="group" aria-label="Adicionar">
               <Link
                 ref={addMenuFirstItemRef}
-                href="/admin/grupos?novo=1"
+                href="/admin/grupos/novo"
                 className={styles.popoverItem}
                 onClick={() => setOpenMenu(null)}
               >

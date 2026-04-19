@@ -1,4 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
+import Link from 'next/link';
 import styles from './page.module.css';
 import { getMongoCollections } from '../../../lib/db/mongodb.js';
 import { serializeComponentPhoto } from '../../../lib/components/photo.js';
@@ -35,18 +36,6 @@ function getInitials(name) {
   }
 
   return chunks.map((chunk) => chunk.charAt(0).toUpperCase()).join('');
-}
-
-function isPromise(value) {
-  return Boolean(value && typeof value === 'object' && typeof value.then === 'function');
-}
-
-async function resolveSearchParams(searchParams) {
-  if (isPromise(searchParams)) {
-    return searchParams;
-  }
-
-  return searchParams || {};
 }
 
 async function loadGroupsFromDatabase() {
@@ -95,9 +84,7 @@ async function loadGroupsFromDatabase() {
   }
 }
 
-export default async function AdminGroupsPage({ searchParams }) {
-  const resolvedSearchParams = await resolveSearchParams(searchParams);
-  const isCreateMode = resolvedSearchParams?.novo === '1';
+export default async function AdminGroupsPage() {
   const { items: groups, loadError } = await loadGroupsFromDatabase();
 
   return (
@@ -111,7 +98,6 @@ export default async function AdminGroupsPage({ searchParams }) {
           </p>
         </div>
 
-        {isCreateMode ? <p className={styles.callout}>Fluxo de novo grupo aberto para cadastro.</p> : null}
       </section>
 
       <section className={styles.listSection} aria-label="Lista de grupos">
@@ -152,6 +138,11 @@ export default async function AdminGroupsPage({ searchParams }) {
             <div className={styles.groupInfo}>
               <h2>{group.name}</h2>
               <p>Grupo administravel com origem no banco de dados.</p>
+              {group.id ? (
+                <Link href={`/admin/grupos/${group.id}/editar`} className={styles.secondaryAction}>
+                  Editar grupo
+                </Link>
+              ) : null}
             </div>
 
             <StatusBadge status={group.status} />

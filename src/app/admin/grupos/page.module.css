@@ -48,6 +48,23 @@
   font-weight: 700;
 }
 
+.secondaryAction {
+  text-decoration: none;
+  font-weight: 800;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.secondaryAction {
+  margin-top: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  background: var(--app-overlay, rgba(15, 23, 42, 0.06));
+  color: var(--app-text, #0f172a);
+}
+
 .listSection {
   display: grid;
   gap: 14px;

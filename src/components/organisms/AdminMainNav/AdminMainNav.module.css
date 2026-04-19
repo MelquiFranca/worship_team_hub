@@ -163,6 +163,18 @@
   gap: 8px;
 }
 
+.actionSlot .popover {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+.avatarSlot .popover {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
 .popoverItem,
 .popoverItemButton {
   min-height: 44px;
