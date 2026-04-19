@@ -27,10 +27,10 @@ function getInitials(name) {
   );
 }
 
-function SettingsIcon() {
+function GroupsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M19.14 12.94c.04-.3.06-.62.06-.94s-.02-.64-.06-.94l2.03-1.58a.75.75 0 0 0 .18-.95l-1.92-3.32a.75.75 0 0 0-.9-.33l-2.39.96a7.3 7.3 0 0 0-1.63-.94l-.36-2.54A.75.75 0 0 0 13.4 2h-3.8a.75.75 0 0 0-.74.62l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.75.75 0 0 0-.9.33L1.66 9.79a.75.75 0 0 0 .18.95l2.03 1.58c-.04.3-.06.62-.06.94s.02.64.06.94l-2.03 1.58a.75.75 0 0 0-.18.95l1.92 3.32c.2.35.62.5.99.33l2.39-.96c.5.39 1.05.71 1.63.94l.36 2.54c.06.37.38.62.75.62h3.8c.37 0 .69-.25.75-.62l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.37.17.8.02.99-.33l1.92-3.32a.75.75 0 0 0-.18-.95l-2.03-1.58Zm-7.14 2.31A3.25 3.25 0 1 1 12 8.75a3.25 3.25 0 0 1 0 6.5Z" />
+      <path d="M15.5 11a3.5 3.5 0 1 0-2.87-5.5A4.5 4.5 0 0 1 15.5 11ZM8.5 11A3.5 3.5 0 1 0 5 7.5 3.5 3.5 0 0 0 8.5 11Zm0 1.5C5.46 12.5 3 14.69 3 17.4c0 .33.27.6.6.6h9.8a.6.6 0 0 0 .6-.6c0-2.71-2.46-4.9-5.5-4.9Zm7 0c-.95 0-1.85.2-2.66.56 1.36.96 2.25 2.32 2.52 3.94h5.04a.6.6 0 0 0 .6-.6c0-2.15-1.96-3.9-4.5-3.9Z" />
     </svg>
   );
 }
@@ -85,7 +85,8 @@ export default function AdminMainNav() {
   const addMenuFirstItemRef = useRef(null);
   const avatarMenuFirstItemRef = useRef(null);
 
-  const settingsActive = isActiveRoute(pathname, '/admin/configuracoes');
+  const groupsActive = isActiveRoute(pathname, '/admin/grupos');
+  const profileActive = isActiveRoute(pathname, '/admin/configuracoes');
   const initials = useMemo(() => getInitials(profile.name), [profile.name]);
 
   useEffect(() => {
@@ -159,13 +160,13 @@ export default function AdminMainNav() {
     <nav ref={navRef} className={styles.shell} aria-label="Menu principal administrativo">
       <div className={styles.inner}>
         <Link
-          href="/admin/configuracoes"
-          className={`${styles.item} ${settingsActive ? styles.itemActive : ''}`}
-          aria-label="Configuracoes"
-          aria-current={settingsActive ? 'page' : undefined}
+          href="/admin/grupos"
+          className={`${styles.item} ${groupsActive ? styles.itemActive : ''}`}
+          aria-label="Grupos"
+          aria-current={groupsActive ? 'page' : undefined}
         >
-          <SettingsIcon />
-          <span className={styles.srOnly}>Configuracoes</span>
+          <GroupsIcon />
+          <span className={styles.srOnly}>Grupos</span>
         </Link>
 
         <div className={styles.actionSlot}>
@@ -205,7 +206,7 @@ export default function AdminMainNav() {
             aria-controls="admin-main-nav-avatar-menu"
             onClick={() => setOpenMenu((current) => (current === 'avatar' ? null : 'avatar'))}
           >
-            <span className={styles.avatarFrame} aria-hidden="true">
+            <span className={`${styles.avatarFrame} ${profileActive ? styles.avatarFrameActive : ''}`} aria-hidden="true">
               {profile.photo ? (
                 <Image src={profile.photo} alt="" fill sizes="48px" className={styles.avatarImage} />
               ) : (

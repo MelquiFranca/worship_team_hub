@@ -124,6 +124,12 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), 0 10px 20px rgba(15, 23, 42, 0.12);
 }
 
+.avatarFrameActive {
+  box-shadow:
+    inset 0 0 0 2px var(--app-accent-strong, #ff0169),
+    0 10px 20px rgba(15, 23, 42, 0.12);
+}
+
 .avatarImage {
   object-fit: cover;
 }
