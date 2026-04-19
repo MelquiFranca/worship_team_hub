@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './LoginCard.module.css';
 
-const GROUP_NAME = 'Ministério de Louvor Avivah';
-const GROUP_PHOTO_URL = 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=320&q=80';
+const GROUP_NAME = 'Worship Team Hub';
+const GROUP_PHOTO_URL = 'logo3.png';
 const GROUP_INITIALS = 'MA';
 const AUTH_LOGIN_ENDPOINT = '/api/auth/login';
 const LOGIN_REDIRECT_DELAY_MS = 350;
