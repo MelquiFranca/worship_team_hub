@@ -89,6 +89,10 @@ async function ensureMongoIndexes(db) {
       db.collection('scale_push_notification_dispatches').createIndex(
         { groupId: 1, trigger: 1, createdAt: -1 },
         { name: 'scale_push_notifications_group_trigger_created_at' }
+      ),
+      db.collection('auth_user_overrides').createIndex(
+        { userId: 1 },
+        { unique: true, name: 'auth_user_overrides_user_unique' }
       )
     ]);
   })().catch(() => {
@@ -108,6 +112,7 @@ export async function getMongoCollections() {
     components: db.collection('components'),
     groupSettings: db.collection('group_settings'),
     scales: db.collection('scales'),
-    scalePushNotificationDispatches: db.collection('scale_push_notification_dispatches')
+    scalePushNotificationDispatches: db.collection('scale_push_notification_dispatches'),
+    authUserOverrides: db.collection('auth_user_overrides')
   };
 }

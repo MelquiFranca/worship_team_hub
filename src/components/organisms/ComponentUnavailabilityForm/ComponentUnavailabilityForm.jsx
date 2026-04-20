@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { requestJson } from '@/lib/api/http';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import styles from './ComponentUnavailabilityForm.module.css';
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -76,6 +77,7 @@ function formatDateLabel(date) {
 }
 
 export default function ComponentUnavailabilityForm() {
+  const { permissions } = useAuthSession();
   const minSelectableDate = useMemo(() => getTomorrowDate(), []);
   const minSelectableIso = useMemo(() => toIsoDate(minSelectableDate), [minSelectableDate]);
   const [viewDate, setViewDate] = useState(() => getTomorrowDate());
@@ -93,6 +95,7 @@ export default function ComponentUnavailabilityForm() {
   );
   const previousMonthDate = useMemo(() => new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1), [viewDate]);
   const isPreviousMonthDisabled = previousMonthDate.getTime() < startOfMinMonth.getTime();
+  const profileLabel = permissions?.isGroupApp ? 'Perfil do grupo' : 'Perfil do componente';
 
   useEffect(() => {
     let active = true;
@@ -192,7 +195,7 @@ export default function ComponentUnavailabilityForm() {
   return (
     <section className={styles.card} aria-labelledby="component-unavailability-title">
       <div className={styles.header}>
-        <p className={styles.kicker}>Perfil do componente</p>
+        <p className={styles.kicker}>{profileLabel}</p>
         <h1 id="component-unavailability-title" className={styles.title}>
           Minha indisponibilidade
         </h1>

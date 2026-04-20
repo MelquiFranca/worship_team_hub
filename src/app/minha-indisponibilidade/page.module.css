@@ -1,0 +1,14 @@
+.page {
+  min-height: 100vh;
+  padding: 32px 16px 48px;
+  display: grid;
+  place-items: start center;
+  background: var(--app-page-gradient, linear-gradient(180deg, #f7fbff 0%, #eef3f9 100%));
+  color: var(--app-text, #0f172a);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 20px 12px 40px;
+  }
+}

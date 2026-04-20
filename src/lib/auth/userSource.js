@@ -46,11 +46,56 @@ function mapComponentToAuthUser(component) {
   };
 }
 
+function mapSeedUserWithOverride(seedUser, override) {
+  if (!seedUser || typeof seedUser !== 'object') {
+    return null;
+  }
+
+  const passwordHashOverride = typeof override?.passwordHash === 'string'
+    ? override.passwordHash.trim()
+    : '';
+
+  if (!passwordHashOverride) {
+    return seedUser;
+  }
+
+  return {
+    ...seedUser,
+    passwordHash: passwordHashOverride
+  };
+}
+
 export async function loadAuthUsers() {
   const baseUsers = Array.isArray(seededAuthUsers) ? [...seededAuthUsers] : [];
 
   try {
-    const { components } = await getMongoCollections();
+    const { components, authUserOverrides } = await getMongoCollections();
+    const seedOverrides = await authUserOverrides
+      .find({
+        userId: { $in: baseUsers.map((user) => user.id) },
+        passwordHash: { $type: 'string', $ne: '' }
+      })
+      .project({
+        userId: 1,
+        passwordHash: 1
+      })
+      .toArray();
+    const seedOverrideByUserId = new Map(
+      seedOverrides
+        .map((entry) => {
+          const userId = typeof entry?.userId === 'string' ? entry.userId.trim() : '';
+
+          if (!userId) {
+            return null;
+          }
+
+          return [userId, entry];
+        })
+        .filter(Boolean)
+    );
+    const resolvedSeedUsers = baseUsers.map((user) =>
+      mapSeedUserWithOverride(user, seedOverrideByUserId.get(user.id))
+    );
     const dbComponents = await components
       .find({
         passwordHash: { $type: 'string', $ne: '' },
@@ -66,7 +111,7 @@ export async function loadAuthUsers() {
       })
       .toArray();
 
-    const byId = new Map(baseUsers.map((user) => [user.id, user]));
+    const byId = new Map(resolvedSeedUsers.map((user) => [user.id, user]));
 
     dbComponents.forEach((component) => {
       const authUser = mapComponentToAuthUser(component);

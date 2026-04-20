@@ -11,7 +11,7 @@ const GROUP_MANAGEMENT_PATHS = new Set([
   '/configuracoes-gerais-grupo'
 ]);
 
-const MEMBER_PATHS = new Set(['/escalas', '/componentes', '/editar-perfil']);
+const MEMBER_PATHS = new Set(['/escalas', '/componentes', '/editar-perfil', '/minha-indisponibilidade']);
 
 function normalizePathname(pathname) {
   if (!pathname) {
@@ -73,4 +73,3 @@ export function getRoutePolicy(pathname) {
 export function getLoginPathForPolicy(policy) {
   return policy?.loginPath ?? LOGIN_PATHS.user;
 }
-

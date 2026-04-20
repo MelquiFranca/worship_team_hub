@@ -76,6 +76,8 @@ export default function MainBottomNav() {
   const initials = useMemo(() => getInitials(settings.name || ''), [settings.name]);
   const canShowCreateMenu = !isAuthSessionLoading && Boolean(permissions.canInsertScale);
   const canShowSettingsLink = !isAuthSessionLoading && audience === 'group-app';
+  const canShowUnavailabilityLink =
+    !isAuthSessionLoading && Boolean(permissions.isComponentApp || permissions.isGroupApp);
   const visibleSlotCount = 3 + Number(canShowCreateMenu) + Number(canShowSettingsLink);
   const escalasActive = isActiveRoute(currentPathname, '/escalas');
   const componentesActive = isActiveRoute(currentPathname, '/componentes');
@@ -252,6 +254,11 @@ export default function MainBottomNav() {
               >
                 Editar perfil
               </Link>
+              {canShowUnavailabilityLink ? (
+                <Link href="/minha-indisponibilidade" className={styles.popoverItem}>
+                  Minha indisponibilidade
+                </Link>
+              ) : null}
               <button type="button" className={styles.popoverItemButton} onClick={handleLogout}>
                 Sair
               </button>

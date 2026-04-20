@@ -4,6 +4,7 @@ import { requireApiAccessSession, resolveRequestGroupId } from '../../../../../l
 import { jsonApiError } from '../../../../../lib/api/errors.js';
 import { readJsonBody } from '../../../../../lib/api/request.js';
 import { isPlainObject } from '../../../../../lib/api/validation.js';
+import { resolveSessionComponent } from '../../../../../lib/notifications/resolveSessionComponent.js';
 import {
   normalizeUnavailableDatesInput,
   serializeUnavailableDates
@@ -21,20 +22,34 @@ function serializePayload(document) {
   };
 }
 
+async function resolveCurrentSessionComponent(componentsCollection, session, groupId) {
+  const componentId = typeof session.user?.id === 'string' ? session.user.id.trim() : '';
+
+  if (componentId) {
+    const byId = await componentsCollection.findOne({ _id: componentId, groupId, isActive: { $ne: false } });
+
+    if (byId) {
+      return byId;
+    }
+  }
+
+  const byIdentity = await resolveSessionComponent(componentsCollection, groupId, session.user);
+
+  if (!byIdentity?._id) {
+    return null;
+  }
+
+  return componentsCollection.findOne({ _id: byIdentity._id, groupId, isActive: { $ne: false } });
+}
+
 export async function GET(request) {
   try {
     const session = await requireApiAccessSession(request, {
-      allowedAudiences: new Set(['component-app'])
+      allowedAudiences: new Set(['component-app', 'group-app'])
     });
     const groupId = resolveRequestGroupId(session.claims);
-    const componentId = typeof session.user?.id === 'string' ? session.user.id.trim() : '';
-
-    if (!componentId) {
-      return jsonApiError('Nao foi possivel identificar o componente da sessao.', 401, 'TOKEN_INVALID');
-    }
-
     const { components } = await getMongoCollections();
-    const component = await components.findOne({ _id: componentId, groupId, isActive: { $ne: false } });
+    const component = await resolveCurrentSessionComponent(components, session, groupId);
 
     if (!component) {
       return jsonApiError('Componente nao encontrado para esta sessao.', 404, 'NOT_FOUND');
@@ -73,18 +88,12 @@ export async function PATCH(request) {
 
   try {
     const session = await requireApiAccessSession(request, {
-      allowedAudiences: new Set(['component-app'])
+      allowedAudiences: new Set(['component-app', 'group-app'])
     });
     const groupId = resolveRequestGroupId(session.claims);
-    const componentId = typeof session.user?.id === 'string' ? session.user.id.trim() : '';
-
-    if (!componentId) {
-      return jsonApiError('Nao foi possivel identificar o componente da sessao.', 401, 'TOKEN_INVALID');
-    }
-
     const now = new Date().toISOString();
     const { components } = await getMongoCollections();
-    const current = await components.findOne({ _id: componentId, groupId, isActive: { $ne: false } });
+    const current = await resolveCurrentSessionComponent(components, session, groupId);
 
     if (!current) {
       return jsonApiError('Componente nao encontrado para esta sessao.', 404, 'NOT_FOUND');
@@ -98,7 +107,7 @@ export async function PATCH(request) {
     };
 
     await components.updateOne(
-      { _id: componentId, groupId },
+      { _id: current._id, groupId },
       {
         $set: {
           unavailableDates,
@@ -108,7 +117,7 @@ export async function PATCH(request) {
       }
     );
 
-    const updated = await components.findOne({ _id: componentId, groupId });
+    const updated = await components.findOne({ _id: current._id, groupId });
 
     if (!updated) {
       return jsonApiError('Componente nao encontrado para esta sessao.', 404, 'NOT_FOUND');
