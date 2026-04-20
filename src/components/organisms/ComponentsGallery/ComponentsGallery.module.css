@@ -59,6 +59,8 @@
 .photoWrap {
   width: 100%;
   aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  overflow: hidden;
 }
 
 .photo,
@@ -69,6 +71,7 @@
 }
 
 .photo {
+  display: block;
   object-fit: cover;
 }
 
@@ -85,6 +88,13 @@
   text-align: center;
   font-size: 0.93rem;
   line-height: 1.25;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .statusBadge {
@@ -118,7 +128,7 @@
 
 @media (max-width: 560px) {
   .grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
   }
 }
