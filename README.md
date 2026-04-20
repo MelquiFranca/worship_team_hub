@@ -54,6 +54,14 @@ Aplicacao base em Next.js com App Router.
 - A API `GET /api/scales/images` lista a biblioteca de imagens de todas as escalas do grupo para consulta/reutilizacao em novas escalas.
 - Regras de upload para imagem base64 da escala: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, limite de `2MB`.
 
+## Playlist da escala (execucao sequencial automatica)
+
+- O player da aba de playlist no feed (`/escalas`) suporta execucao sequencial automatica para links do YouTube.
+- Ao finalizar um video, o proximo da escala e executado automaticamente quando a opcao de autoplay estiver ativa.
+- O usuario pode ativar/desativar essa automacao por card usando o controle `Executar playlist automaticamente em sequencia`.
+- Para evitar falhas de reproducao na fila automatica, entram apenas IDs validos de video do YouTube extraidos da URL.
+- Links nao-YouTube (ex.: Vimeo) continuam suportados no player, mas sem fila sequencial automatica.
+
 ## Listagem administrativa de grupos
 
 - A tela `/admin/grupos` nao usa mais dados ficticios em codigo.
@@ -79,3 +87,4 @@ Aplicacao base em Next.js com App Router.
 - Spec de imagem em banco: `docs/specs/features/armazenamento-imagem-banco-componentes/`
 - Spec de imagem de escalas em banco: `docs/specs/features/persistencia-imagens-escalas-banco/`
 - Spec de integracao da listagem de grupos no banco: `docs/specs/features/integracao-grupos-admin-banco/`
+- Spec da execucao automatica da playlist da escala: `docs/specs/features/autoplay-playlist-escala/`

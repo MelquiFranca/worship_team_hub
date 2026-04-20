@@ -430,6 +430,14 @@
   text-align: center;
   font-weight: 600;
   font-size: 0.9rem;
+  display: grid;
+  gap: 2px;
+}
+
+.videoTitleSubtle {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--app-text-soft, #64748b);
 }
 
 .navButton {
@@ -450,6 +458,31 @@
   display: flex;
   justify-content: center;
   gap: 8px;
+}
+
+.autoPlayToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--app-text-soft, #64748b);
+}
+
+.autoPlayToggle input {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+.backgroundPlayLink {
+  justify-self: start;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--app-info, #1d4ed8);
+  text-decoration: none;
+}
+
+.backgroundPlayLink:hover {
+  text-decoration: underline;
 }
 
 .dot {

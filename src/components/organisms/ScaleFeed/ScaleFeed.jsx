@@ -404,38 +404,153 @@ function createPlaylistItemFromLink(rawUrl, currentLength) {
   };
 }
 
-function toEmbedUrl(videoUrl) {
+function normalizeYouTubeVideoId(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const candidate = value.trim();
+
+  if (!candidate || candidate.startsWith('playlist:')) {
+    return '';
+  }
+
+  // YouTube video IDs are expected to be 11 chars.
+  return /^[a-zA-Z0-9_-]{11}$/.test(candidate) ? candidate : '';
+}
+
+function extractYoutubeVideoId(videoUrl) {
   try {
     const parsedUrl = new URL(videoUrl);
     const host = parsedUrl.hostname.toLowerCase();
 
     if (host.includes('youtube.com')) {
       if (parsedUrl.pathname.startsWith('/embed/')) {
-        return videoUrl;
+        return normalizeYouTubeVideoId(parsedUrl.pathname.split('/')[2] || '');
       }
 
       if (parsedUrl.pathname.startsWith('/shorts/')) {
-        const shortId = parsedUrl.pathname.split('/')[2];
-        return shortId ? `https://www.youtube.com/embed/${shortId}` : null;
+        return normalizeYouTubeVideoId(parsedUrl.pathname.split('/')[2] || '');
       }
 
-      const videoId = parsedUrl.searchParams.get('v');
+      return normalizeYouTubeVideoId(parsedUrl.searchParams.get('v') || '');
+    }
+
+    if (host.includes('youtu.be')) {
+      return normalizeYouTubeVideoId(parsedUrl.pathname.replace('/', ''));
+    }
+
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+function resolvePlaylistYouTubeIds(playlist, startIndex) {
+  const safePlaylist = Array.isArray(playlist) ? playlist : [];
+  const queue = [];
+
+  for (let index = startIndex; index < safePlaylist.length; index += 1) {
+    const item = safePlaylist[index];
+    const fromUrlId = extractYoutubeVideoId(item?.videoUrl || item?.url || '');
+
+    // For autoplay queue, trust URL extraction first and avoid internal/non-YouTube IDs.
+    if (fromUrlId) {
+      queue.push(fromUrlId);
+    }
+  }
+
+  return queue;
+}
+
+function buildYouTubeEmbedUrl(videoId, options = {}) {
+  const params = new URLSearchParams();
+  const safeVideoId = normalizeYouTubeVideoId(videoId);
+
+  if (!safeVideoId) {
+    return null;
+  }
+
+  params.set('autoplay', options.autoplay ? '1' : '0');
+  params.set('playsinline', '1');
+  params.set('rel', '0');
+
+  const queue = Array.isArray(options.queueVideoIds) ? options.queueVideoIds : [];
+  const normalizedQueue = queue
+    .map((entry) => normalizeYouTubeVideoId(entry))
+    .filter(Boolean);
+  const queueTail = normalizedQueue[0] === safeVideoId ? normalizedQueue.slice(1) : normalizedQueue;
+
+  if (queueTail.length) {
+    params.set('playlist', queueTail.join(','));
+  }
+
+  return `https://www.youtube.com/embed/${safeVideoId}?${params.toString()}`;
+}
+
+function buildYouTubeExternalPlaybackUrl(queueVideoIds = [], fallbackUrl = '') {
+  const normalizedQueue = (Array.isArray(queueVideoIds) ? queueVideoIds : [])
+    .map((entry) => normalizeYouTubeVideoId(entry))
+    .filter(Boolean);
+
+  if (normalizedQueue.length >= 2) {
+    return `https://www.youtube.com/watch_videos?video_ids=${normalizedQueue.join(',')}`;
+  }
+
+  if (normalizedQueue.length === 1) {
+    return `https://www.youtube.com/watch?v=${normalizedQueue[0]}`;
+  }
+
+  if (typeof fallbackUrl === 'string' && fallbackUrl.trim()) {
+    return fallbackUrl.trim();
+  }
+
+  return '';
+}
+
+function toEmbedUrl(videoUrl, options = {}) {
+  try {
+    const parsedUrl = new URL(videoUrl);
+    const host = parsedUrl.hostname.toLowerCase();
+
+    if (host.includes('youtube.com')) {
+      if (parsedUrl.pathname.startsWith('/embed/')) {
+        const embeddedVideoId = normalizeYouTubeVideoId(parsedUrl.pathname.split('/')[2] || '');
+
+        if (!embeddedVideoId) {
+          return videoUrl;
+        }
+
+        return buildYouTubeEmbedUrl(embeddedVideoId, options);
+      }
+
+      if (parsedUrl.pathname.startsWith('/shorts/')) {
+        const shortId = normalizeYouTubeVideoId(parsedUrl.pathname.split('/')[2] || '');
+        return shortId ? buildYouTubeEmbedUrl(shortId, options) : null;
+      }
+
+      const videoId = normalizeYouTubeVideoId(parsedUrl.searchParams.get('v') || '');
       const playlistId = parsedUrl.searchParams.get('list');
 
       if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
+        return buildYouTubeEmbedUrl(videoId, options);
       }
 
       if (playlistId) {
-        return `https://www.youtube.com/embed/videoseries?list=${playlistId}`;
+        const params = new URLSearchParams();
+        params.set('list', playlistId);
+        params.set('autoplay', options.autoplay ? '1' : '0');
+        params.set('playsinline', '1');
+        params.set('rel', '0');
+        return `https://www.youtube.com/embed/videoseries?${params.toString()}`;
       }
 
       return null;
     }
 
     if (host.includes('youtu.be')) {
-      const shortId = parsedUrl.pathname.replace('/', '');
-      return shortId ? `https://www.youtube.com/embed/${shortId}` : null;
+      const shortId = normalizeYouTubeVideoId(parsedUrl.pathname.replace('/', ''));
+      return shortId ? buildYouTubeEmbedUrl(shortId, options) : null;
     }
 
     if (host.includes('vimeo.com')) {
@@ -892,11 +1007,13 @@ function PlaylistPanel({
   const [draftLink, setDraftLink] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedback, setFeedback] = useState('');
+  const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
 
   useEffect(() => {
     setCurrentIndex((prevIndex) => (playlist.length ? Math.min(prevIndex, playlist.length - 1) : 0));
     setFeedback('');
   }, [playlist]);
+  const sequenceQueueIds = useMemo(() => resolvePlaylistYouTubeIds(playlist, currentIndex), [currentIndex, playlist]);
 
   const addVideoLink = async (event) => {
     event.preventDefault();
@@ -1000,7 +1117,14 @@ function PlaylistPanel({
   }
 
   const currentVideo = playlist[currentIndex];
-  const embedUrl = toEmbedUrl(currentVideo.videoUrl);
+  const embedUrl = toEmbedUrl(currentVideo.videoUrl, {
+    autoplay: autoPlayEnabled,
+    queueVideoIds: autoPlayEnabled ? sequenceQueueIds : []
+  });
+  const backgroundPlaybackUrl = buildYouTubeExternalPlaybackUrl(
+    autoPlayEnabled ? sequenceQueueIds : sequenceQueueIds.slice(0, 1),
+    currentVideo.videoUrl
+  );
 
   const goToPrevious = () => {
     setCurrentIndex((prev) => (prev === 0 ? playlist.length - 1 : prev - 1));
@@ -1018,7 +1142,7 @@ function PlaylistPanel({
             className={styles.videoFrame}
             src={embedUrl}
             title={currentVideo.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allow="accelerometer; autoplay; clipboard-write; compute-pressure; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           />
         ) : (
@@ -1035,11 +1159,32 @@ function PlaylistPanel({
         <button type="button" className={styles.navButton} onClick={goToPrevious} aria-label="Video anterior">
           Anterior
         </button>
-        <p className={styles.videoTitle}>{currentVideo.title}</p>
+        <p className={styles.videoTitle}>
+          {currentVideo.title}
+          {autoPlayEnabled && sequenceQueueIds.length > 1 ? (
+            <span className={styles.videoTitleSubtle}>Reproducao sequencial automatica ativa</span>
+          ) : null}
+        </p>
         <button type="button" className={styles.navButton} onClick={goToNext} aria-label="Proximo video">
           Proximo
         </button>
       </div>
+      <label className={styles.autoPlayToggle}>
+        <input
+          type="checkbox"
+          checked={autoPlayEnabled}
+          onChange={(event) => setAutoPlayEnabled(event.target.checked)}
+        />
+        Executar playlist automaticamente em sequencia
+      </label>
+      <a
+        href={backgroundPlaybackUrl}
+        target="_blank"
+        rel="noreferrer noopener"
+        className={styles.backgroundPlayLink}
+      >
+        Continuar em segundo plano (mobile)
+      </a>
 
       <div className={styles.carouselDots} aria-label="Seletor de videos">
         {playlist.map((item, index) => (
