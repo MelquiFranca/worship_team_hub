@@ -7,6 +7,11 @@ import { getTrimmedQueryParam, parseLimitParam, readJsonBody } from '../../../li
 import { isPlainObject, normalizeIsoDate, normalizeString } from '../../../lib/api/validation.js';
 import { getMongoCollections } from '../../../lib/db/mongodb.js';
 import {
+  parseScaleImageAttachmentInput,
+  serializeScaleImageAttachment
+} from '../../../lib/scales/imageAttachment.js';
+import { getUnavailableComponentsForDate } from '../../../lib/scales/componentAvailability.js';
+import {
   createInitialScalePushNotificationState,
   dispatchScalePushNotifications,
   serializeScalePushNotification
@@ -46,6 +51,7 @@ export function serializeScale(document) {
     groupId: document.groupId,
     date: document.date,
     shift: document.shift,
+    imageAttachment: serializeScaleImageAttachment(document.imageAttachment),
     components: document.components || [],
     playlist: document.playlist || [],
     messages: normalizeScaleMessages(document.messages),
@@ -268,6 +274,13 @@ export async function POST(request) {
     const playlist = normalizePlaylist(body.playlist);
     const playlistEditorComponentIds = normalizePermissionComponentIds(body.playlistEditorComponentIds);
     const imageEditorComponentIds = normalizePermissionComponentIds(body.imageEditorComponentIds);
+    const scaleId = crypto.randomUUID();
+    const defaultSourceScaleLabel = `${date || ''} - ${shift || ''}`.trim();
+    const imageAttachmentInput = parseScaleImageAttachmentInput(body, {
+      allowRemoval: false,
+      defaultSourceScaleId: scaleId,
+      defaultSourceScaleLabel
+    });
 
     if (!date || !shift || !components || playlist === null || playlistEditorComponentIds === null || imageEditorComponentIds === null) {
       return jsonApiError(
@@ -275,6 +288,10 @@ export async function POST(request) {
         400,
         'BAD_REQUEST'
       );
+    }
+
+    if (imageAttachmentInput.error) {
+      return jsonApiError(imageAttachmentInput.error, 400, 'BAD_REQUEST');
     }
 
     const {
@@ -285,12 +302,23 @@ export async function POST(request) {
     const componentIds = components.map((item) => item.componentId);
     const existingComponents = await componentsCollection
       .find({ groupId, _id: { $in: componentIds.map((componentId) => componentId) } })
-      .project({ _id: 1 })
+      .project({ _id: 1, fullName: 1, username: 1, unavailableDates: 1 })
       .toArray();
 
     if (existingComponents.length !== componentIds.length) {
       return jsonApiError(
         'Um ou mais componentId informados nao pertencem ao grupo ou nao existem.',
+        400,
+        'BAD_REQUEST'
+      );
+    }
+
+    const unavailableComponents = getUnavailableComponentsForDate(existingComponents, date);
+
+    if (unavailableComponents.length > 0) {
+      const componentNames = unavailableComponents.map((component) => component.name).join(', ');
+      return jsonApiError(
+        `Nao e possivel escalar componentes indisponiveis na data ${date}: ${componentNames}.`,
         400,
         'BAD_REQUEST'
       );
@@ -320,10 +348,11 @@ export async function POST(request) {
 
     const now = new Date().toISOString();
     const document = {
-      _id: crypto.randomUUID(),
+      _id: scaleId,
       groupId,
       date,
       shift,
+      ...(imageAttachmentInput.imageAttachment ? { imageAttachment: imageAttachmentInput.imageAttachment } : {}),
       components,
       playlist,
       messages: [],

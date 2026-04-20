@@ -16,6 +16,8 @@ const CURRENT_USER_ID = 'current-user';
 const COMPONENT_APP_PERMISSION_MESSAGE =
   'Seu perfil de componente pode visualizar os cards e enviar mensagens, mas notificacoes e edicao geral continuam bloqueadas.';
 const CURRENT_USER_BADGE_LABEL = 'Você';
+const SCALE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const ALLOWED_SCALE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 const COMBINING_MARKS_PATTERN = /[\u0300-\u036f]/g;
 
@@ -113,14 +115,74 @@ function getCurrentUserMemberId(members, authUser) {
 }
 
 function createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift) {
-  return {
+  return readFileAsDataUrl(file).then((dataUrl) => ({
     id: `uploaded-${scaleId}-${Date.now()}`,
-    src: URL.createObjectURL(file),
-    alt: file?.name ? `Imagem enviada do dispositivo: ${file.name}` : `Imagem enviada do dispositivo para ${scaleDate} (${scaleShift})`,
+    src: dataUrl,
+    alt: file?.name
+      ? `Imagem enviada do dispositivo: ${file.name}`
+      : `Imagem enviada do dispositivo para ${scaleDate} (${scaleShift})`,
     label: file?.name ? file.name : 'Imagem do dispositivo',
     sourceScaleId: scaleId,
     sourceScaleLabel: `${scaleDate} - ${scaleShift}`,
     isLocalUpload: true
+  }));
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+
+      if (!result) {
+        reject(new Error('Nao foi possivel converter a imagem para upload.'));
+        return;
+      }
+
+      resolve(result);
+    };
+
+    reader.onerror = () => {
+      reject(new Error('Nao foi possivel ler o arquivo de imagem.'));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function normalizeImageAttachment(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const src = typeof value.src === 'string' ? value.src.trim() : '';
+
+  if (!src) {
+    return null;
+  }
+
+  const fallbackIdSeed = [value?.sourceScaleId, src]
+    .map((entry) => (typeof entry === 'string' ? entry : ''))
+    .join('-')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+
+  return {
+    id:
+      typeof value.id === 'string' && value.id.trim()
+        ? value.id.trim()
+        : fallbackIdSeed
+          ? `scale-image-${fallbackIdSeed}`
+          : 'scale-image',
+    src,
+    alt: typeof value.alt === 'string' && value.alt.trim() ? value.alt.trim() : 'Imagem da escala',
+    label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : 'Imagem da escala',
+    sourceScaleId: typeof value.sourceScaleId === 'string' ? value.sourceScaleId.trim() : '',
+    sourceScaleLabel: typeof value.sourceScaleLabel === 'string' ? value.sourceScaleLabel.trim() : '',
+    isLocalUpload: Boolean(value.isLocalUpload)
   };
 }
 
@@ -134,21 +196,54 @@ function collectImageLibrary(scales) {
       return;
     }
 
-    const uniqueKey = imageAttachment.id || imageAttachment.src;
+    const normalizedImageAttachment = normalizeImageAttachment(imageAttachment);
+
+    if (!normalizedImageAttachment) {
+      return;
+    }
+
+    const uniqueKey = normalizedImageAttachment.id || normalizedImageAttachment.src;
     if (!uniqueKey || seen.has(uniqueKey)) {
       return;
     }
 
     seen.add(uniqueKey);
     imageLibrary.push({
-      ...imageAttachment,
-      sourceScaleId: imageAttachment.sourceScaleId || scale.id,
+      ...normalizedImageAttachment,
+      sourceScaleId: normalizedImageAttachment.sourceScaleId || scale.id,
       sourceScaleLabel:
-        imageAttachment.sourceScaleLabel || `${scale.date || 'Data nao informada'} - ${scale.shift || 'Turno nao informado'}`
+        normalizedImageAttachment.sourceScaleLabel ||
+        `${scale.date || 'Data nao informada'} - ${scale.shift || 'Turno nao informado'}`
     });
   });
 
   return imageLibrary;
+}
+
+function mergeImageLibraries(...libraries) {
+  const seen = new Set();
+  const merged = [];
+
+  libraries.forEach((library) => {
+    (Array.isArray(library) ? library : []).forEach((image) => {
+      const normalized = normalizeImageAttachment(image);
+
+      if (!normalized) {
+        return;
+      }
+
+      const uniqueKey = normalized.id || normalized.src;
+
+      if (!uniqueKey || seen.has(uniqueKey)) {
+        return;
+      }
+
+      seen.add(uniqueKey);
+      merged.push(normalized);
+    });
+  });
+
+  return merged;
 }
 
 function normalizePermissionComponentIds(value) {
@@ -445,7 +540,7 @@ function formatMessageTime(isoDate) {
   }
 }
 
-function ScaleImageGallery({ currentImage, imageLibrary, onSelectImage }) {
+function ScaleImageGallery({ currentImage, imageLibrary, onSelectImage, isSaving }) {
   if (!imageLibrary.length) {
     return null;
   }
@@ -461,6 +556,7 @@ function ScaleImageGallery({ currentImage, imageLibrary, onSelectImage }) {
             type="button"
             className={`${styles.imageGalleryItem} ${isSelected ? styles.imageGalleryItemActive : ''}`}
             onClick={() => onSelectImage(image)}
+            disabled={isSaving}
             aria-pressed={isSelected}
             aria-label={`${isSelected ? 'Imagem selecionada' : 'Selecionar imagem'}: ${image.label || image.alt}`}
           >
@@ -492,6 +588,7 @@ function ScaleImagePanel({
   currentImage,
   imageLibrary,
   canEditImage,
+  isSavingImage,
   onRestrictedAction,
   onRemoveImage,
   onSelectImage,
@@ -606,9 +703,9 @@ function ScaleImagePanel({
               type="button"
               className={styles.imageRemoveButton}
               onClick={onRemoveImage}
-              disabled={!canEditImage}
+              disabled={!canEditImage || isSavingImage}
               aria-label={`Remover imagem da escala de ${scaleDate} (${scaleShift})`}
-              aria-disabled={!canEditImage}
+              aria-disabled={!canEditImage || isSavingImage}
               title="Remover imagem"
             >
               <IconRemove />
@@ -680,11 +777,11 @@ function ScaleImagePanel({
               type="button"
               className={styles.imagePrimaryButton}
               onClick={handleOpenUpload}
-              disabled={!canEditImage}
+              disabled={!canEditImage || isSavingImage}
               aria-label={`Fazer upload de imagem para a escala de ${scaleDate} (${scaleShift})`}
-              aria-disabled={!canEditImage}
+              aria-disabled={!canEditImage || isSavingImage}
             >
-              Upload do dispositivo
+              {isSavingImage ? 'Salvando imagem...' : 'Upload do dispositivo'}
             </button>
             <input
               ref={fileInputRef}
@@ -713,6 +810,7 @@ function ScaleImagePanel({
                 currentImage={currentImage}
                 imageLibrary={imageLibrary}
                 onSelectImage={handleSelectImageFromGallery}
+                isSaving={isSavingImage}
               />
             </div>
           ) : null}
@@ -1245,16 +1343,18 @@ function ScaleCard({
   onToggleExpand,
   onEdit,
   imageLibrary,
+  onPersistScaleImage,
   isComponentApp,
   currentUser
 }) {
   const [activeView, setActiveView] = useState(COMPONENTS_VIEW);
   const [notifyFeedback, setNotifyFeedback] = useState('');
   const [isNotifying, setIsNotifying] = useState(false);
-  const [currentImage, setCurrentImage] = useState(() => scale.imageAttachment || null);
+  const [currentImage, setCurrentImage] = useState(() => normalizeImageAttachment(scale.imageAttachment));
   const [currentPlaylist, setCurrentPlaylist] = useState(() => normalizeScalePlaylist(scale.playlist));
   const [currentMessages, setCurrentMessages] = useState(() => (Array.isArray(scale.messages) ? scale.messages : []));
   const [imageFeedback, setImageFeedback] = useState('');
+  const [isImageSaving, setIsImageSaving] = useState(false);
   const [playlistFeedback, setPlaylistFeedback] = useState('');
   const [isMessageSending, setIsMessageSending] = useState(false);
   const [isPlaylistSaving, setIsPlaylistSaving] = useState(false);
@@ -1281,6 +1381,10 @@ function ScaleCard({
   useEffect(() => {
     setCurrentPlaylist(normalizeScalePlaylist(scale.playlist));
   }, [scale.playlist]);
+
+  useEffect(() => {
+    setCurrentImage(normalizeImageAttachment(scale.imageAttachment));
+  }, [scale.imageAttachment]);
 
   useEffect(() => {
     setCurrentMessages(Array.isArray(scale.messages) ? scale.messages : []);
@@ -1323,39 +1427,69 @@ function ScaleCard({
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (currentImage?.src?.startsWith('blob:')) {
-        URL.revokeObjectURL(currentImage.src);
+  const persistImageAttachment = async (nextImageAttachment) => {
+    if (!canEditImage) {
+      throw new Error('Seu perfil nao tem permissao para editar esta imagem.');
+    }
+
+    if (!scaleId) {
+      throw new Error('Nao foi possivel identificar a escala para atualizar a imagem.');
+    }
+
+    setIsImageSaving(true);
+
+    try {
+      const payload = await requestJson(`/api/scales/${encodeURIComponent(scaleId)}`, {
+        method: 'PATCH',
+        body: {
+          imageAttachment: nextImageAttachment
+        }
+      });
+      const savedImageAttachment = normalizeImageAttachment(payload?.item?.imageAttachment);
+
+      setCurrentImage(savedImageAttachment);
+      onPersistScaleImage?.(scaleId, savedImageAttachment);
+      return savedImageAttachment;
+    } finally {
+      setIsImageSaving(false);
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!canEditImage) {
+      setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
+      return;
+    }
+
+    try {
+      await persistImageAttachment(null);
+      setImageFeedback(`Imagem removida da escala ${scaleDate} (${scaleShift}).`);
+    } catch (error) {
+      setImageFeedback(error instanceof Error ? error.message : 'Nao foi possivel remover a imagem da escala.');
+    }
+  };
+
+  const handleSelectImage = async (image) => {
+    if (!canEditImage) {
+      setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
+      return;
+    }
+
+    try {
+      const selectedImage = normalizeImageAttachment(image);
+
+      if (!selectedImage) {
+        throw new Error('Nao foi possivel validar a imagem selecionada.');
       }
-    };
-  }, [currentImage]);
 
-  const handleRemoveImage = () => {
-    if (!canEditImage) {
-      setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
-      return;
+      await persistImageAttachment(selectedImage);
+      setImageFeedback(`Imagem vinculada para ${scaleDate} (${scaleShift}).`);
+    } catch (error) {
+      setImageFeedback(error instanceof Error ? error.message : 'Nao foi possivel vincular a imagem na escala.');
     }
-
-    if (currentImage?.src?.startsWith('blob:')) {
-      URL.revokeObjectURL(currentImage.src);
-    }
-
-    setCurrentImage(null);
-    setImageFeedback(`Imagem removida da escala ${scaleDate} (${scaleShift}).`);
   };
 
-  const handleSelectImage = (image) => {
-    if (!canEditImage) {
-      setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
-      return;
-    }
-
-    setCurrentImage(image);
-    setImageFeedback(`Imagem vinculada para ${scaleDate} (${scaleShift}).`);
-  };
-
-  const handleUploadImage = (file) => {
+  const handleUploadImage = async (file) => {
     if (!canEditImage) {
       setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
       return;
@@ -1365,9 +1499,23 @@ function ScaleCard({
       return;
     }
 
-    const nextImage = createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift);
-    setCurrentImage(nextImage);
-    setImageFeedback(`Imagem enviada do dispositivo para ${scaleDate} (${scaleShift}).`);
+    if (!ALLOWED_SCALE_IMAGE_TYPES.has(file.type)) {
+      setImageFeedback('Use uma imagem JPG, PNG, WEBP ou GIF.');
+      return;
+    }
+
+    if (file.size > SCALE_IMAGE_MAX_BYTES) {
+      setImageFeedback('A imagem da escala excede o limite de 2 MB.');
+      return;
+    }
+
+    try {
+      const nextImage = await createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift);
+      await persistImageAttachment(nextImage);
+      setImageFeedback(`Imagem enviada do dispositivo para ${scaleDate} (${scaleShift}).`);
+    } catch (error) {
+      setImageFeedback(error instanceof Error ? error.message : 'Nao foi possivel enviar a imagem da escala.');
+    }
   };
 
   const persistPlaylist = async (nextPlaylist) => {
@@ -1489,6 +1637,7 @@ function ScaleCard({
               currentImage={currentImage}
               imageLibrary={imageLibrary}
               canEditImage={canEditImage}
+              isSavingImage={isImageSaving}
               onRestrictedAction={() => setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.')}
               onRemoveImage={handleRemoveImage}
               onSelectImage={handleSelectImage}
@@ -1605,6 +1754,7 @@ function ScaleCard({
 
 export default function ScaleFeed({
   scales,
+  imageLibrary: persistedImageLibrary = [],
   timeScope = 'current-and-future',
   onChangeTimeScope,
   timeScopeOptions = []
@@ -1613,7 +1763,11 @@ export default function ScaleFeed({
   const [feedback, setFeedback] = useState('');
   const [expandedScaleIds, setExpandedScaleIds] = useState({});
   const [hydratedScales, setHydratedScales] = useState(() => scales);
-  const imageLibrary = useMemo(() => collectImageLibrary(hydratedScales), [hydratedScales]);
+  const scaleImageLibrary = useMemo(() => collectImageLibrary(hydratedScales), [hydratedScales]);
+  const imageLibrary = useMemo(
+    () => mergeImageLibraries(persistedImageLibrary, scaleImageLibrary),
+    [persistedImageLibrary, scaleImageLibrary]
+  );
   const { user: authUser, permissions, isLoading: isAuthSessionLoading } = useAuthSession();
   const isComponentApp = !isAuthSessionLoading && Boolean(permissions.isComponentApp);
 
@@ -1703,6 +1857,19 @@ export default function ScaleFeed({
     router.push(`/cadastro-escalas?scaleId=${encodeURIComponent(scale.id)}`);
   };
 
+  const handlePersistScaleImage = (scaleId, nextImageAttachment) => {
+    setHydratedScales((currentScales) =>
+      currentScales.map((entry) =>
+        entry?.id === scaleId
+          ? {
+            ...entry,
+            imageAttachment: nextImageAttachment || null
+          }
+          : entry
+      )
+    );
+  };
+
   return (
     <section className={styles.feedPage} aria-label="Feed de escalas">
       <header className={styles.feedHeader}>
@@ -1749,6 +1916,7 @@ export default function ScaleFeed({
               scale={scale}
               scaleId={scaleId}
               imageLibrary={imageLibrary}
+              onPersistScaleImage={handlePersistScaleImage}
               isComponentApp={isComponentApp}
               isExpanded={Boolean(expandedScaleIds[scaleId])}
               onToggleExpand={() =>

@@ -46,6 +46,14 @@ Aplicacao base em Next.js com App Router.
 - A foto do grupo tambem usa `photoDataUrl` com persistencia no banco e fallback de `photoUrl`.
 - Tipos aceitos e limite seguem o padrao: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, ate `2MB`.
 
+## Imagens das escalas no banco (consulta e reuso)
+
+- O campo `scales.imageAttachment` agora e persistido no MongoDB com suporte a imagem base64 (`data URL`) ou URL HTTP/HTTPS.
+- A API `POST/PATCH /api/scales` aceita `imageAttachment`; no `PATCH`, enviar `imageAttachment: null` remove a imagem da escala.
+- A API `GET /api/scales` retorna `imageAttachment` serializado para consumo direto da UI.
+- A API `GET /api/scales/images` lista a biblioteca de imagens de todas as escalas do grupo para consulta/reutilizacao em novas escalas.
+- Regras de upload para imagem base64 da escala: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, limite de `2MB`.
+
 ## Listagem administrativa de grupos
 
 - A tela `/admin/grupos` nao usa mais dados ficticios em codigo.
@@ -69,4 +77,5 @@ Aplicacao base em Next.js com App Router.
 - Fluxo detalhado: `docs/setup/next-setup.md`
 - Spec da feature: `docs/specs/features/configurar-ambiente-next/`
 - Spec de imagem em banco: `docs/specs/features/armazenamento-imagem-banco-componentes/`
+- Spec de imagem de escalas em banco: `docs/specs/features/persistencia-imagens-escalas-banco/`
 - Spec de integracao da listagem de grupos no banco: `docs/specs/features/integracao-grupos-admin-banco/`

@@ -81,6 +81,35 @@ function normalizePermissionComponentIds(value) {
   return items;
 }
 
+function normalizeImageAttachment(value, { fallbackSourceScaleId = '', fallbackSourceScaleLabel = '' } = {}) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const src = normalizeString(value?.src);
+
+  if (!src) {
+    return null;
+  }
+
+  const fallbackIdSeed = [value?.sourceScaleId, src]
+    .map((entry) => normalizeString(entry))
+    .join('-')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+
+  return {
+    id: normalizeString(value?.id) || (fallbackIdSeed ? `scale-image-${fallbackIdSeed}` : 'scale-image'),
+    src,
+    alt: normalizeString(value?.alt) || 'Imagem da escala',
+    label: normalizeString(value?.label) || 'Imagem da escala',
+    sourceScaleId: normalizeString(value?.sourceScaleId) || fallbackSourceScaleId,
+    sourceScaleLabel: normalizeString(value?.sourceScaleLabel) || fallbackSourceScaleLabel
+  };
+}
+
 function normalizeScales(scaleItems, componentsById) {
   if (!Array.isArray(scaleItems)) {
     return [];
@@ -111,23 +140,31 @@ function normalizeScales(scaleItems, componentsById) {
       };
     });
 
+    const formattedDate = formatScaleDate(scale?.date);
+    const shift = normalizeString(scale?.shift) || 'Turno nao informado';
+    const imageAttachment = normalizeImageAttachment(scale?.imageAttachment, {
+      fallbackSourceScaleId: scaleId,
+      fallbackSourceScaleLabel: `${formattedDate} - ${shift}`
+    });
+
     return {
       id: scaleId,
-      date: formatScaleDate(scale?.date),
-      shift: normalizeString(scale?.shift) || 'Turno nao informado',
+      date: formattedDate,
+      shift,
       canEdit: scale?.canEdit !== false,
       members,
       playlist: normalizePlaylist(scale?.playlist),
       playlistEditorComponentIds: normalizePermissionComponentIds(scale?.playlistEditorComponentIds),
       imageEditorComponentIds: normalizePermissionComponentIds(scale?.imageEditorComponentIds),
       messages: Array.isArray(scale?.messages) ? scale.messages : [],
-      imageAttachment: scale?.imageAttachment || null
+      imageAttachment
     };
   });
 }
 
 export default function ScalesPageClient() {
   const [scales, setScales] = useState([]);
+  const [imageLibrary, setImageLibrary] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [timeScope, setTimeScope] = useState(SCALE_TIME_SCOPE_CURRENT_AND_FUTURE);
@@ -137,14 +174,24 @@ export default function ScalesPageClient() {
     setError('');
 
     try {
-      const [componentsPayload, scalesPayload] = await Promise.all([
+      const [componentsPayload, scalesPayload, scaleImagesPayload] = await Promise.all([
         requestJson('/api/components?limit=100'),
-        requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent(timeScope)}`)
+        requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent(timeScope)}`),
+        requestJson('/api/scales/images')
       ]);
 
       const componentsById = normalizeComponentCatalog(componentsPayload?.items);
       const normalizedScales = normalizeScales(scalesPayload?.items, componentsById);
+      const normalizedImageLibrary = (Array.isArray(scaleImagesPayload?.items) ? scaleImagesPayload.items : [])
+        .map((image, index) =>
+          normalizeImageAttachment(image, {
+            fallbackSourceScaleId: `source-${index}`,
+            fallbackSourceScaleLabel: 'Imagem reutilizavel'
+          })
+        )
+        .filter(Boolean);
       setScales(normalizedScales);
+      setImageLibrary(normalizedImageLibrary);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -152,6 +199,7 @@ export default function ScalesPageClient() {
           : 'Nao foi possivel carregar as escalas.'
       );
       setScales([]);
+      setImageLibrary([]);
     } finally {
       setIsLoading(false);
     }
@@ -183,6 +231,7 @@ export default function ScalesPageClient() {
   return (
     <ScaleFeed
       scales={scales}
+      imageLibrary={imageLibrary}
       timeScope={timeScope}
       onChangeTimeScope={setTimeScope}
       timeScopeOptions={[

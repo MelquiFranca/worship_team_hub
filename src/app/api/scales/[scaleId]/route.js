@@ -5,6 +5,8 @@ import { jsonApiError } from '../../../../lib/api/errors.js';
 import { getTrimmedQueryParam, readJsonBody } from '../../../../lib/api/request.js';
 import { isPlainObject, normalizeIsoDate, normalizeString } from '../../../../lib/api/validation.js';
 import { getMongoCollections } from '../../../../lib/db/mongodb.js';
+import { parseScaleImageAttachmentInput } from '../../../../lib/scales/imageAttachment.js';
+import { getUnavailableComponentsForDate } from '../../../../lib/scales/componentAvailability.js';
 import {
   normalizePermissionComponentIds,
   normalizePlaylist,
@@ -16,15 +18,17 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const SCALE_READ_ALLOWED_AUDIENCES = new Set(['admin-panel', 'group-app', 'component-app']);
 const SCALE_PATCH_ALLOWED_AUDIENCES = new Set(['admin-panel', 'group-app', 'component-app']);
-const COMPONENT_APP_ALLOWED_PATCH_FIELDS = new Set(['playlist']);
+const COMPONENT_APP_ALLOWED_PATCH_FIELDS = new Set(['playlist', 'imageAttachment']);
 const COMBINING_MARKS_PATTERN = /[\u0300-\u036f]/g;
 
-function getScaleIdFromParams(params) {
-  if (!params || typeof params !== 'object') {
+async function getScaleIdFromParams(params) {
+  const resolvedParams = await params;
+
+  if (!resolvedParams || typeof resolvedParams !== 'object') {
     return '';
   }
 
-  return normalizeString(params.scaleId);
+  return normalizeString(resolvedParams.scaleId);
 }
 
 function buildScalePatchPayload(body) {
@@ -88,6 +92,10 @@ function buildScalePatchPayload(body) {
     }
 
     updates.imageEditorComponentIds = imageEditorComponentIds;
+  }
+
+  if (Object.hasOwn(body, 'imageAttachment')) {
+    updates.imageAttachment = body.imageAttachment;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -198,7 +206,7 @@ export async function GET(request, { params }) {
     });
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
-    const scaleId = getScaleIdFromParams(params);
+    const scaleId = await getScaleIdFromParams(params);
 
     if (!scaleId) {
       return jsonApiError('Informe scaleId valido para continuar.', 400, 'BAD_REQUEST');
@@ -241,7 +249,7 @@ export async function PATCH(request, { params }) {
       bodyGroupId: typeof body.groupId === 'string' ? body.groupId : '',
       queryGroupId
     });
-    const scaleId = getScaleIdFromParams(params);
+    const scaleId = await getScaleIdFromParams(params);
 
     if (!scaleId) {
       return jsonApiError('Informe scaleId valido para continuar.', 400, 'BAD_REQUEST');
@@ -258,6 +266,23 @@ export async function PATCH(request, { params }) {
 
     if (!existingScale) {
       return jsonApiError('Escala nao encontrada para este grupo.', 404, 'NOT_FOUND');
+    }
+
+    if (Object.hasOwn(body, 'imageAttachment')) {
+      const defaultSourceScaleLabel = `${existingScale.date || ''} - ${existingScale.shift || ''}`.trim();
+      const imageAttachmentInput = parseScaleImageAttachmentInput(body, {
+        allowRemoval: true,
+        defaultSourceScaleId: scaleId,
+        defaultSourceScaleLabel
+      });
+
+      if (imageAttachmentInput.error) {
+        return jsonApiError(imageAttachmentInput.error, 400, 'BAD_REQUEST');
+      }
+
+      parsed.updates.imageAttachment = imageAttachmentInput.removeImageAttachment
+        ? null
+        : imageAttachmentInput.imageAttachment;
     }
 
     if (session.claims.aud === 'component-app') {
@@ -281,10 +306,23 @@ export async function PATCH(request, { params }) {
       const playlistEditors = Array.isArray(existingScale.playlistEditorComponentIds)
         ? existingScale.playlistEditorComponentIds
         : [];
+      const imageEditors = Array.isArray(existingScale.imageEditorComponentIds)
+        ? existingScale.imageEditorComponentIds
+        : [];
+      const isUpdatingPlaylist = requestedFields.includes('playlist');
+      const isUpdatingImageAttachment = requestedFields.includes('imageAttachment');
 
-      if (!sessionComponentId || !playlistEditors.includes(sessionComponentId)) {
+      if (isUpdatingPlaylist && (!sessionComponentId || !playlistEditors.includes(sessionComponentId))) {
         return jsonApiError(
           'Seu perfil nao possui permissao para editar a playlist desta escala.',
+          403,
+          'FORBIDDEN'
+        );
+      }
+
+      if (isUpdatingImageAttachment && (!sessionComponentId || !imageEditors.includes(sessionComponentId))) {
+        return jsonApiError(
+          'Seu perfil nao possui permissao para editar a imagem desta escala.',
           403,
           'FORBIDDEN'
         );
@@ -342,6 +380,31 @@ export async function PATCH(request, { params }) {
     const nextDate = parsed.updates.date || existingScale.date;
     const nextShift = parsed.updates.shift || existingScale.shift;
     const isDateOrShiftChanging = nextDate !== existingScale.date || nextShift !== existingScale.shift;
+
+    if (Object.hasOwn(parsed.updates, 'components') || Object.hasOwn(parsed.updates, 'date')) {
+      const nextScaleComponents = parsed.updates.components || existingScale.components || [];
+      const nextComponentIds = nextScaleComponents
+        .map((item) => normalizeString(item?.componentId))
+        .filter(Boolean);
+
+      if (nextComponentIds.length > 0) {
+        const componentsForAvailability = await components
+          .find({ groupId, _id: { $in: nextComponentIds } })
+          .project({ _id: 1, fullName: 1, username: 1, unavailableDates: 1 })
+          .toArray();
+
+        const unavailableComponents = getUnavailableComponentsForDate(componentsForAvailability, nextDate);
+
+        if (unavailableComponents.length > 0) {
+          const componentNames = unavailableComponents.map((component) => component.name).join(', ');
+          return jsonApiError(
+            `Nao e possivel escalar componentes indisponiveis na data ${nextDate}: ${componentNames}.`,
+            400,
+            'BAD_REQUEST'
+          );
+        }
+      }
+    }
 
     if (isDateOrShiftChanging) {
       const duplicateScale = await scales.findOne({
@@ -409,7 +472,7 @@ export async function DELETE(request, { params }) {
     const session = await requireApiAccessSession(request);
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
-    const scaleId = getScaleIdFromParams(params);
+    const scaleId = await getScaleIdFromParams(params);
 
     if (!scaleId) {
       return jsonApiError('Informe scaleId valido para continuar.', 400, 'BAD_REQUEST');

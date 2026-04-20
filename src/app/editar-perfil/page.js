@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useMemo } from 'react';
+import ComponentUnavailabilityForm from '@/components/organisms/ComponentUnavailabilityForm/ComponentUnavailabilityForm';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
 import styles from './page.module.css';
 
@@ -21,7 +23,16 @@ function getInitials(name) {
 
 export default function EditProfileFallbackPage() {
   const { settings } = useGroupSettings();
+  const { permissions, isLoading } = useAuthSession();
   const initials = useMemo(() => getInitials(settings.name || ''), [settings.name]);
+
+  if (!isLoading && permissions.isComponentApp) {
+    return (
+      <main className={styles.page}>
+        <ComponentUnavailabilityForm />
+      </main>
+    );
+  }
 
   return (
     <main className={styles.page}>

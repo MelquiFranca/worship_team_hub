@@ -215,6 +215,11 @@
   box-shadow: 0 10px 24px rgba(249, 115, 22, 0.08);
 }
 
+.componentCardUnavailable {
+  border-color: color-mix(in srgb, var(--app-danger, #b91c1c) 30%, transparent);
+  background: color-mix(in srgb, var(--app-danger-soft, #fef2f2) 48%, white);
+}
+
 .componentToggle {
   width: 100%;
   display: grid;
@@ -272,6 +277,13 @@
 .componentCardSelected .selectionMark {
   background: var(--app-accent-soft);
   color: var(--app-warning, #c2410c);
+}
+
+.unavailabilityHint {
+  margin: 0;
+  color: var(--app-danger, #b91c1c);
+  font-size: 0.84rem;
+  font-weight: 600;
 }
 
 .functionField {
@@ -375,6 +387,16 @@
 .inlineMessage {
   margin: 10px 0 0;
   color: var(--app-warning, #c2410c);
+  font-size: 0.9rem;
+}
+
+.unavailabilityMessage {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 18%, white);
+  color: var(--app-danger, #b91c1c);
+  background: var(--app-danger-soft, #fef2f2);
   font-size: 0.9rem;
 }
 

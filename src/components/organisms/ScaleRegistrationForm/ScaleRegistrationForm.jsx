@@ -83,7 +83,10 @@ function normalizeApiComponent(component) {
       (typeof component.role === 'string' && component.role) ||
       (typeof component.function === 'string' && component.function) ||
       (typeof component.primaryFunction === 'string' && component.primaryFunction) ||
-      'Componente'
+      'Componente',
+    unavailableDates: Array.isArray(component.unavailableDates)
+      ? component.unavailableDates.filter((entry) => typeof entry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry))
+      : []
   };
 }
 
@@ -131,6 +134,18 @@ function formatScaleDateForPayload(date) {
   const day = String(date.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
+}
+
+function componentIsUnavailableOnDate(component, isoDate) {
+  if (!isoDate) {
+    return false;
+  }
+
+  if (!Array.isArray(component?.unavailableDates)) {
+    return false;
+  }
+
+  return component.unavailableDates.includes(isoDate);
 }
 
 function parseScaleDate(value) {
@@ -459,6 +474,11 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
     () => componentOptions.filter((component) => selectedComponentIds.includes(component.id)),
     [componentOptions, selectedComponentIds]
   );
+  const selectedScaleDateIso = useMemo(() => formatScaleDateForPayload(scaleDate), [scaleDate]);
+  const unavailableSelectedComponents = useMemo(
+    () => selectedComponents.filter((component) => componentIsUnavailableOnDate(component, selectedScaleDateIso)),
+    [selectedComponents, selectedScaleDateIso]
+  );
 
   const selectedFunctionsCount = selectedComponents.filter((component) =>
     Boolean(functionsByComponent[component.id]?.trim())
@@ -762,6 +782,15 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
       return;
     }
 
+    if (unavailableSelectedComponents.length > 0) {
+      const componentNames = unavailableSelectedComponents.map((component) => component.name).join(', ');
+      setSubmitError(
+        `Os componentes ${componentNames} estao indisponiveis na data escolhida. Remova-os para continuar.`
+      );
+      setSubmitMessage('');
+      return;
+    }
+
     const payload = {
       date: formatScaleDateForPayload(scaleDate),
       shift,
@@ -983,20 +1012,31 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
               </p>
             ) : null}
 
+            {selectedScaleDateIso && unavailableSelectedComponents.length > 0 ? (
+              <p className={styles.unavailabilityMessage} role="alert">
+                Existem componentes selecionados indisponiveis em {selectedScaleDateIso}: {' '}
+                {unavailableSelectedComponents.map((component) => component.name).join(', ')}.
+              </p>
+            ) : null}
+
             <div className={styles.componentGrid}>
               {componentOptions.map((component) => {
                 const isSelected = selectedComponentIds.includes(component.id);
+                const isUnavailableForDate = componentIsUnavailableOnDate(component, selectedScaleDateIso);
+                const isSelectionBlocked = isUnavailableForDate && !isSelected;
 
                 return (
                   <article
                     key={component.id}
-                    className={`${styles.componentCard} ${isSelected ? styles.componentCardSelected : ''}`}
+                    className={`${styles.componentCard} ${isSelected ? styles.componentCardSelected : ''} ${
+                      isSelectionBlocked ? styles.componentCardUnavailable : ''
+                    }`}
                   >
                     <button
                       type="button"
                       className={styles.componentToggle}
                       onClick={() => toggleComponent(component.id)}
-                      disabled={isEditLocked}
+                      disabled={isEditLocked || isSelectionBlocked}
                       aria-pressed={isSelected}
                     >
                       <span className={styles.componentAvatar} aria-hidden="true">
@@ -1019,9 +1059,19 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                       </span>
 
                       <span className={styles.selectionMark} aria-hidden="true">
-                        {isSelected ? 'Selecionado' : 'Selecionar'}
+                        {isUnavailableForDate && !isSelected
+                          ? 'Indisponivel'
+                          : isSelected
+                            ? 'Selecionado'
+                            : 'Selecionar'}
                       </span>
                     </button>
+
+                    {isUnavailableForDate ? (
+                      <p className={styles.unavailabilityHint}>
+                        Indisponivel na data selecionada.
+                      </p>
+                    ) : null}
 
                     {isSelected ? (
                       <label

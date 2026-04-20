@@ -13,6 +13,7 @@ import {
   parseComponentPhotoInput,
   serializeComponentPhoto
 } from '../../../../lib/components/photo.js';
+import { normalizeUnavailableDatesInput, serializeUnavailableDates } from '../../../../lib/components/unavailability.js';
 import { getMongoCollections } from '../../../../lib/db/mongodb.js';
 import {
   normalizePushTargetsInput,
@@ -36,6 +37,7 @@ function serializeComponent(document) {
   const pushTargets = serializeComponentPushTargets(document);
   const pushSubscriptions = serializePushSubscriptions(document.pushSubscriptions);
   const photoDataUrl = serializeComponentPhoto(document);
+  const unavailableDates = serializeUnavailableDates(document, { futureOnly: true });
 
   return {
     id: document._id.toString(),
@@ -53,6 +55,7 @@ function serializeComponent(document) {
     hasPushTargets: pushTargets.length > 0,
     pushSubscriptionCount: pushSubscriptions.length,
     hasPushSubscription: pushSubscriptions.length > 0,
+    unavailableDates,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
   };
@@ -155,6 +158,16 @@ function buildPatchPayload(body, photoInput) {
     }
 
     updates.pushSubscriptions = pushSubscriptions;
+  }
+
+  if (Object.hasOwn(body, 'unavailableDates')) {
+    const unavailableDates = normalizeUnavailableDatesInput(body.unavailableDates, { futureOnly: true });
+
+    if (unavailableDates === null) {
+      return { error: 'Informe unavailableDates como lista de datas futuras no formato YYYY-MM-DD.' };
+    }
+
+    updates.unavailableDates = unavailableDates;
   }
 
   if (Object.hasOwn(body, 'isActive')) {
