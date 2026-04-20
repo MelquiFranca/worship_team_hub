@@ -196,10 +196,11 @@ export default function MainBottomNav() {
                   ref={createMenuFirstItemRef}
                   href="/cadastro-escalas"
                   className={styles.popoverItem}
+                  onClick={() => closeMenus()}
                 >
                   Nova escala
                 </Link>
-                <Link href="/cadastro-componentes" className={styles.popoverItem}>
+                <Link href="/cadastro-componentes" className={styles.popoverItem} onClick={() => closeMenus()}>
                   Novo componente
                 </Link>
               </div>
