@@ -4,9 +4,13 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { requestJson } from '@/lib/api/http';
 import { useAuthSession } from '@/context/AuthSessionContext';
-import { useGroupSettings } from '@/context/GroupSettingsContext';
 import styles from './MainBottomNav.module.css';
+
+function normalizeString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
 function getInitials(name) {
   return (
@@ -19,6 +23,23 @@ function getInitials(name) {
       .join('')
       .toUpperCase() || 'EA'
   );
+}
+
+function normalizeProfile(payload) {
+  const source =
+    (payload?.profile && typeof payload.profile === 'object' && payload.profile) ||
+    (payload?.item && typeof payload.item === 'object' && payload.item) ||
+    (payload?.user && typeof payload.user === 'object' && payload.user) ||
+    (payload && typeof payload === 'object' ? payload : null);
+
+  if (!source) {
+    return null;
+  }
+
+  const name = normalizeString(source.name || source.fullName || source.displayName || source.username);
+  const photo = normalizeString(source.photoDataUrl || source.photo || source.photoUrl || source.avatarUrl);
+
+  return { name, photo };
 }
 
 function isActiveRoute(pathname, targetPath) {
@@ -64,16 +85,20 @@ export default function MainBottomNav() {
   const pathname = usePathname();
   const currentPathname = pathname || '';
   const router = useRouter();
-  const { settings } = useGroupSettings();
-  const { audience, permissions, isLoading: isAuthSessionLoading, logout } = useAuthSession();
+  const { audience, permissions, isLoading: isAuthSessionLoading, isAuthenticated, user, logout } = useAuthSession();
   const [openMenu, setOpenMenu] = useState(null);
+  const [profile, setProfile] = useState(null);
   const navRef = useRef(null);
   const createMenuFirstItemRef = useRef(null);
   const avatarMenuFirstItemRef = useRef(null);
   const createTriggerRef = useRef(null);
   const avatarTriggerRef = useRef(null);
 
-  const initials = useMemo(() => getInitials(settings.name || ''), [settings.name]);
+  const sessionName = normalizeString(user?.name || user?.fullName || user?.displayName || user?.username);
+  const sessionPhoto = normalizeString(user?.photoDataUrl || user?.photo || user?.photoUrl || user?.avatarUrl);
+  const avatarName = profile?.name || sessionName || 'Perfil';
+  const avatarPhoto = profile?.photo || sessionPhoto;
+  const initials = useMemo(() => getInitials(avatarName), [avatarName]);
   const canShowCreateMenu = !isAuthSessionLoading && Boolean(permissions.canInsertScale);
   const canShowSettingsLink = !isAuthSessionLoading && audience === 'group-app';
   const canShowUnavailabilityLink =
@@ -131,6 +156,37 @@ export default function MainBottomNav() {
       closeMenus();
     }
   }, [canShowCreateMenu, closeMenus, openMenu]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProfile() {
+      if (isAuthSessionLoading || !isAuthenticated) {
+        return;
+      }
+
+      try {
+        const payload = await requestJson('/api/auth/profile');
+        const normalized = normalizeProfile(payload);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setProfile(normalized);
+      } catch {
+        if (isMounted) {
+          setProfile(null);
+        }
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthSessionLoading, isAuthenticated]);
 
   const handleOpenMenu = useCallback((menuName) => {
     if (menuName === 'create' && !canShowCreateMenu) {
@@ -225,15 +281,15 @@ export default function MainBottomNav() {
             ref={avatarTriggerRef}
             type="button"
             className={`${styles.avatarButton} ${openMenu === 'avatar' ? styles.avatarButtonOpen : ''}`}
-            aria-label={`Menu do grupo ${settings.name}`}
+            aria-label={`Menu do perfil ${avatarName}`}
             aria-expanded={openMenu === 'avatar'}
             aria-controls="main-bottom-nav-avatar-menu"
             onClick={() => handleOpenMenu('avatar')}
           >
             <span className={styles.avatarFrame} aria-hidden="true">
-              {settings.photo ? (
+              {avatarPhoto ? (
                 <Image
-                  src={settings.photo}
+                  src={avatarPhoto}
                   alt=""
                   fill
                   sizes="40px"
@@ -243,7 +299,7 @@ export default function MainBottomNav() {
                 <span className={styles.avatarFallback}>{initials}</span>
               )}
             </span>
-            <span className={styles.srOnly}>Avatar do grupo</span>
+            <span className={styles.srOnly}>Avatar do perfil logado</span>
           </button>
 
           {openMenu === 'avatar' ? (
