@@ -6,8 +6,7 @@ import Calendar from '@/components/molecules/Calendar/Calendar';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
-import { scales as existingScales } from '@/data/scales';
-import { requestJson } from '@/lib/api/http';
+import { getApiErrorMessage, readResponsePayload, requestJson } from '@/lib/api/http';
 import styles from './ScaleRegistrationForm.module.css';
 
 const SHIFT_OPTIONS = ['Manha', 'Tarde', 'Noite'];
@@ -18,20 +17,6 @@ function formatDate(date) {
   }
 
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(date);
-}
-
-function normalizeComponentPool(scales) {
-  const pool = new Map();
-
-  scales.forEach((scale) => {
-    scale.members.forEach((member) => {
-      if (!member.isLeader && !pool.has(member.id)) {
-        pool.set(member.id, member);
-      }
-    });
-  });
-
-  return Array.from(pool.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
 function extractComponentList(payload) {
@@ -51,7 +36,7 @@ function extractComponentList(payload) {
     return payload.data;
   }
 
-  return [];
+  return null;
 }
 
 function normalizeApiComponent(component) {
@@ -118,10 +103,29 @@ function normalizePhotoUrl(value) {
 }
 
 function normalizeComponentOptions(payload) {
-  return extractComponentList(payload)
+  const list = extractComponentList(payload);
+
+  if (!list) {
+    return null;
+  }
+
+  return list
     .map(normalizeApiComponent)
     .filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+function resolveRequestIdFromHeaders(headers) {
+  if (!headers || typeof headers.get !== 'function') {
+    return '';
+  }
+
+  return (
+    headers.get('x-request-id') ||
+    headers.get('request-id') ||
+    headers.get('x-correlation-id') ||
+    ''
+  ).trim();
 }
 
 function formatScaleDateForPayload(date) {
@@ -321,8 +325,10 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const isEditMode = Boolean(normalizedScaleId);
   const isComponentApp = !isAuthSessionLoading && Boolean(permissions.isComponentApp);
   const isEditLocked = isEditMode && isComponentApp;
-  const fallbackComponentOptions = useMemo(() => normalizeComponentPool(existingScales), []);
-  const [componentOptions, setComponentOptions] = useState(fallbackComponentOptions);
+  const [componentOptions, setComponentOptions] = useState([]);
+  const [componentLoadState, setComponentLoadState] = useState('loading');
+  const [componentLoadMessage, setComponentLoadMessage] = useState('Carregando componentes do backend...');
+  const [componentRetryToken, setComponentRetryToken] = useState(0);
   const [scaleDate, setScaleDate] = useState(null);
   const [scaleDateError, setScaleDateError] = useState('');
   const [shift, setShift] = useState('');
@@ -330,10 +336,6 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const [playlistEditorComponentIds, setPlaylistEditorComponentIds] = useState([]);
   const [imageEditorComponentIds, setImageEditorComponentIds] = useState([]);
   const [functionsByComponent, setFunctionsByComponent] = useState({});
-  const [componentNotice, setComponentNotice] = useState({
-    type: 'status',
-    message: 'Carregando componentes do backend...'
-  });
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchStatus, setSearchStatus] = useState('idle');
@@ -355,11 +357,35 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
     let isActive = true;
 
     async function loadComponents() {
+      setComponentLoadState('loading');
+      setComponentLoadMessage('Carregando componentes do backend...');
+
       try {
-        const payload = await requestJson('/api/components', {
+        const response = await fetch('/api/components', {
           method: 'GET',
-          cache: 'no-store'
+          cache: 'no-store',
+          credentials: 'include',
+          headers: {
+            Accept: 'application/json'
+          }
         });
+        const payload = await readResponsePayload(response);
+        const requestId = resolveRequestIdFromHeaders(response.headers);
+
+        if (!response.ok) {
+          const message = getApiErrorMessage(
+            payload,
+            response.status,
+            'Nao foi possivel carregar os componentes do backend.'
+          );
+          throw new Error(message, {
+            cause: {
+              status: response.status,
+              requestId,
+              reason: 'http_error'
+            }
+          });
+        }
 
         const normalizedComponents = normalizeComponentOptions(payload);
 
@@ -367,27 +393,63 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
           return;
         }
 
+        if (!normalizedComponents) {
+          throw new Error('Resposta invalida ao carregar componentes.', {
+            cause: {
+              status: response.status,
+              requestId,
+              reason: 'invalid_payload'
+            }
+          });
+        }
+
         if (normalizedComponents.length > 0) {
           setComponentOptions(normalizedComponents);
-          setComponentNotice({ type: 'idle', message: '' });
+          setComponentLoadState('ready');
+          setComponentLoadMessage('');
           return;
         }
 
-        setComponentOptions(fallbackComponentOptions);
-        setComponentNotice({
-          type: 'status',
-          message: 'A API ainda nao retornou componentes. Mostrando a base local por enquanto.'
-        });
-      } catch {
+        setComponentOptions([]);
+        setComponentLoadState('empty');
+        setComponentLoadMessage(
+          'Nenhum componente encontrado. Cadastre componentes antes de salvar uma escala.'
+        );
+      } catch (error) {
         if (!isActive) {
           return;
         }
 
-        setComponentOptions(fallbackComponentOptions);
-        setComponentNotice({
-          type: 'status',
-          message: 'Nao foi possivel carregar os componentes do backend agora. Mostrando a base local.'
-        });
+        const errorStatus =
+          error && typeof error === 'object' && typeof error.cause?.status === 'number'
+            ? error.cause.status
+            : null;
+        const errorRequestId =
+          error && typeof error === 'object' && typeof error.cause?.requestId === 'string'
+            ? error.cause.requestId
+            : '';
+
+        console.error(
+          JSON.stringify({
+            event: 'components_load_failed',
+            domain: 'scale_registration',
+            route:
+              typeof window !== 'undefined' && typeof window.location?.pathname === 'string'
+                ? window.location.pathname
+                : '/cadastro-escalas',
+            status: errorStatus,
+            requestId: errorRequestId || null,
+            timestamp: new Date().toISOString()
+          })
+        );
+
+        setComponentOptions([]);
+        setComponentLoadState('error');
+        setComponentLoadMessage(
+          error instanceof Error
+            ? error.message
+            : 'Nao foi possivel carregar os componentes do backend. Tente novamente.'
+        );
       }
     }
 
@@ -396,7 +458,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
     return () => {
       isActive = false;
     };
-  }, [fallbackComponentOptions]);
+  }, [componentRetryToken]);
 
   useEffect(() => {
     if (!isEditMode) {
@@ -474,6 +536,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
     () => componentOptions.filter((component) => selectedComponentIds.includes(component.id)),
     [componentOptions, selectedComponentIds]
   );
+  const hasAvailableComponents = componentOptions.length > 0;
+  const isSubmitBlockedByComponents = !hasAvailableComponents || componentLoadState === 'loading';
   const selectedScaleDateIso = useMemo(() => formatScaleDateForPayload(scaleDate), [scaleDate]);
   const unavailableSelectedComponents = useMemo(
     () => selectedComponents.filter((component) => componentIsUnavailableOnDate(component, selectedScaleDateIso)),
@@ -751,6 +815,16 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
       return;
     }
 
+    if (isSubmitBlockedByComponents) {
+      setSubmitError(
+        componentLoadState === 'loading'
+          ? 'Aguarde o carregamento dos componentes antes de salvar a escala.'
+          : 'Nao existem componentes validos para montar a escala.'
+      );
+      setSubmitMessage('');
+      return;
+    }
+
     const validationErrors = [];
 
     if (!scaleDate) {
@@ -891,6 +965,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const heroDescription = isEditMode
     ? 'Revise os dados carregados da escala selecionada e aplique os ajustes necessarios antes de salvar.'
     : 'A tela segue a identidade visual das escalas do projeto, com cards limpos, gradientes quentes e foco na leitura rapida do que ja foi selecionado.';
+  const showComponentStatusNotice = componentLoadState !== 'ready' || Boolean(componentLoadMessage);
+  const canRetryComponentLoad = componentLoadState === 'error';
 
   return (
     <section className={styles.page} aria-label={formAriaLabel}>
@@ -1002,14 +1078,25 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
               <p>Selecione os componentes e atribua uma funcao para cada um.</p>
             </div>
 
-            {componentNotice.message ? (
-              <p
-                className={styles.inlineMessage}
-                role={componentNotice.type === 'status' ? 'status' : 'alert'}
+            {showComponentStatusNotice ? (
+              <div
+                className={`${styles.componentStatus} ${
+                  componentLoadState === 'error' ? styles.componentStatusError : ''
+                }`}
+                role={componentLoadState === 'error' ? 'alert' : 'status'}
                 aria-live="polite"
               >
-                {componentNotice.message}
-              </p>
+                <p className={styles.inlineMessage}>{componentLoadMessage}</p>
+                {canRetryComponentLoad ? (
+                  <button
+                    type="button"
+                    className={styles.retryButton}
+                    onClick={() => setComponentRetryToken((current) => current + 1)}
+                  >
+                    Tentar novamente
+                  </button>
+                ) : null}
+              </div>
             ) : null}
 
             {selectedScaleDateIso && unavailableSelectedComponents.length > 0 ? (
@@ -1036,7 +1123,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                       type="button"
                       className={styles.componentToggle}
                       onClick={() => toggleComponent(component.id)}
-                      disabled={isEditLocked || isSelectionBlocked}
+                      disabled={isEditLocked || isSelectionBlocked || componentLoadState === 'loading'}
                       aria-pressed={isSelected}
                     >
                       <span className={styles.componentAvatar} aria-hidden="true">
@@ -1376,7 +1463,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                 className={styles.primaryButton}
                 type="button"
                 onClick={handleSubmit}
-                disabled={isSubmitting || isDeleting || isEditLocked || isScaleLoading}
+                disabled={isSubmitting || isDeleting || isEditLocked || isScaleLoading || isSubmitBlockedByComponents}
               >
                 {isSubmitting ? 'Salvando...' : isEditMode ? 'Salvar alteracoes' : 'Salvar escala'}
               </button>

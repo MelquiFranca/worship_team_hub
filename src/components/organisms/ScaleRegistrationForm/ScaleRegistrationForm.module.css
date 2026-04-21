@@ -390,6 +390,43 @@
   font-size: 0.9rem;
 }
 
+.componentStatus {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--app-info, #0369a1) 18%, white);
+  background: var(--app-info-soft, #eff6ff);
+  display: grid;
+  gap: 10px;
+}
+
+.componentStatus .inlineMessage {
+  margin: 0;
+  color: var(--app-info, #0369a1);
+}
+
+.componentStatusError {
+  border-color: color-mix(in srgb, var(--app-danger, #b91c1c) 24%, white);
+  background: var(--app-danger-soft, #fef2f2);
+}
+
+.componentStatusError .inlineMessage {
+  color: var(--app-danger, #b91c1c);
+}
+
+.retryButton {
+  width: fit-content;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #0f172a);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .unavailabilityMessage {
   margin: 10px 0 0;
   padding: 10px 12px;
