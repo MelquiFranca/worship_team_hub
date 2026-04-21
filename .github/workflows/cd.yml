@@ -1,0 +1,95 @@
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Versao/referencia da release (ex: v1.0.0)'
+        required: true
+        type: string
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-artifact:
+    name: Build artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build release
+        env:
+          AUTH_JWT_SECRET: cd-local-jwt-secret-with-32-characters
+          JWT_SECRET: cd-local-jwt-secret-with-32-characters
+        run: npm run build
+
+      - name: Save build metadata
+        run: |
+          {
+            echo "release_version=${{ inputs.release_version }}"
+            echo "commit_sha=${{ github.sha }}"
+            echo "triggered_by=${{ github.actor }}"
+            echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > release-metadata.txt
+
+      - name: Upload release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata-${{ github.sha }}
+          retention-days: 30
+          path: release-metadata.txt
+
+  deploy-staging:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs: build-artifact
+    environment:
+      name: staging
+    steps:
+      - name: Simulate deploy to staging
+        run: |
+          echo "Deploy de ${{ inputs.release_version }} para staging"
+          echo "Commit: ${{ github.sha }}"
+
+  deploy-production:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment:
+      name: production
+    steps:
+      - name: Simulate deploy to production
+        run: |
+          echo "Deploy de ${{ inputs.release_version }} para producao"
+          echo "Commit: ${{ github.sha }}"
+
+  rollback-production:
+    name: Rollback procedure (manual)
+    if: ${{ always() && needs.deploy-production.result == 'failure' }}
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    environment:
+      name: production
+    steps:
+      - name: Rollback guidance
+        run: |
+          echo "Falha detectada no deploy de producao."
+          echo "Procedimento de rollback:"
+          echo "1) Reexecutar workflow CD com a ultima release estavel."
+          echo "2) Validar healthcheck da aplicacao e logs da release."
+          echo "3) Registrar incidente e timeline no changelog operacional."

@@ -32,6 +32,25 @@ Aplicacao base em Next.js com App Router.
 - `npm run build`: gera build de producao.
 - `npm run start`: inicia servidor de producao.
 - `npm run lint`: executa lint.
+- `npm run test`: executa quality gate local completo (`unit + integration + smoke`).
+- `npm run test:unit`: executa testes unitarios.
+- `npm run test:integration`: executa testes de integracao.
+- `npm run test:smoke`: executa smoke tests de fluxo critico.
+- `npm run test:auth`: executa suite focada em autenticacao JWT.
+
+## Testes automatizados e CI/CD
+
+- A baseline do MVP usa tres camadas de testes: unitario, integracao e smoke.
+- A pipeline de CI esta em `.github/workflows/ci.yml` e roda em PR/main com gates obrigatorios:
+  - `lint`
+  - `build`
+  - `test`
+- A pipeline de CD esta em `.github/workflows/cd.yml` e realiza promocao em duas etapas:
+  - `staging` (automatico apos build)
+  - `production` (controlado por `environment` protegido no GitHub)
+- Para habilitar aprovacao manual em producao, configure o ambiente `production` com required reviewers nas configuracoes do repositorio.
+- Logs e metricas de CI sao publicados como artefatos para rastreabilidade por commit.
+- SLO inicial de CI (MVP): duracao <= 10 minutos por execucao padrao de PR.
 
 ## Upload de imagem de componente
 

@@ -8,7 +8,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test --experimental-default-type=module",
+    "test": "npm run test:unit && npm run test:integration && npm run test:smoke",
+    "test:unit": "node --test --experimental-default-type=module tests/unit/*.test.mjs",
+    "test:integration": "node --test --experimental-default-type=module tests/integration/*.test.mjs tests/auth/*.test.mjs",
+    "test:smoke": "node --test --experimental-default-type=module tests/smoke/*.test.mjs",
     "test:auth": "node --test --experimental-default-type=module tests/auth/*.test.mjs",
     "migrate:components:backup-prd:dry": "node scripts/migrations/migrate-components-backup-prd.cjs --dry-run",
     "migrate:components:backup-prd": "node scripts/migrations/migrate-components-backup-prd.cjs"

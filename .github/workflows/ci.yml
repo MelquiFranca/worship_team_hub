@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - '**'
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: Lint, Build and Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start timer
+        run: echo "CI_START_TS=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Run lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint | tee lint.log
+
+      - name: Run build
+        shell: bash
+        env:
+          AUTH_JWT_SECRET: ci-local-jwt-secret-with-32-characters
+          JWT_SECRET: ci-local-jwt-secret-with-32-characters
+        run: |
+          set -euo pipefail
+          npm run build | tee build.log
+
+      - name: Run automated tests
+        shell: bash
+        env:
+          AUTH_JWT_SECRET: ci-local-jwt-secret-with-32-characters
+          JWT_SECRET: ci-local-jwt-secret-with-32-characters
+        run: |
+          set -euo pipefail
+          npm run test | tee test.log
+
+      - name: Generate CI duration summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          end_ts=$(date +%s)
+          duration_seconds=$((end_ts - CI_START_TS))
+          duration_minutes=$(awk "BEGIN { printf \"%.2f\", ${duration_seconds}/60 }")
+
+          {
+            echo "ci_duration_seconds=${duration_seconds}"
+            echo "ci_duration_minutes=${duration_minutes}"
+          } > ci-metrics.txt
+
+          {
+            echo "## CI Duration"
+            echo "- Duration (seconds): ${duration_seconds}"
+            echo "- Duration (minutes): ${duration_minutes}"
+            echo "- SLO target: <= 10 minutes (MVP baseline)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-and-metrics-${{ github.sha }}
+          retention-days: 14
+          path: |
+            lint.log
+            build.log
+            test.log
+            ci-metrics.txt
