@@ -93,6 +93,18 @@ async function ensureMongoIndexes(db) {
       db.collection('auth_user_overrides').createIndex(
         { userId: 1 },
         { unique: true, name: 'auth_user_overrides_user_unique' }
+      ),
+      db.collection('auth_refresh_sessions').createIndex(
+        { jti: 1 },
+        { unique: true, name: 'auth_refresh_sessions_jti_unique' }
+      ),
+      db.collection('auth_refresh_sessions').createIndex(
+        { expiresAtDate: 1 },
+        { expireAfterSeconds: 0, name: 'auth_refresh_sessions_expires_ttl' }
+      ),
+      db.collection('auth_refresh_sessions').createIndex(
+        { userId: 1, createdAt: -1 },
+        { name: 'auth_refresh_sessions_user_created_at' }
       )
     ]);
   })().catch(() => {
@@ -113,6 +125,7 @@ export async function getMongoCollections() {
     groupSettings: db.collection('group_settings'),
     scales: db.collection('scales'),
     scalePushNotificationDispatches: db.collection('scale_push_notification_dispatches'),
-    authUserOverrides: db.collection('auth_user_overrides')
+    authUserOverrides: db.collection('auth_user_overrides'),
+    authRefreshSessions: db.collection('auth_refresh_sessions')
   };
 }

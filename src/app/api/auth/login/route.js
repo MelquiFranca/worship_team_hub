@@ -55,7 +55,7 @@ export async function POST(request) {
     }
 
     const authUsers = await loadAuthUsers();
-    const result = authenticateWithPassword(authUsers, body);
+    const result = await authenticateWithPassword(authUsers, body);
     const response = NextResponse.json(createAuthSuccessPayload(result.user, result.session));
 
     setAuthCookies(response, buildAuthCookiePayload(result.tokens));

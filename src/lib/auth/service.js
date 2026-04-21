@@ -11,6 +11,7 @@ import { signJwt, verifyJwt } from './jwt.js';
 import {
   hashRefreshToken,
   revokeRefreshSession,
+  rotateRefreshSession,
   storeRefreshSession,
   validateRefreshSession
 } from './store.js';
@@ -131,7 +132,7 @@ function ensureUserGroupIsActive(user) {
   );
 }
 
-function issueTokenPairForUser(user, audience, issuedAt = nowInSeconds()) {
+async function issueTokenPairForUser(user, audience, issuedAt = nowInSeconds()) {
   const accessClaims = buildClaims(
     user,
     audience,
@@ -151,7 +152,7 @@ function issueTokenPairForUser(user, audience, issuedAt = nowInSeconds()) {
   const accessToken = signJwt(accessClaims, jwtSecret);
   const refreshToken = signJwt(refreshClaims, jwtSecret);
 
-  storeRefreshSession({
+  await storeRefreshSession({
     jti: refreshClaims.jti,
     tokenHash: hashRefreshToken(refreshToken),
     userId: user.id,
@@ -174,7 +175,7 @@ function issueTokenPairForUser(user, audience, issuedAt = nowInSeconds()) {
   };
 }
 
-export function authenticateWithPassword(users, credentials = {}) {
+export async function authenticateWithPassword(users, credentials = {}) {
   assertJwtSecretConfigured();
 
   const identifier = credentials.identifier || credentials.email || credentials.username || credentials.login;
@@ -204,7 +205,7 @@ export function authenticateWithPassword(users, credentials = {}) {
 
   const audience = ensureAudienceForLogin(user, credentials.audience || credentials.aud);
   const issuedAt = nowInSeconds();
-  const tokens = issueTokenPairForUser(user, audience, issuedAt);
+  const tokens = await issueTokenPairForUser(user, audience, issuedAt);
 
   return {
     user: sanitizeAuthUser(user),
@@ -213,7 +214,7 @@ export function authenticateWithPassword(users, credentials = {}) {
   };
 }
 
-export function refreshAuthSession(users, refreshToken) {
+export async function refreshAuthSession(users, refreshToken) {
   const jwtSecret = assertJwtSecretConfigured();
 
   if (!refreshToken) {
@@ -226,7 +227,7 @@ export function refreshAuthSession(users, refreshToken) {
     allowedAudiences: AUTH_AUDIENCES
   });
 
-  const validation = validateRefreshSession(refreshToken, claims, nowInSeconds());
+  const validation = await validateRefreshSession(refreshToken, claims, nowInSeconds());
 
   if (!validation.ok) {
     throw createAuthError(validation.code, undefined, 401, { reason: validation.reason, jti: claims.jti });
@@ -250,14 +251,55 @@ export function refreshAuthSession(users, refreshToken) {
   }
 
   const issuedAt = nowInSeconds();
-  const tokens = issueTokenPairForUser(user, claims.aud, issuedAt);
+  const accessClaims = buildClaims(
+    user,
+    claims.aud,
+    'access',
+    issuedAt,
+    issuedAt + ACCESS_TOKEN_TTL_SECONDS
+  );
+  const refreshClaims = buildClaims(
+    user,
+    claims.aud,
+    'refresh',
+    issuedAt,
+    issuedAt + REFRESH_TOKEN_TTL_SECONDS
+  );
+  const accessToken = signJwt(accessClaims, jwtSecret);
+  const nextRefreshToken = signJwt(refreshClaims, jwtSecret);
+  const rotateResult = await rotateRefreshSession(
+    refreshToken,
+    claims,
+    {
+      jti: refreshClaims.jti,
+      tokenHash: hashRefreshToken(nextRefreshToken),
+      userId: user.id,
+      aud: claims.aud,
+      role: user.role,
+      groupId: user.groupId ?? null,
+      issuedAt,
+      expiresAt: refreshClaims.exp,
+      familyId: validation.session?.familyId || claims.jti
+    },
+    issuedAt
+  );
 
-  revokeRefreshSession(claims.jti, 'rotated', tokens.refreshClaims.jti);
+  if (!rotateResult.ok) {
+    throw createAuthError(rotateResult.code, undefined, 401, {
+      reason: rotateResult.reason,
+      jti: claims.jti
+    });
+  }
 
   return {
     user: sanitizeAuthUser(user),
-    session: createSessionMetadata(claims.aud, tokens.accessClaims, tokens.refreshClaims),
-    tokens
+    session: createSessionMetadata(claims.aud, accessClaims, refreshClaims),
+    tokens: {
+      accessToken,
+      refreshToken: nextRefreshToken,
+      accessClaims,
+      refreshClaims
+    }
   };
 }
 
@@ -296,7 +338,7 @@ export function verifyAccessSession(users, accessToken) {
   };
 }
 
-export function logoutAuthSession(refreshToken) {
+export async function logoutAuthSession(refreshToken) {
   const jwtSecret = assertJwtSecretConfigured();
 
   if (!refreshToken) {
@@ -312,10 +354,10 @@ export function logoutAuthSession(refreshToken) {
       expectedIssuer: AUTH_ISSUER,
       allowedAudiences: AUTH_AUDIENCES
     });
-    const validation = validateRefreshSession(refreshToken, claims, nowInSeconds());
+    const validation = await validateRefreshSession(refreshToken, claims, nowInSeconds());
 
     if (validation.ok) {
-      revokeRefreshSession(claims.jti, 'logout');
+      await revokeRefreshSession(claims.jti, 'logout');
     }
   } catch {
     // Logout is intentionally idempotent.

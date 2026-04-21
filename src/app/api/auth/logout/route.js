@@ -31,7 +31,7 @@ export async function POST(request) {
     body?.token ||
     '';
 
-  logoutAuthSession(refreshToken);
+  await logoutAuthSession(refreshToken);
 
   const response = NextResponse.json(createLogoutPayload());
   setAuthCookies(response, buildClearedAuthCookiePayload());

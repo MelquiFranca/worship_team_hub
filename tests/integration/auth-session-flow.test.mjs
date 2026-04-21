@@ -17,9 +17,11 @@ const BASE_USER = Object.freeze({
 async function withJwtSecrets(callback) {
   const previousAuthSecret = process.env.AUTH_JWT_SECRET;
   const previousJwtSecret = process.env.JWT_SECRET;
+  const previousRefreshStore = process.env.AUTH_REFRESH_STORE;
 
   process.env.AUTH_JWT_SECRET = JWT_SECRET_FOR_TESTS;
   process.env.JWT_SECRET = JWT_SECRET_FOR_TESTS;
+  process.env.AUTH_REFRESH_STORE = 'memory';
 
   try {
     await callback();
@@ -34,6 +36,12 @@ async function withJwtSecrets(callback) {
       process.env.JWT_SECRET = previousJwtSecret;
     } else {
       delete process.env.JWT_SECRET;
+    }
+
+    if (typeof previousRefreshStore === 'string') {
+      process.env.AUTH_REFRESH_STORE = previousRefreshStore;
+    } else {
+      delete process.env.AUTH_REFRESH_STORE;
     }
   }
 }
@@ -53,7 +61,7 @@ test('autentica com senha e emite par de tokens', async () => {
   await withJwtSecrets(async () => {
     const user = createUser();
 
-    const result = authenticateWithPassword([user], {
+    const result = await authenticateWithPassword([user], {
       identifier: user.email,
       password: 'SenhaForte@123',
       audience: 'group-app'
@@ -71,12 +79,12 @@ test('refresh rotaciona token e invalida refresh anterior', async () => {
   await withJwtSecrets(async () => {
     const user = createUser();
 
-    const login = authenticateWithPassword([user], {
+    const login = await authenticateWithPassword([user], {
       identifier: user.username,
       password: 'SenhaForte@123'
     });
 
-    const rotated = refreshAuthSession([user], login.tokens.refreshToken);
+    const rotated = await refreshAuthSession([user], login.tokens.refreshToken);
     assert.notEqual(rotated.tokens.refreshToken, login.tokens.refreshToken);
 
     await assert.rejects(

@@ -49,7 +49,7 @@ export async function POST(request) {
       '';
 
     const authUsers = await loadAuthUsers();
-    const result = refreshAuthSession(authUsers, refreshToken);
+    const result = await refreshAuthSession(authUsers, refreshToken);
     const response = NextResponse.json(createAuthSuccessPayload(result.user, result.session));
 
     setAuthCookies(response, buildAuthCookiePayload(result.tokens));

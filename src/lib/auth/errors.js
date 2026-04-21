@@ -2,6 +2,7 @@ import { AUTH_STATUS_CODES } from './constants.js';
 
 export const AUTH_ERROR_CODES = Object.freeze({
   CONFIG_MISSING: 'AUTH_CONFIG_MISSING',
+  DEPENDENCY_UNAVAILABLE: 'AUTH_DEPENDENCY_UNAVAILABLE',
   REQUEST_INVALID: 'AUTH_REQUEST_INVALID',
   CREDENTIALS_MISSING: 'AUTH_CREDENTIALS_MISSING',
   CREDENTIALS_INVALID: 'AUTH_CREDENTIALS_INVALID',
@@ -17,6 +18,7 @@ export const AUTH_ERROR_CODES = Object.freeze({
 
 const DEFAULT_MESSAGES = Object.freeze({
   [AUTH_ERROR_CODES.CONFIG_MISSING]: 'Servico de autenticacao indisponivel por configuracao ausente.',
+  [AUTH_ERROR_CODES.DEPENDENCY_UNAVAILABLE]: 'Servico de autenticacao indisponivel no momento.',
   [AUTH_ERROR_CODES.REQUEST_INVALID]: 'A requisicao de autenticacao e invalida.',
   [AUTH_ERROR_CODES.CREDENTIALS_MISSING]: 'Informe identificador e senha para continuar.',
   [AUTH_ERROR_CODES.CREDENTIALS_INVALID]: 'Credenciais invalidas.',
@@ -56,7 +58,7 @@ export class AuthError extends Error {
 }
 
 export function createAuthError(code, message, status, details = null) {
-  const resolvedStatus = status ?? AUTH_STATUS_CODES.TOKEN_INVALID;
+  const resolvedStatus = status ?? AUTH_STATUS_CODES[code?.replace('AUTH_', '')] ?? AUTH_STATUS_CODES.TOKEN_INVALID;
   return new AuthError(code, message, resolvedStatus, details);
 }
 
