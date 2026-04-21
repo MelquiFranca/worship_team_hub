@@ -3,7 +3,7 @@ import styles from './page.module.css';
 
 export const metadata = {
   title: 'Minha indisponibilidade | Escalas App',
-  description: 'Gerencie os dias indisponiveis do componente.'
+  description: 'Consulte indisponibilidades agrupadas do grupo ou gerencie sua propria indisponibilidade.'
 };
 
 export default function MyUnavailabilityPage() {

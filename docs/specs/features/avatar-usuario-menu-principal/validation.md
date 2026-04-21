@@ -34,3 +34,10 @@
 
 - Nao foram executados testes E2E automatizados especificos para o avatar do menu principal.
 - Como risco residual baixo, a disponibilidade de `/api/auth/profile` pode impactar enriquecimento de dados, mas nao compromete o fallback da UI.
+
+## Complemento de validacao (2026-04-20)
+
+| Item incremental | Resultado | Evidencia | Observacoes |
+| --- | --- | --- | --- |
+| Clique em `Editar perfil` fecha o menu flutuante do avatar | Pass | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` | Link recebeu `onClick={() => closeMenus()}`. |
+| Clique em `Minha indisponibilidade` fecha o menu flutuante do avatar | Pass | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` | Link recebeu `onClick={() => closeMenus()}`. |

@@ -65,6 +65,114 @@
   background: rgba(255, 255, 255, 0.86);
 }
 
+.groupedCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.groupedStatus {
+  margin: 0;
+  color: var(--app-text-muted, #4b5563);
+  line-height: 1.5;
+}
+
+.groupedSectionTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--app-text, #0f172a);
+}
+
+.groupedSummary {
+  margin: 0;
+  color: var(--app-text-muted, #4b5563);
+  font-weight: 600;
+}
+
+.groupedList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.groupedItem {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.groupedItemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.groupedDateTitle {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--app-text, #0f172a);
+}
+
+.groupedCount {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef6ff;
+  color: #1d4ed8;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.groupedComponents {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+
+.groupedComponentItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--app-text, #0f172a);
+  line-height: 1.45;
+}
+
+.groupedAvatar,
+.groupedAvatarFallback {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  flex: 0 0 30px;
+}
+
+.groupedAvatar {
+  object-fit: cover;
+  border: 1px solid var(--app-border, #d9e2ef);
+}
+
+.groupedAvatarFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .calendarHeader {
   display: flex;
   align-items: center;
@@ -199,6 +307,10 @@
   }
 
   .calendarCard {
+    padding: 12px;
+  }
+
+  .groupedCard {
     padding: 12px;
   }
 

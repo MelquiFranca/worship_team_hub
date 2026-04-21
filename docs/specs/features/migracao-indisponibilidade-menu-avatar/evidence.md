@@ -18,3 +18,17 @@
 - [x] Funcionalidade foi migrada para pagina dedicada.
 - [x] Acesso disponivel no mesmo menu flutuante de `Editar perfil`.
 - [x] Rota protegida pela politica de autenticacao existente.
+
+## Evolucao incremental (2026-04-20)
+
+- `group-app` passou a manter o fluxo de edicao da propria indisponibilidade na mesma tela.
+- Adicionada visualizacao agrupada das indisponibilidades da equipe para `group-app`.
+- Endpoint dedicado para agrupamento por data: `src/app/api/components/unavailability/route.js`.
+- Lista agrupada com avatar antes do nome do componente (fallback por iniciais quando sem foto):
+  - `src/components/organisms/ComponentUnavailabilityForm/ComponentUnavailabilityForm.jsx`
+  - `src/components/organisms/ComponentUnavailabilityForm/ComponentUnavailabilityForm.module.css`
+
+## Validacao incremental
+
+- `npm run lint -- --file src/app/api/components/unavailability/route.js --file src/components/organisms/ComponentUnavailabilityForm/ComponentUnavailabilityForm.jsx`
+- Resultado: sem erros/warnings de ESLint.

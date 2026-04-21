@@ -332,11 +332,12 @@ export default function MainBottomNav() {
                 ref={avatarMenuFirstItemRef}
                 href="/editar-perfil"
                 className={styles.popoverItem}
+                onClick={() => closeMenus()}
               >
                 Editar perfil
               </Link>
               {canShowUnavailabilityLink ? (
-                <Link href="/minha-indisponibilidade" className={styles.popoverItem}>
+                <Link href="/minha-indisponibilidade" className={styles.popoverItem} onClick={() => closeMenus()}>
                   Minha indisponibilidade
                 </Link>
               ) : null}

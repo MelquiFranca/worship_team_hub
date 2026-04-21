@@ -76,14 +76,34 @@ function formatDateLabel(date) {
   }).format(date);
 }
 
+function getInitials(name) {
+  const value = typeof name === 'string' ? name.trim() : '';
+  if (!value) {
+    return '?';
+  }
+
+  const parts = value.split(/\s+/).filter(Boolean);
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 1).toUpperCase();
+  }
+
+  return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
+}
+
 export default function ComponentUnavailabilityForm() {
-  const { permissions } = useAuthSession();
+  const { permissions, isLoading: isAuthLoading } = useAuthSession();
+  const isGroupApp = Boolean(permissions?.isGroupApp);
   const minSelectableDate = useMemo(() => getTomorrowDate(), []);
   const minSelectableIso = useMemo(() => toIsoDate(minSelectableDate), [minSelectableDate]);
   const [viewDate, setViewDate] = useState(() => getTomorrowDate());
   const [selectedDates, setSelectedDates] = useState([]);
+  const [groupedItems, setGroupedItems] = useState([]);
+  const [groupedTotalEntries, setGroupedTotalEntries] = useState(0);
+  const [groupedFeedback, setGroupedFeedback] = useState({ type: 'idle', message: '' });
   const [feedback, setFeedback] = useState({ type: 'idle', message: '' });
   const [isLoading, setIsLoading] = useState(true);
+  const [isGroupedLoading, setIsGroupedLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const selectedSet = useMemo(() => new Set(selectedDates), [selectedDates]);
@@ -95,12 +115,77 @@ export default function ComponentUnavailabilityForm() {
   );
   const previousMonthDate = useMemo(() => new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1), [viewDate]);
   const isPreviousMonthDisabled = previousMonthDate.getTime() < startOfMinMonth.getTime();
-  const profileLabel = permissions?.isGroupApp ? 'Perfil do grupo' : 'Perfil do componente';
+  const profileLabel = isGroupApp ? 'Perfil do grupo' : 'Perfil do componente';
 
   useEffect(() => {
     let active = true;
 
-    async function loadAvailability() {
+    if (isAuthLoading) {
+      return () => {
+        active = false;
+      };
+    }
+
+    async function loadGroupedUnavailability() {
+      setIsGroupedLoading(true);
+      setGroupedFeedback({ type: 'idle', message: '' });
+
+      try {
+        const payload = await requestJson('/api/components/unavailability');
+        const items = Array.isArray(payload?.items) ? payload.items : [];
+
+        if (!active) {
+          return;
+        }
+
+        const normalized = items
+          .map((item) => {
+            const date = typeof item?.date === 'string' ? item.date.trim() : '';
+            const components = Array.isArray(item?.components) ? item.components : [];
+
+            if (!date) {
+              return null;
+            }
+
+            return {
+              date,
+              components: components
+                .map((component) => ({
+                  componentId: typeof component?.componentId === 'string' ? component.componentId : '',
+                  fullName: typeof component?.fullName === 'string' && component.fullName.trim() ? component.fullName.trim() : 'Sem nome',
+                  photoUrl: typeof component?.photoUrl === 'string' ? component.photoUrl.trim() : ''
+                }))
+                .filter((component) => component.componentId)
+            };
+          })
+          .filter(Boolean);
+
+        setGroupedItems(normalized);
+        setGroupedTotalEntries(
+          typeof payload?.totalEntries === 'number'
+            ? payload.totalEntries
+            : normalized.reduce((accumulator, item) => accumulator + item.components.length, 0)
+        );
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setGroupedFeedback({
+          type: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Nao foi possivel carregar as indisponibilidades dos componentes.'
+        });
+      } finally {
+        if (active) {
+          setIsGroupedLoading(false);
+        }
+      }
+    }
+
+    async function loadOwnAvailability() {
       setIsLoading(true);
       setFeedback({ type: 'idle', message: '' });
 
@@ -134,12 +219,21 @@ export default function ComponentUnavailabilityForm() {
       }
     }
 
-    loadAvailability();
+    loadOwnAvailability();
+
+    if (isGroupApp) {
+      loadGroupedUnavailability();
+    } else {
+      setGroupedItems([]);
+      setGroupedTotalEntries(0);
+      setGroupedFeedback({ type: 'idle', message: '' });
+      setIsGroupedLoading(false);
+    }
 
     return () => {
       active = false;
     };
-  }, [minSelectableIso]);
+  }, [isAuthLoading, isGroupApp, minSelectableIso]);
 
   function toggleDate(date) {
     const isoDate = toIsoDate(date);
@@ -197,10 +291,12 @@ export default function ComponentUnavailabilityForm() {
       <div className={styles.header}>
         <p className={styles.kicker}>{profileLabel}</p>
         <h1 id="component-unavailability-title" className={styles.title}>
-          Minha indisponibilidade
+          {isGroupApp ? 'Minha indisponibilidade e equipe' : 'Minha indisponibilidade'}
         </h1>
         <p className={styles.description}>
-          Toque nos dias futuros em que voce nao pode servir. Dias marcados ficam destacados.
+          {isGroupApp
+            ? 'Marque sua indisponibilidade e acompanhe as indisponibilidades futuras da equipe agrupadas por data.'
+            : 'Toque nos dias futuros em que voce nao pode servir. Dias marcados ficam destacados.'}
         </p>
       </div>
 
@@ -306,6 +402,80 @@ export default function ComponentUnavailabilityForm() {
             );
           })}
         </ul>
+      ) : null}
+
+      {isGroupApp ? (
+        <div className={styles.groupedCard} aria-busy={isGroupedLoading}>
+          <h2 className={styles.groupedSectionTitle}>Indisponibilidades da equipe</h2>
+          {groupedFeedback.message ? (
+            <p
+              className={`${styles.feedback} ${
+                groupedFeedback.type === 'error' ? styles.feedbackError : styles.feedbackSuccess
+              }`}
+              role={groupedFeedback.type === 'error' ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {groupedFeedback.message}
+            </p>
+          ) : null}
+          {isGroupedLoading ? (
+            <p className={styles.groupedStatus} role="status" aria-live="polite">
+              Carregando indisponibilidades agrupadas...
+            </p>
+          ) : groupedItems.length === 0 ? (
+            <p className={styles.groupedStatus} role="status" aria-live="polite">
+              Nenhuma indisponibilidade futura registrada para os componentes.
+            </p>
+          ) : (
+            <>
+              <p className={styles.groupedSummary}>
+                {groupedItems.length === 1
+                  ? '1 data com indisponibilidade cadastrada.'
+                  : `${groupedItems.length} datas com indisponibilidade cadastrada.`}{' '}
+                {groupedTotalEntries === 1 ? '(1 registro no total).' : `(${groupedTotalEntries} registros no total).`}
+              </p>
+              <ul className={styles.groupedList} aria-label="Indisponibilidades dos componentes agrupadas por data">
+                {groupedItems.map((item) => {
+                  const parsedDate = fromIsoDate(item.date);
+
+                  return (
+                    <li key={item.date} className={styles.groupedItem}>
+                      <div className={styles.groupedItemHeader}>
+                        <h3 className={styles.groupedDateTitle}>{parsedDate ? formatDateLabel(parsedDate) : item.date}</h3>
+                        <span className={styles.groupedCount}>
+                          {item.components.length === 1
+                            ? '1 componente indisponivel'
+                            : `${item.components.length} componentes indisponiveis`}
+                        </span>
+                      </div>
+
+                      <ul className={styles.groupedComponents} aria-label={`Componentes indisponiveis em ${item.date}`}>
+                        {item.components.map((component) => (
+                          <li key={`${item.date}-${component.componentId}`} className={styles.groupedComponentItem}>
+                            {component.photoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={component.photoUrl}
+                                alt={`Avatar de ${component.fullName}`}
+                                className={styles.groupedAvatar}
+                                loading="lazy"
+                              />
+                            ) : (
+                              <span className={styles.groupedAvatarFallback} aria-hidden="true">
+                                {getInitials(component.fullName)}
+                              </span>
+                            )}
+                            <span>{component.fullName}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
       ) : null}
     </section>
   );

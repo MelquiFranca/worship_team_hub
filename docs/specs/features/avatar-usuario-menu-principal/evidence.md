@@ -39,6 +39,18 @@
 - [x] Sem logo do grupo, menu exibe fallback textual por iniciais.
 - [x] Validacao tecnica (lint) executada com sucesso.
 
+## Evolucao incremental (2026-04-20)
+
+- Ajustado fechamento do menu flutuante do avatar ao clicar em itens navegaveis:
+  - `Editar perfil`
+  - `Minha indisponibilidade`
+- Arquivo alterado: `src/components/organisms/MainBottomNav/MainBottomNav.jsx`.
+
+## Validacao incremental
+
+- `npm run lint -- --file src/components/organisms/MainBottomNav/MainBottomNav.jsx`
+- Resultado: sem erros/warnings de ESLint.
+
 ## Artefatos de documentacao
 
 - `docs/specs/features/avatar-usuario-menu-principal/spec.md`
