@@ -167,6 +167,63 @@
   gap: 8px;
 }
 
+.popoverHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--app-overlay);
+}
+
+.groupLogoFrame {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--app-accent-gradient);
+  color: var(--app-on-accent);
+  display: grid;
+  place-items: center;
+}
+
+.groupLogoImage {
+  object-fit: cover;
+}
+
+.groupLogoFallback {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.groupMeta {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.groupMetaLabel {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.groupMetaName {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--app-text, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .actionSlot .popover {
   left: 50%;
   right: auto;

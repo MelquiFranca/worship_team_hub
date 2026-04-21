@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { requestJson } from '@/lib/api/http';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useGroupSettings } from '@/context/GroupSettingsContext';
 import styles from './MainBottomNav.module.css';
 
 function normalizeString(value) {
@@ -86,6 +87,7 @@ export default function MainBottomNav() {
   const currentPathname = pathname || '';
   const router = useRouter();
   const { audience, permissions, isLoading: isAuthSessionLoading, isAuthenticated, user, logout } = useAuthSession();
+  const { settings } = useGroupSettings();
   const [openMenu, setOpenMenu] = useState(null);
   const [profile, setProfile] = useState(null);
   const navRef = useRef(null);
@@ -99,6 +101,9 @@ export default function MainBottomNav() {
   const avatarName = profile?.name || sessionName || 'Perfil';
   const avatarPhoto = profile?.photo || sessionPhoto;
   const initials = useMemo(() => getInitials(avatarName), [avatarName]);
+  const groupName = normalizeString(settings?.name) || 'Grupo';
+  const groupLogo = normalizeString(settings?.photo);
+  const groupInitials = useMemo(() => getInitials(groupName), [groupName]);
   const canShowCreateMenu = !isAuthSessionLoading && Boolean(permissions.canInsertScale);
   const canShowSettingsLink = !isAuthSessionLoading && audience === 'group-app';
   const canShowUnavailabilityLink =
@@ -304,6 +309,25 @@ export default function MainBottomNav() {
 
           {openMenu === 'avatar' ? (
             <div id="main-bottom-nav-avatar-menu" className={styles.popover} role="group" aria-label="Menu do avatar">
+              <div className={styles.popoverHeader}>
+                <span className={styles.groupLogoFrame} aria-hidden="true">
+                  {groupLogo ? (
+                    <Image
+                      src={groupLogo}
+                      alt=""
+                      fill
+                      sizes="40px"
+                      className={styles.groupLogoImage}
+                    />
+                  ) : (
+                    <span className={styles.groupLogoFallback}>{groupInitials}</span>
+                  )}
+                </span>
+                <div className={styles.groupMeta}>
+                  <p className={styles.groupMetaLabel}>Grupo</p>
+                  <strong className={styles.groupMetaName}>{groupName}</strong>
+                </div>
+              </div>
               <Link
                 ref={avatarMenuFirstItemRef}
                 href="/editar-perfil"

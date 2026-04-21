@@ -64,6 +64,73 @@ function normalizeChatTrigger() {
   return CHAT_MESSAGE_TRIGGER;
 }
 
+function isUsableNotificationIcon(value) {
+  const normalized = normalizeString(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized.startsWith('/')) {
+    return true;
+  }
+
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    return true;
+  }
+
+  if (normalized.startsWith('data:image/')) {
+    // Limita data URI para evitar payload grande demais no Web Push.
+    return normalized.length <= 1400;
+  }
+
+  return false;
+}
+
+function resolveNotificationIconFromGroupSettings(document) {
+  if (!isPlainObject(document)) {
+    return '';
+  }
+
+  const photoUrl = normalizeString(document.photoUrl);
+  if (isUsableNotificationIcon(photoUrl)) {
+    return photoUrl;
+  }
+
+  const photo = normalizeString(document.photo);
+  if (isUsableNotificationIcon(photo)) {
+    return photo;
+  }
+
+  return '';
+}
+
+async function resolveGroupNotificationBranding(groupSettingsCollection, groupId) {
+  if (!groupSettingsCollection || !groupId) {
+    return {
+      icon: '/favicon.ico',
+      badge: '/favicon.ico'
+    };
+  }
+
+  const groupSettings = await groupSettingsCollection.findOne(
+    { groupId },
+    {
+      projection: {
+        photo: 1,
+        photoUrl: 1
+      }
+    }
+  );
+
+  const icon = resolveNotificationIconFromGroupSettings(groupSettings) || '/favicon.ico';
+
+  return {
+    icon,
+    badge: icon
+  };
+}
+
 function getWebPushEnv() {
   return {
     publicKey: normalizeString(process.env.PUSH_VAPID_PUBLIC_KEY),
@@ -109,12 +176,14 @@ function buildRecipientBase(scaleComponent, componentDocument) {
   };
 }
 
-function buildPushPayload({ scale, trigger }) {
+function buildPushPayload({ scale, trigger, branding }) {
   return JSON.stringify({
     type: 'scale-notification',
     trigger,
     title: 'Nova notificacao de escala',
     body: `Escala ${normalizeString(scale?.date)} (${normalizeString(scale?.shift)})`,
+    icon: normalizeString(branding?.icon) || '/favicon.ico',
+    badge: normalizeString(branding?.badge) || '/favicon.ico',
     data: {
       scaleId: normalizeString(scale?._id),
       groupId: normalizeString(scale?.groupId),
@@ -126,7 +195,7 @@ function buildPushPayload({ scale, trigger }) {
   });
 }
 
-function buildChatMessagePushPayload({ scale, message, trigger }) {
+function buildChatMessagePushPayload({ scale, message, trigger, branding }) {
   const authorName = normalizeString(message?.meta?.authorName) || 'Equipe';
   const messageText = normalizeString(message?.payload?.text);
   const bodyPrefix = `${authorName}: `;
@@ -141,6 +210,8 @@ function buildChatMessagePushPayload({ scale, message, trigger }) {
     trigger,
     title: `Nova mensagem na escala ${normalizeString(scale?.date)} (${normalizeString(scale?.shift)})`,
     body: `${bodyPrefix}${normalizedText || 'Nova mensagem recebida.'}`,
+    icon: normalizeString(branding?.icon) || '/favicon.ico',
+    badge: normalizeString(branding?.badge) || '/favicon.ico',
     data: {
       scaleId: normalizeString(scale?._id),
       groupId: normalizeString(scale?.groupId),
@@ -284,7 +355,8 @@ export async function dispatchScalePushNotifications({
   const recipients = [];
   const staleSubscriptionsByComponentId = new Map();
   const canSendNativePush = ensureWebPushConfigured();
-  const pushPayload = buildPushPayload({ scale, trigger: dispatchTrigger });
+  const pushBranding = await resolveGroupNotificationBranding(collections.groupSettings, resolvedGroupId);
+  const pushPayload = buildPushPayload({ scale, trigger: dispatchTrigger, branding: pushBranding });
 
   for (const entry of scaleComponents) {
     const componentId = normalizeString(entry?.componentId);
@@ -506,7 +578,13 @@ export async function dispatchScaleChatMessagePushNotifications({
   const recipients = [];
   const staleSubscriptionsByComponentId = new Map();
   const canSendNativePush = ensureWebPushConfigured();
-  const pushPayload = buildChatMessagePushPayload({ scale, message, trigger: dispatchTrigger });
+  const pushBranding = await resolveGroupNotificationBranding(collections.groupSettings, resolvedGroupId);
+  const pushPayload = buildChatMessagePushPayload({
+    scale,
+    message,
+    trigger: dispatchTrigger,
+    branding: pushBranding
+  });
 
   for (const entry of scaleComponents) {
     const componentId = normalizeString(entry?.componentId);

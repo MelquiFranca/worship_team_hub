@@ -9,6 +9,8 @@
 | AC-03 | Pass | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` | Nome/foto seguem ordem de prioridade: `profile` > `session` > padrao. |
 | AC-04 | Pass | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` | Falha no carregamento de perfil nao interrompe renderizacao do avatar/menu. |
 | AC-05 | Pass | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` | Popover mantem `Editar perfil`, `Minha indisponibilidade` (condicional) e `Sair`. |
+| AC-06 | Pass | `src/components/organisms/MainBottomNav/MainBottomNav.jsx`, `src/components/organisms/MainBottomNav/MainBottomNav.module.css` | Popover do avatar recebeu header com logo e nome do grupo no topo. |
+| AC-07 | Pass | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` | Sem logo do grupo, header usa fallback textual por iniciais do nome do grupo. |
 
 ## Matriz de Rastreabilidade (AC -> Tarefas -> Evidencia)
 
@@ -19,6 +21,8 @@
 | AC-03 | T-01, T-04 | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` |
 | AC-04 | T-02, T-04 | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` |
 | AC-05 | T-05 | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` |
+| AC-06 | T-07, T-08, T-09 | `src/components/organisms/MainBottomNav/MainBottomNav.jsx`, `src/components/organisms/MainBottomNav/MainBottomNav.module.css` |
+| AC-07 | T-07, T-08 | `src/components/organisms/MainBottomNav/MainBottomNav.jsx` |
 
 ## Resultado final
 

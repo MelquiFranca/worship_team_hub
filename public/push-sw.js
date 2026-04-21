@@ -11,8 +11,8 @@ self.addEventListener('push', (event) => {
   const options = {
     body: payload.body || 'Voce recebeu uma nova notificacao de escala.',
     data: payload.data || {},
-    icon: '/favicon.ico',
-    badge: '/favicon.ico'
+    icon: payload.icon || '/favicon.ico',
+    badge: payload.badge || payload.icon || '/favicon.ico'
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
