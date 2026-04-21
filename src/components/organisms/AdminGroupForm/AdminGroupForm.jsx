@@ -37,7 +37,24 @@ function createDefaultState() {
       birthDate: '',
       username: '',
       password: ''
-    }
+    },
+    components: []
+  };
+}
+
+function normalizeComponentEntry(item, index) {
+  const fallbackId = `component-${index + 1}`;
+  const fullName = typeof item?.fullName === 'string' && item.fullName.trim()
+    ? item.fullName.trim()
+    : 'Componente sem nome';
+
+  return {
+    id: typeof item?.id === 'string' && item.id.trim() ? item.id.trim() : fallbackId,
+    fullName,
+    username: typeof item?.username === 'string' ? item.username.trim() : '',
+    permissionType: typeof item?.permissionType === 'string' ? item.permissionType.trim() : 'component-app',
+    isActive: typeof item?.isActive === 'boolean' ? item.isActive : true,
+    photo: typeof item?.photo === 'string' ? item.photo : ''
   };
 }
 
@@ -51,6 +68,9 @@ function normalizeIncomingItem(item) {
   const group = item.group || {};
   const settings = item.settings || {};
   const manager = item.manager || {};
+  const components = Array.isArray(item.components)
+    ? item.components.map((entry, index) => normalizeComponentEntry(entry, index))
+    : [];
 
   const functionOptions = Array.isArray(settings.functionOptions) && settings.functionOptions.length
     ? settings.functionOptions
@@ -78,7 +98,8 @@ function normalizeIncomingItem(item) {
       birthDate: typeof manager.birthDate === 'string' ? manager.birthDate : '',
       username: typeof manager.username === 'string' ? manager.username : '',
       password: ''
-    }
+    },
+    components
   };
 }
 
@@ -99,6 +120,11 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
   const [fileError, setFileError] = useState('');
   const [newFunctionName, setNewFunctionName] = useState('');
   const [newFunctionHint, setNewFunctionHint] = useState('');
+  const [componentAction, setComponentAction] = useState({
+    loadingId: '',
+    type: 'idle',
+    message: ''
+  });
 
   const title = mode === 'edit' ? 'Editar grupo' : 'Cadastrar novo grupo';
   const submitLabel = mode === 'edit' ? 'Salvar alteracoes' : 'Cadastrar grupo';
@@ -112,6 +138,16 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
 
     return chunks.map((chunk) => chunk[0]?.toUpperCase() || '').join('').slice(0, 2);
   }, [state.group.name]);
+
+  function getComponentInitials(name) {
+    const chunks = String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+
+    if (!chunks.length) {
+      return 'CP';
+    }
+
+    return chunks.map((chunk) => chunk[0]?.toUpperCase() || '').join('').slice(0, 2);
+  }
 
   function setGroupField(field, value) {
     setState((current) => ({
@@ -327,6 +363,52 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
     }
   }
 
+  async function handleToggleComponentActive(componentId, nextIsActive) {
+    if (mode !== 'edit' || !groupId || !componentId || typeof nextIsActive !== 'boolean') {
+      return;
+    }
+
+    setComponentAction({
+      loadingId: componentId,
+      type: 'idle',
+      message: ''
+    });
+
+    try {
+      await requestJson(`/api/components/${encodeURIComponent(componentId)}?groupId=${encodeURIComponent(groupId)}`, {
+        method: 'PATCH',
+        body: { isActive: nextIsActive }
+      });
+
+      setState((current) => ({
+        ...current,
+        components: current.components.map((component) =>
+          component.id === componentId
+            ? { ...component, isActive: nextIsActive }
+            : component
+        )
+      }));
+
+      setComponentAction({
+        loadingId: '',
+        type: 'success',
+        message: nextIsActive
+          ? 'Componente reativado com sucesso.'
+          : 'Componente desativado com sucesso.'
+      });
+    } catch (error) {
+      setComponentAction({
+        loadingId: '',
+        type: 'error',
+        message: error instanceof Error
+          ? error.message
+          : nextIsActive
+            ? 'Nao foi possivel reativar o componente.'
+            : 'Nao foi possivel desativar o componente.'
+      });
+    }
+  }
+
   return (
     <main className={styles.page}>
       <section className={styles.headerCard}>
@@ -496,6 +578,72 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
             </label>
           </div>
         </section>
+
+        {mode === 'edit' ? (
+          <section className={styles.card}>
+            <h2>Componentes do grupo</h2>
+            <p className={styles.sectionHint}>
+              Visualize os componentes cadastrados e desative perfis quando necessario.
+            </p>
+
+            {state.components.length ? (
+              <div className={styles.componentsList}>
+                {state.components.map((component) => {
+                  const isLoadingDeactivate = componentAction.loadingId === component.id;
+                  const isInactive = component.isActive === false;
+
+                  return (
+                    <article key={component.id} className={styles.componentItem}>
+                      <div className={styles.componentIdentity}>
+                        <div className={styles.componentAvatar}>
+                          {component.photo ? (
+                            <Image
+                              src={component.photo}
+                              alt={`Foto de ${component.fullName}`}
+                              fill
+                              sizes="44px"
+                              className={styles.componentAvatarImage}
+                              unoptimized
+                            />
+                          ) : (
+                            <span>{getComponentInitials(component.fullName)}</span>
+                          )}
+                        </div>
+
+                        <div className={styles.componentMeta}>
+                          <strong>{component.fullName}</strong>
+                          <small>@{component.username || 'sem-username'}</small>
+                        </div>
+                      </div>
+
+                      <div className={styles.componentStatusBlock}>
+                        <span className={isInactive ? styles.statusBadgeInactive : styles.statusBadgeActive}>
+                          {isInactive ? 'Inativo' : 'Ativo'}
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.linkButton}
+                          onClick={() => handleToggleComponentActive(component.id, isInactive)}
+                          disabled={isLoadingDeactivate}
+                        >
+                          {isLoadingDeactivate ? 'Salvando...' : isInactive ? 'Reativar' : 'Desativar'}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className={styles.sectionHint}>Nenhum componente cadastrado neste grupo.</p>
+            )}
+
+            {componentAction.message ? (
+              <p className={componentAction.type === 'error' ? styles.errorText : styles.successText}>
+                {componentAction.message}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className={styles.actions}>
           {feedback.message ? (

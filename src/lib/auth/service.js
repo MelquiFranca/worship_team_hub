@@ -79,6 +79,35 @@ function ensureAudienceForLogin(user, requestedAudience) {
   return resolution.audience;
 }
 
+function normalizeGroupStatus(value) {
+  return typeof value === 'string' && value.trim().toLowerCase() === 'inactive' ? 'inactive' : 'active';
+}
+
+function ensureUserGroupIsActive(user) {
+  const hasGroup = typeof user?.groupId === 'string' && user.groupId.trim();
+
+  if (!hasGroup) {
+    return;
+  }
+
+  const groupStatus = normalizeGroupStatus(user?.groupStatus);
+
+  if (groupStatus !== 'inactive') {
+    return;
+  }
+
+  throw createAuthError(
+    AUTH_ERROR_CODES.GROUP_INACTIVE,
+    `Grupo inativo. Status atual do grupo: ${groupStatus}.`,
+    403,
+    {
+      userId: user?.id || null,
+      groupId: user?.groupId || null,
+      groupStatus
+    }
+  );
+}
+
 function issueTokenPairForUser(user, audience, issuedAt = nowInSeconds()) {
   const accessClaims = buildClaims(
     user,
@@ -145,6 +174,8 @@ export function authenticateWithPassword(users, credentials = {}) {
     );
   }
 
+  ensureUserGroupIsActive(user);
+
   const audience = ensureAudienceForLogin(user, credentials.audience || credentials.aud);
   const issuedAt = nowInSeconds();
   const tokens = issueTokenPairForUser(user, audience, issuedAt);
@@ -178,6 +209,8 @@ export function refreshAuthSession(users, refreshToken) {
   if (!user) {
     throw createAuthError(AUTH_ERROR_CODES.TOKEN_INVALID, undefined, 401, { reason: 'user_not_found', sub: claims.sub });
   }
+
+  ensureUserGroupIsActive(user);
 
   if (!isAudienceAllowedForUser(user, claims.aud)) {
     throw createAuthError(
@@ -215,6 +248,8 @@ export function verifyAccessSession(users, accessToken) {
   if (!user) {
     throw createAuthError(AUTH_ERROR_CODES.TOKEN_INVALID, undefined, 401, { reason: 'user_not_found', sub: claims.sub });
   }
+
+  ensureUserGroupIsActive(user);
 
   if (!isAudienceAllowedForUser(user, claims.aud)) {
     throw createAuthError(

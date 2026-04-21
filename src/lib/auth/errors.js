@@ -7,6 +7,7 @@ export const AUTH_ERROR_CODES = Object.freeze({
   TOKEN_MISSING: 'AUTH_TOKEN_MISSING',
   TOKEN_INVALID: 'AUTH_TOKEN_INVALID',
   TOKEN_EXPIRED: 'AUTH_TOKEN_EXPIRED',
+  GROUP_INACTIVE: 'AUTH_GROUP_INACTIVE',
   AUDIENCE_FORBIDDEN: 'AUTH_AUDIENCE_FORBIDDEN',
   ROLE_FORBIDDEN: 'AUTH_ROLE_FORBIDDEN',
   REFRESH_REVOKED: 'AUTH_REFRESH_REVOKED'
@@ -19,6 +20,7 @@ const DEFAULT_MESSAGES = Object.freeze({
   [AUTH_ERROR_CODES.TOKEN_MISSING]: 'Token de autenticacao ausente.',
   [AUTH_ERROR_CODES.TOKEN_INVALID]: 'Token de autenticacao invalido.',
   [AUTH_ERROR_CODES.TOKEN_EXPIRED]: 'Token de autenticacao expirado.',
+  [AUTH_ERROR_CODES.GROUP_INACTIVE]: 'Grupo inativo. Status atual do grupo: inactive.',
   [AUTH_ERROR_CODES.AUDIENCE_FORBIDDEN]: 'A audiencia informada nao e permitida para este usuario.',
   [AUTH_ERROR_CODES.ROLE_FORBIDDEN]: 'O perfil do usuario nao tem acesso para esta operacao.',
   [AUTH_ERROR_CODES.REFRESH_REVOKED]: 'O refresh token foi revogado ou ja foi usado.'
@@ -63,4 +65,3 @@ export function toAuthErrorResponse(responseFactory, error) {
 export function getDefaultAuthMessage(code) {
   return DEFAULT_MESSAGES[code] || 'Erro de autenticacao.';
 }
-

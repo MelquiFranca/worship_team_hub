@@ -1,6 +1,7 @@
 import AdminGroupForm from '@/components/organisms/AdminGroupForm/AdminGroupForm';
 import { ObjectId } from 'mongodb';
 import { getMongoCollections } from '@/lib/db/mongodb';
+import { serializeComponentPhoto } from '@/lib/components/photo';
 import {
   getDefaultGroupSettings,
   serializeGroupSettings,
@@ -57,6 +58,21 @@ function serializeGroup(document) {
   };
 }
 
+function serializeGroupComponent(document) {
+  if (!document || typeof document !== 'object') {
+    return null;
+  }
+
+  return {
+    id: String(document._id || ''),
+    fullName: normalizeString(document.fullName) || 'Componente sem nome',
+    username: normalizeString(document.username),
+    permissionType: normalizeString(document.permissionType) || 'component-app',
+    isActive: typeof document.isActive === 'boolean' ? document.isActive : true,
+    photo: serializeComponentPhoto(document) || normalizeString(document.photoUrl)
+  };
+}
+
 async function loadInitialData(groupId) {
   try {
     const { db, groupSettings, components } = await getMongoCollections();
@@ -73,11 +89,18 @@ async function loadInitialData(groupId) {
       .sort({ createdAt: 1 })
       .limit(1)
       .next();
+    const groupComponents = (await components
+      .find({ groupId })
+      .sort({ fullName: 1, createdAt: 1 })
+      .toArray())
+      .map(serializeGroupComponent)
+      .filter(Boolean);
 
     return {
       group: serializeGroup(group),
       settings: settings ? serializeGroupSettings(settings, groupId) : getDefaultGroupSettings(group.name),
-      manager: serializeManager(manager)
+      manager: serializeManager(manager),
+      components: groupComponents
     };
   } catch {
     return null;

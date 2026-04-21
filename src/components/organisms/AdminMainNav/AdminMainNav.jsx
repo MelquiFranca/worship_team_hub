@@ -5,10 +5,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthSession } from '@/context/AuthSessionContext';
-import { CLIENT_AUTH_STORAGE_KEYS } from '@/lib/auth/clientSessionCleanup';
+import { requestJson } from '@/lib/api/http';
 import styles from './AdminMainNav.module.css';
-
-const ADMIN_PROFILE_STORAGE_KEY = CLIENT_AUTH_STORAGE_KEYS.adminProfile;
 
 function isActiveRoute(pathname, targetPath) {
   return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
@@ -43,40 +41,10 @@ function PlusIcon() {
   );
 }
 
-function readAdminProfile() {
-  if (typeof window === 'undefined') {
-    return {
-      name: 'Administrador',
-      photo: ''
-    };
-  }
-
-  try {
-    const raw = window.sessionStorage.getItem(ADMIN_PROFILE_STORAGE_KEY);
-    if (!raw) {
-      return {
-        name: 'Administrador',
-        photo: ''
-      };
-    }
-
-    const parsed = JSON.parse(raw);
-    return {
-      name: typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name : 'Administrador',
-      photo: typeof parsed.photo === 'string' ? parsed.photo : ''
-    };
-  } catch {
-    return {
-      name: 'Administrador',
-      photo: ''
-    };
-  }
-}
-
 export default function AdminMainNav() {
   const pathname = usePathname() || '';
   const router = useRouter();
-  const { logout } = useAuthSession();
+  const { logout, user } = useAuthSession();
   const [openMenu, setOpenMenu] = useState(null);
   const [profile, setProfile] = useState({ name: 'Administrador', photo: '' });
   const navRef = useRef(null);
@@ -90,7 +58,55 @@ export default function AdminMainNav() {
   const initials = useMemo(() => getInitials(profile.name), [profile.name]);
 
   useEffect(() => {
-    setProfile(readAdminProfile());
+    const userName = typeof user?.name === 'string' && user.name.trim() ? user.name.trim() : '';
+
+    if (userName) {
+      setProfile((current) => ({
+        ...current,
+        name: userName
+      }));
+    }
+  }, [user?.name]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProfile() {
+      try {
+        const payload = await requestJson('/api/auth/profile');
+        const item = payload?.item && typeof payload.item === 'object' ? payload.item : null;
+        const profileName = typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : '';
+        const profilePhoto = typeof item?.photoDataUrl === 'string' && item.photoDataUrl.trim()
+          ? item.photoDataUrl.trim()
+          : typeof item?.photoUrl === 'string' && item.photoUrl.trim()
+            ? item.photoUrl.trim()
+            : '';
+
+        if (!isMounted) {
+          return;
+        }
+
+        setProfile((current) => ({
+          name: profileName || current.name || 'Administrador',
+          photo: profilePhoto
+        }));
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setProfile((current) => ({
+          ...current,
+          name: current.name || 'Administrador'
+        }));
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const closeMenus = useCallback((options = {}) => {

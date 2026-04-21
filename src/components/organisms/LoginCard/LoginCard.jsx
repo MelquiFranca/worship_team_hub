@@ -29,14 +29,18 @@ function pickFirstString(...values) {
   return values.find((value) => typeof value === 'string' && value.trim())?.trim() || '';
 }
 
-function getAuthErrorMessage(payload, status, isAdminMode) {
-  const rawCode = pickFirstString(
+function extractAuthErrorCode(payload) {
+  return pickFirstString(
     payload?.code,
     payload?.errorCode,
     payload?.error?.code,
     payload?.error?.errorCode,
     payload?.name
   ).toUpperCase();
+}
+
+function getAuthErrorMessage(payload, status, isAdminMode) {
+  const rawCode = extractAuthErrorCode(payload);
 
   const rawMessage = pickFirstString(
     payload?.message,
@@ -58,6 +62,7 @@ function getAuthErrorMessage(payload, status, isAdminMode) {
     AUTH_FORBIDDEN: audienceMessage,
     AUTH_ACCESS_DENIED: audienceMessage,
     AUTH_USER_INACTIVE: 'Sua conta está inativa. Fale com o suporte.',
+    AUTH_GROUP_INACTIVE: safeRawMessage || 'O grupo está inativo. Status atual do grupo: inactive.',
     AUTH_AUDIENCE_FORBIDDEN: audienceMessage,
     AUTH_ROLE_FORBIDDEN: audienceMessage,
     AUTH_RATE_LIMITED: 'Muitas tentativas de acesso. Aguarde um momento e tente novamente.'
@@ -106,7 +111,10 @@ async function loginWithJwt({ identifier, password, audience, isAdminMode }) {
 
   if (!response.ok) {
     const payload = await readResponsePayload(response);
-    throw new Error(getAuthErrorMessage(payload, response.status, isAdminMode));
+    const error = new Error(getAuthErrorMessage(payload, response.status, isAdminMode));
+    error.code = extractAuthErrorCode(payload);
+    error.status = response.status;
+    throw error;
   }
 
   return response;
@@ -123,12 +131,10 @@ async function loginWithFallbackAudience({ identifier, password, isAdminMode }) 
       throw error;
     }
 
-    const message = String(error?.message || '').toLowerCase();
+    const rawCode = String(error?.code || '').toUpperCase();
     const shouldTryComponentAudience =
-      message.includes('permiss') ||
-      message.includes('audiencia') ||
-      message.includes('audiência') ||
-      message.includes('forbidden');
+      rawCode === 'AUTH_AUDIENCE_FORBIDDEN' ||
+      rawCode === 'AUTH_ROLE_FORBIDDEN';
 
     if (!shouldTryComponentAudience) {
       throw error;

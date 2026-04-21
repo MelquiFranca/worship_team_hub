@@ -177,6 +177,98 @@
   font-size: 0.8rem;
 }
 
+.sectionHint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.componentsList {
+  display: grid;
+  gap: 8px;
+}
+
+.componentItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.componentIdentity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.componentAvatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--app-accent-gradient);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.componentAvatarImage {
+  object-fit: cover;
+}
+
+.componentMeta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.componentMeta strong {
+  font-size: 0.92rem;
+}
+
+.componentMeta small {
+  color: var(--app-text-muted, #4b5563);
+  font-size: 0.8rem;
+}
+
+.componentStatusBlock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.statusBadgeActive,
+.statusBadgeInactive {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.statusBadgeActive {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}
+
+.statusBadgeInactive {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
 .linkButton {
   padding: 7px 10px;
   background: rgba(220, 38, 38, 0.1);
@@ -230,6 +322,15 @@
 
   .photoRow {
     grid-template-columns: 1fr;
+  }
+
+  .componentItem {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .componentStatusBlock {
+    justify-content: space-between;
   }
 
   .page {

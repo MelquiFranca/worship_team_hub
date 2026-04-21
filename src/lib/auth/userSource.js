@@ -1,4 +1,5 @@
 import { authUsers as seededAuthUsers } from '../../data/authUsers.js';
+import { ObjectId } from 'mongodb';
 import { AUTH_ROLES } from './constants.js';
 import { getMongoCollections } from '../db/mongodb.js';
 
@@ -65,11 +66,95 @@ function mapSeedUserWithOverride(seedUser, override) {
   };
 }
 
+function normalizeGroupStatus(value) {
+  return typeof value === 'string' && value.trim().toLowerCase() === 'inactive' ? 'inactive' : 'active';
+}
+
+function normalizeGroupName(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function resolveGroupIds(users) {
+  return Array.from(
+    new Set(
+      users
+        .map((user) => (typeof user?.groupId === 'string' ? user.groupId.trim() : ''))
+        .filter(Boolean)
+    )
+  );
+}
+
+function buildGroupIdFilter(groupIds) {
+  if (!Array.isArray(groupIds) || groupIds.length === 0) {
+    return null;
+  }
+
+  const asStringIds = groupIds;
+  const asObjectIds = groupIds
+    .filter((groupId) => ObjectId.isValid(groupId))
+    .map((groupId) => new ObjectId(groupId));
+
+  const filters = [];
+
+  if (asStringIds.length > 0) {
+    filters.push({ _id: { $in: asStringIds } });
+  }
+
+  if (asObjectIds.length > 0) {
+    filters.push({ _id: { $in: asObjectIds } });
+  }
+
+  if (filters.length === 1) {
+    return filters[0];
+  }
+
+  return { $or: filters };
+}
+
+function mapGroupsById(groups) {
+  const byId = new Map();
+
+  groups.forEach((group) => {
+    const groupId = group?._id != null ? String(group._id) : '';
+
+    if (!groupId) {
+      return;
+    }
+
+    byId.set(groupId, {
+      status: normalizeGroupStatus(group?.status),
+      name: normalizeGroupName(group?.name)
+    });
+  });
+
+  return byId;
+}
+
+function attachGroupInfo(user, groupsById) {
+  if (!user || typeof user !== 'object') {
+    return user;
+  }
+
+  const groupId = typeof user.groupId === 'string' ? user.groupId.trim() : '';
+
+  if (!groupId) {
+    return user;
+  }
+
+  const group = groupsById.get(groupId);
+
+  return {
+    ...user,
+    groupStatus: group?.status || 'active',
+    groupName: group?.name || ''
+  };
+}
+
 export async function loadAuthUsers() {
   const baseUsers = Array.isArray(seededAuthUsers) ? [...seededAuthUsers] : [];
 
   try {
-    const { components, authUserOverrides } = await getMongoCollections();
+    const { db, components, authUserOverrides } = await getMongoCollections();
     const seedOverrides = await authUserOverrides
       .find({
         userId: { $in: baseUsers.map((user) => user.id) },
@@ -111,10 +196,33 @@ export async function loadAuthUsers() {
       })
       .toArray();
 
-    const byId = new Map(resolvedSeedUsers.map((user) => [user.id, user]));
+    const groupsCollection = db.collection('groups');
+    const allGroupIds = resolveGroupIds([
+      ...resolvedSeedUsers,
+      ...dbComponents
+    ]);
+    const groupFilter = buildGroupIdFilter(allGroupIds);
+    const dbGroups = groupFilter
+      ? await groupsCollection
+        .find(groupFilter)
+        .project({
+          _id: 1,
+          name: 1,
+          status: 1
+        })
+        .toArray()
+      : [];
+    const groupsById = mapGroupsById(dbGroups);
+
+    const byId = new Map(
+      resolvedSeedUsers
+        .map((user) => attachGroupInfo(user, groupsById))
+        .filter(Boolean)
+        .map((user) => [user.id, user])
+    );
 
     dbComponents.forEach((component) => {
-      const authUser = mapComponentToAuthUser(component);
+      const authUser = attachGroupInfo(mapComponentToAuthUser(component), groupsById);
 
       if (authUser && !byId.has(authUser.id)) {
         byId.set(authUser.id, authUser);
