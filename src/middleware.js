@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getLoginPathForPolicy, getRoutePolicy, isPublicAuthPath } from './lib/auth/policies';
+import { getRoutePolicy, isPublicAuthPath } from './lib/auth/policies';
 
 const DEFAULT_COOKIE_NAMES = [
   'access_token',
@@ -161,6 +161,66 @@ function getPublicKeyCandidates() {
   ].filter(Boolean);
 }
 
+function hasAnyVerificationKeyConfigured() {
+  return getSecretCandidates().length > 0 || getPublicKeyCandidates().length > 0;
+}
+
+function logAuthTechnicalEvent(event, request, metadata = {}) {
+  const logEntry = {
+    event,
+    domain: 'auth',
+    timestamp: new Date().toISOString(),
+    pathname: request.nextUrl.pathname,
+    ...metadata
+  };
+
+  console.error(JSON.stringify(logEntry));
+}
+
+const AUTH_ERROR_RESPONSE = Object.freeze({
+  AUTH_CONFIG_MISSING: {
+    status: 503,
+    message: 'Servico de autenticacao indisponivel por configuracao ausente.'
+  },
+  AUTH_TOKEN_MISSING: {
+    status: 401,
+    message: 'Token de autenticacao ausente.'
+  },
+  AUTH_TOKEN_MALFORMED: {
+    status: 401,
+    message: 'Token de autenticacao malformado.'
+  },
+  AUTH_TOKEN_INVALID: {
+    status: 401,
+    message: 'Token de autenticacao invalido.'
+  },
+  AUTH_TOKEN_EXPIRED: {
+    status: 401,
+    message: 'Token de autenticacao expirado.'
+  },
+  AUTH_FORBIDDEN: {
+    status: 403,
+    message: 'Token sem permissao para acessar esta rota.'
+  }
+});
+
+function buildAuthErrorResponse(code) {
+  const errorInfo = AUTH_ERROR_RESPONSE[code] ?? AUTH_ERROR_RESPONSE.AUTH_TOKEN_INVALID;
+
+  return NextResponse.json(
+    {
+      error: {
+        code,
+        message: errorInfo.message
+      }
+    },
+    {
+      status: errorInfo.status,
+      headers: { 'cache-control': 'no-store' }
+    }
+  );
+}
+
 function pemToArrayBuffer(pem) {
   const body = pem
     .replace(/-----BEGIN [^-]+-----/g, '')
@@ -172,7 +232,7 @@ function pemToArrayBuffer(pem) {
 async function verifyJwtSignature(token, header) {
   const algorithm = typeof header?.alg === 'string' ? header.alg : '';
   if (!algorithm || algorithm === 'none') {
-    return false;
+    return { status: 'invalid' };
   }
 
   const [encodedHeader, encodedPayload, encodedSignature] = token.split('.');
@@ -182,66 +242,74 @@ async function verifyJwtSignature(token, header) {
   if (algorithm === 'HS256') {
     const [secret] = getSecretCandidates();
     if (!secret) {
-      return false;
+      return { status: 'config_missing' };
     }
 
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
-
-    return crypto.subtle.verify('HMAC', key, signature, signingInput);
+    try {
+      const key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['verify']
+      );
+      const isValid = await crypto.subtle.verify('HMAC', key, signature, signingInput);
+      return { status: isValid ? 'valid' : 'invalid' };
+    } catch {
+      return { status: 'invalid' };
+    }
   }
 
   if (algorithm === 'RS256') {
     const [publicKey] = getPublicKeyCandidates();
     if (!publicKey) {
-      return false;
+      return { status: 'config_missing' };
     }
 
-    const key = await crypto.subtle.importKey(
-      'spki',
-      pemToArrayBuffer(publicKey),
-      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
-
-    return crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, signingInput);
+    try {
+      const key = await crypto.subtle.importKey(
+        'spki',
+        pemToArrayBuffer(publicKey),
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        false,
+        ['verify']
+      );
+      const isValid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, signingInput);
+      return { status: isValid ? 'valid' : 'invalid' };
+    } catch {
+      return { status: 'invalid' };
+    }
   }
 
-  return false;
+  return { status: 'invalid' };
 }
 
-function tokenHasRequiredClaims(payload) {
+function validateTokenClaims(payload) {
   const subject = typeof payload?.sub === 'string' ? payload.sub.trim() : '';
   const audiences = toStringArray(payload?.aud ?? payload?.audience);
   const roles = toStringArray(payload?.role ?? payload?.roles);
   const exp = toNumber(payload?.exp);
 
   if (!subject || !audiences.length || !roles.length || exp === null) {
-    return false;
+    return { status: 'invalid' };
   }
 
   const expectedIssuer = getExpectedIssuer();
   if (expectedIssuer && payload?.iss !== expectedIssuer) {
-    return false;
+    return { status: 'invalid' };
   }
 
   const nowInSeconds = Math.floor(Date.now() / 1000);
   if (exp <= nowInSeconds) {
-    return false;
+    return { status: 'expired' };
   }
 
   const notBefore = toNumber(payload?.nbf);
   if (notBefore !== null && notBefore > nowInSeconds) {
-    return false;
+    return { status: 'invalid' };
   }
 
-  return true;
+  return { status: 'valid' };
 }
 
 function isTokenAllowedForPolicy(payload, policy) {
@@ -260,20 +328,25 @@ function isTokenAllowedForPolicy(payload, policy) {
 async function inspectToken(token, policy) {
   const normalizedToken = normalizeTokenValue(token);
   if (!looksLikeJwt(normalizedToken)) {
-    return { status: 'invalid' };
+    return { status: 'malformed' };
   }
 
   const [encodedHeader, encodedPayload] = normalizedToken.split('.');
   const header = decodeJwtJson(encodedHeader);
   const payload = decodeJwtJson(encodedPayload);
 
-  if (!header || !payload || !tokenHasRequiredClaims(payload)) {
-    return { status: 'invalid' };
+  if (!header || !payload) {
+    return { status: 'malformed' };
   }
 
-  const signatureIsValid = await verifyJwtSignature(normalizedToken, header);
-  if (!signatureIsValid) {
-    return { status: 'invalid' };
+  const claimsValidation = validateTokenClaims(payload);
+  if (claimsValidation.status !== 'valid') {
+    return claimsValidation;
+  }
+
+  const signatureValidation = await verifyJwtSignature(normalizedToken, header);
+  if (signatureValidation.status !== 'valid') {
+    return signatureValidation;
   }
 
   if (!isTokenAllowedForPolicy(payload, policy)) {
@@ -284,12 +357,19 @@ async function inspectToken(token, policy) {
 }
 
 async function getAuthResult(request, policy) {
+  if (!hasAnyVerificationKeyConfigured()) {
+    return { status: 'config_missing' };
+  }
+
   const candidates = getCookieCandidates(request);
   if (!candidates.length) {
     return { status: 'missing' };
   }
 
   let sawValidJwt = false;
+  let sawInvalidJwt = false;
+  let sawExpiredJwt = false;
+  let sawMalformedJwt = false;
 
   for (const candidate of candidates) {
     const result = await inspectToken(candidate, policy);
@@ -302,21 +382,41 @@ async function getAuthResult(request, policy) {
       sawValidJwt = true;
       continue;
     }
+
+    if (result.status === 'config_missing') {
+      return result;
+    }
+
+    if (result.status === 'expired') {
+      sawExpiredJwt = true;
+      continue;
+    }
+
+    if (result.status === 'malformed') {
+      sawMalformedJwt = true;
+      continue;
+    }
+
+    sawInvalidJwt = true;
   }
 
-  return sawValidJwt ? { status: 'forbidden' } : { status: 'invalid' };
-}
-
-function redirectToLogin(request, policy, error) {
-  const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = getLoginPathForPolicy(policy);
-  redirectUrl.search = '';
-
-  if (error) {
-    redirectUrl.searchParams.set('error', error);
+  if (sawValidJwt) {
+    return { status: 'forbidden' };
   }
 
-  return NextResponse.redirect(redirectUrl);
+  if (sawExpiredJwt) {
+    return { status: 'expired' };
+  }
+
+  if (sawMalformedJwt) {
+    return { status: 'malformed' };
+  }
+
+  if (sawInvalidJwt) {
+    return { status: 'invalid' };
+  }
+
+  return { status: 'invalid' };
 }
 
 export async function middleware(request) {
@@ -336,11 +436,32 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  if (authResult.status === 'forbidden') {
-    return redirectToLogin(request, policy, 'forbidden');
+  if (authResult.status === 'config_missing') {
+    logAuthTechnicalEvent('auth_config_invalid', request, {
+      reason: 'jwt_verification_key_missing'
+    });
+    return buildAuthErrorResponse('AUTH_CONFIG_MISSING');
   }
 
-  return redirectToLogin(request, policy);
+  if (authResult.status === 'missing') {
+    return buildAuthErrorResponse('AUTH_TOKEN_MISSING');
+  }
+
+  if (authResult.status === 'malformed') {
+    return buildAuthErrorResponse('AUTH_TOKEN_MALFORMED');
+  }
+
+  if (authResult.status === 'expired') {
+    logAuthTechnicalEvent('auth_token_expired', request);
+    return buildAuthErrorResponse('AUTH_TOKEN_EXPIRED');
+  }
+
+  if (authResult.status === 'forbidden') {
+    return buildAuthErrorResponse('AUTH_FORBIDDEN');
+  }
+
+  logAuthTechnicalEvent('auth_signature_invalid', request);
+  return buildAuthErrorResponse('AUTH_TOKEN_INVALID');
 }
 
 export const config = {

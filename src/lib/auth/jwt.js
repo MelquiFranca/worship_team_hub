@@ -85,7 +85,7 @@ export function verifyJwt(token, secret, options = {}) {
 
   if (parts.length !== 3) {
     throw createAuthError(
-      AUTH_ERROR_CODES.TOKEN_INVALID,
+      AUTH_ERROR_CODES.TOKEN_MALFORMED,
       undefined,
       undefined,
       { reason: 'segment_count' }
@@ -96,12 +96,21 @@ export function verifyJwt(token, secret, options = {}) {
   const header = parseJwtPart(encodedHeader);
   const payload = parseJwtPart(encodedPayload);
 
-  if (!header || !payload || header.alg !== 'HS256' || header.typ !== 'JWT') {
+  if (!header || !payload) {
+    throw createAuthError(
+      AUTH_ERROR_CODES.TOKEN_MALFORMED,
+      undefined,
+      undefined,
+      { reason: 'header_or_payload' }
+    );
+  }
+
+  if (header.alg !== 'HS256' || header.typ !== 'JWT') {
     throw createAuthError(
       AUTH_ERROR_CODES.TOKEN_INVALID,
       undefined,
       undefined,
-      { reason: 'header_or_payload' }
+      { reason: 'header_invalid' }
     );
   }
 
