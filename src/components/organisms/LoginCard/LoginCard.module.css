@@ -186,6 +186,31 @@
   box-shadow: none;
 }
 
+.switchLoginBtn {
+  width: 100%;
+  min-height: 50px;
+  border-radius: 14px;
+  border: 1px solid var(--app-border, #d9e2ef);
+  background: var(--app-surface, #ffffff);
+  color: var(--app-text, #0f172a);
+  font-size: 0.96rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.switchLoginBtn:hover {
+  border-color: var(--app-accent, #f97316);
+  background: var(--app-accent-soft, rgba(249, 115, 22, 0.12));
+  transform: translateY(-1px);
+}
+
 .errorText,
 .formMessage {
   min-height: 1.25rem;

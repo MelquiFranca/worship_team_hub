@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import styles from './LoginCard.module.css';
@@ -409,6 +410,12 @@ export default function LoginCard({ mode = 'group' }) {
         <button className={styles.submitBtn} type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Entrando...' : isAdminMode ? 'Entrar no painel' : 'Entrar'}
         </button>
+
+        {isAdminMode ? (
+          <Link href="/login" className={styles.switchLoginBtn}>
+            Ir para login de grupo
+          </Link>
+        ) : null}
 
         <p className={`${styles.formMessage} ${styles.formError}`} role="alert" aria-live="assertive">
           {formError}
