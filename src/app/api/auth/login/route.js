@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import {
   AUTH_ERROR_CODES,
+  assertJwtSecretConfigured,
   authenticateWithPassword,
   buildAuthCookiePayload,
   createAuthSuccessPayload,
+  isAuthConfigMissingError,
   isAuthError,
+  logAuthTechnicalEvent,
   toAuthErrorResponse
 } from '../../../../lib/auth/index.js';
 import { loadAuthUsers } from '../../../../lib/auth/userSource.js';
@@ -26,22 +29,31 @@ async function readJsonBody(request) {
   }
 }
 
+function resolveRequestId(request) {
+  return (
+    request.headers?.get('x-request-id') ||
+    request.headers?.get('x-correlation-id') ||
+    null
+  );
+}
+
 export async function POST(request) {
-  const body = await readJsonBody(request);
-
-  if (!body || typeof body !== 'object') {
-    return NextResponse.json(
-      {
-        error: {
-          code: AUTH_ERROR_CODES.REQUEST_INVALID,
-          message: 'A requisicao de autenticacao e invalida.'
-        }
-      },
-      { status: 400 }
-    );
-  }
-
   try {
+    assertJwtSecretConfigured();
+    const body = await readJsonBody(request);
+
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        {
+          error: {
+            code: AUTH_ERROR_CODES.REQUEST_INVALID,
+            message: 'A requisicao de autenticacao e invalida.'
+          }
+        },
+        { status: 400 }
+      );
+    }
+
     const authUsers = await loadAuthUsers();
     const result = authenticateWithPassword(authUsers, body);
     const response = NextResponse.json(createAuthSuccessPayload(result.user, result.session));
@@ -49,6 +61,18 @@ export async function POST(request) {
     setAuthCookies(response, buildAuthCookiePayload(result.tokens));
     return response;
   } catch (error) {
+    if (isAuthConfigMissingError(error)) {
+      logAuthTechnicalEvent('auth_config_invalid', {
+        route: '/api/auth/login',
+        method: 'POST',
+        requestId: resolveRequestId(request),
+        status: 503,
+        code: error.code,
+        missing: error?.details?.missing || null
+      });
+      return toAuthErrorResponse(NextResponse.json, error);
+    }
+
     if (isAuthError(error)) {
       return toAuthErrorResponse(NextResponse.json, error);
     }

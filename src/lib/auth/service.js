@@ -24,7 +24,30 @@ import {
 } from './users.js';
 import { verifyPassword } from './password.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'escalas-app-development-jwt-secret';
+function normalizeJwtSecret(secret) {
+  return typeof secret === 'string' ? secret.trim() : '';
+}
+
+export function resolveJwtSecretFromEnv() {
+  return normalizeJwtSecret(process.env.AUTH_JWT_SECRET) || normalizeJwtSecret(process.env.JWT_SECRET);
+}
+
+export function assertJwtSecretConfigured() {
+  const secret = resolveJwtSecretFromEnv();
+
+  if (secret) {
+    return secret;
+  }
+
+  throw createAuthError(
+    AUTH_ERROR_CODES.CONFIG_MISSING,
+    undefined,
+    503,
+    {
+      missing: ['AUTH_JWT_SECRET', 'JWT_SECRET']
+    }
+  );
+}
 
 function nowInSeconds() {
   return Math.floor(Date.now() / 1000);
@@ -124,8 +147,9 @@ function issueTokenPairForUser(user, audience, issuedAt = nowInSeconds()) {
     issuedAt + REFRESH_TOKEN_TTL_SECONDS
   );
 
-  const accessToken = signJwt(accessClaims, JWT_SECRET);
-  const refreshToken = signJwt(refreshClaims, JWT_SECRET);
+  const jwtSecret = assertJwtSecretConfigured();
+  const accessToken = signJwt(accessClaims, jwtSecret);
+  const refreshToken = signJwt(refreshClaims, jwtSecret);
 
   storeRefreshSession({
     jti: refreshClaims.jti,
@@ -151,6 +175,8 @@ function issueTokenPairForUser(user, audience, issuedAt = nowInSeconds()) {
 }
 
 export function authenticateWithPassword(users, credentials = {}) {
+  assertJwtSecretConfigured();
+
   const identifier = credentials.identifier || credentials.email || credentials.username || credentials.login;
   const password = typeof credentials.password === 'string' ? credentials.password : '';
 
@@ -188,11 +214,13 @@ export function authenticateWithPassword(users, credentials = {}) {
 }
 
 export function refreshAuthSession(users, refreshToken) {
+  const jwtSecret = assertJwtSecretConfigured();
+
   if (!refreshToken) {
     throw createAuthError(AUTH_ERROR_CODES.TOKEN_MISSING, undefined, 401);
   }
 
-  const claims = verifyJwt(refreshToken, JWT_SECRET, {
+  const claims = verifyJwt(refreshToken, jwtSecret, {
     expectedType: 'refresh',
     expectedIssuer: AUTH_ISSUER,
     allowedAudiences: AUTH_AUDIENCES
@@ -234,11 +262,13 @@ export function refreshAuthSession(users, refreshToken) {
 }
 
 export function verifyAccessSession(users, accessToken) {
+  const jwtSecret = assertJwtSecretConfigured();
+
   if (!accessToken) {
     throw createAuthError(AUTH_ERROR_CODES.TOKEN_MISSING, undefined, 401);
   }
 
-  const claims = verifyJwt(accessToken, JWT_SECRET, {
+  const claims = verifyJwt(accessToken, jwtSecret, {
     expectedType: 'access',
     expectedIssuer: AUTH_ISSUER,
     allowedAudiences: AUTH_AUDIENCES
@@ -267,6 +297,8 @@ export function verifyAccessSession(users, accessToken) {
 }
 
 export function logoutAuthSession(refreshToken) {
+  const jwtSecret = assertJwtSecretConfigured();
+
   if (!refreshToken) {
     return {
       ok: true,
@@ -275,7 +307,7 @@ export function logoutAuthSession(refreshToken) {
   }
 
   try {
-    const claims = verifyJwt(refreshToken, JWT_SECRET, {
+    const claims = verifyJwt(refreshToken, jwtSecret, {
       expectedType: 'refresh',
       expectedIssuer: AUTH_ISSUER,
       allowedAudiences: AUTH_AUDIENCES
@@ -361,5 +393,5 @@ export function getDefaultAudienceForUser(user) {
 }
 
 export function getJwtSecretForTesting() {
-  return JWT_SECRET;
+  return assertJwtSecretConfigured();
 }

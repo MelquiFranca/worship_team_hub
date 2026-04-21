@@ -149,8 +149,7 @@ function getSecretCandidates() {
     process.env.JWT_SECRET,
     process.env.AUTH_SECRET,
     process.env.SESSION_SECRET,
-    process.env.NEXTAUTH_SECRET,
-    'escalas-app-development-jwt-secret'
+    process.env.NEXTAUTH_SECRET
   ].filter(Boolean);
 }
 
@@ -183,7 +182,7 @@ async function verifyJwtSignature(token, header) {
   if (algorithm === 'HS256') {
     const [secret] = getSecretCandidates();
     if (!secret) {
-      return true;
+      return false;
     }
 
     const key = await crypto.subtle.importKey(
@@ -200,7 +199,7 @@ async function verifyJwtSignature(token, header) {
   if (algorithm === 'RS256') {
     const [publicKey] = getPublicKeyCandidates();
     if (!publicKey) {
-      return true;
+      return false;
     }
 
     const key = await crypto.subtle.importKey(

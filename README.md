@@ -17,6 +17,9 @@ Aplicacao base em Next.js com App Router.
    ```bash
    cp .env.example .env.local
    ```
+   Variaveis obrigatorias de autenticacao JWT:
+   - Defina `JWT_SECRET` ou `AUTH_JWT_SECRET` com segredo forte (minimo recomendado: 32 caracteres aleatorios).
+   - Nao use fallback/default em ambiente de producao.
 3. Rode em desenvolvimento:
    ```bash
    npm run dev

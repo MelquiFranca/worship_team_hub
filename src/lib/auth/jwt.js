@@ -15,6 +15,22 @@ function createSignature(tokenBody, secret) {
   return crypto.createHmac('sha256', secret).update(tokenBody).digest();
 }
 
+function assertJwtSecret(secret, operation) {
+  if (typeof secret === 'string' && secret.trim() !== '') {
+    return secret.trim();
+  }
+
+  throw createAuthError(
+    AUTH_ERROR_CODES.CONFIG_MISSING,
+    `Configuracao JWT ausente para ${operation}.`,
+    503,
+    {
+      operation,
+      missing: ['AUTH_JWT_SECRET', 'JWT_SECRET']
+    }
+  );
+}
+
 function validateClaims(payload) {
   if (!payload || typeof payload !== 'object') {
     return false;
@@ -39,6 +55,7 @@ function validateClaims(payload) {
 }
 
 export function signJwt(claims, secret) {
+  const jwtSecret = assertJwtSecret(secret, 'sign');
   const header = {
     alg: 'HS256',
     typ: 'JWT'
@@ -47,12 +64,14 @@ export function signJwt(claims, secret) {
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(claims));
   const tokenBody = `${encodedHeader}.${encodedPayload}`;
-  const signature = createSignature(tokenBody, secret);
+  const signature = createSignature(tokenBody, jwtSecret);
 
   return `${tokenBody}.${base64UrlEncode(signature)}`;
 }
 
 export function verifyJwt(token, secret, options = {}) {
+  const jwtSecret = assertJwtSecret(secret, 'verify');
+
   if (typeof token !== 'string' || token.trim() === '') {
     throw createAuthError(
       AUTH_ERROR_CODES.TOKEN_MISSING,
@@ -87,7 +106,7 @@ export function verifyJwt(token, secret, options = {}) {
   }
 
   const tokenBody = `${encodedHeader}.${encodedPayload}`;
-  const expectedSignature = createSignature(tokenBody, secret);
+  const expectedSignature = createSignature(tokenBody, jwtSecret);
   const actualSignature = base64UrlDecode(encodedSignature);
 
   if (

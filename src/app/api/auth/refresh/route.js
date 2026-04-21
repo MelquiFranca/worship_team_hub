@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import {
   AUTH_COOKIE_NAMES,
   AUTH_ERROR_CODES,
+  assertJwtSecretConfigured,
   buildAuthCookiePayload,
   createAuthSuccessPayload,
+  isAuthConfigMissingError,
   isAuthError,
+  logAuthTechnicalEvent,
   refreshAuthSession,
   toAuthErrorResponse
 } from '../../../../lib/auth/index.js';
@@ -27,15 +30,24 @@ async function readJsonBody(request) {
   }
 }
 
-export async function POST(request) {
-  const body = await readJsonBody(request);
-  const refreshToken =
-    request.cookies?.get(AUTH_COOKIE_NAMES.refreshToken)?.value ||
-    body?.refreshToken ||
-    body?.token ||
-    '';
+function resolveRequestId(request) {
+  return (
+    request.headers?.get('x-request-id') ||
+    request.headers?.get('x-correlation-id') ||
+    null
+  );
+}
 
+export async function POST(request) {
   try {
+    assertJwtSecretConfigured();
+    const body = await readJsonBody(request);
+    const refreshToken =
+      request.cookies?.get(AUTH_COOKIE_NAMES.refreshToken)?.value ||
+      body?.refreshToken ||
+      body?.token ||
+      '';
+
     const authUsers = await loadAuthUsers();
     const result = refreshAuthSession(authUsers, refreshToken);
     const response = NextResponse.json(createAuthSuccessPayload(result.user, result.session));
@@ -43,6 +55,18 @@ export async function POST(request) {
     setAuthCookies(response, buildAuthCookiePayload(result.tokens));
     return response;
   } catch (error) {
+    if (isAuthConfigMissingError(error)) {
+      logAuthTechnicalEvent('auth_config_invalid', {
+        route: '/api/auth/refresh',
+        method: 'POST',
+        requestId: resolveRequestId(request),
+        status: 503,
+        code: error.code,
+        missing: error?.details?.missing || null
+      });
+      return toAuthErrorResponse(NextResponse.json, error);
+    }
+
     if (isAuthError(error)) {
       return toAuthErrorResponse(NextResponse.json, error);
     }

@@ -1,6 +1,7 @@
 import { AUTH_STATUS_CODES } from './constants.js';
 
 export const AUTH_ERROR_CODES = Object.freeze({
+  CONFIG_MISSING: 'AUTH_CONFIG_MISSING',
   REQUEST_INVALID: 'AUTH_REQUEST_INVALID',
   CREDENTIALS_MISSING: 'AUTH_CREDENTIALS_MISSING',
   CREDENTIALS_INVALID: 'AUTH_CREDENTIALS_INVALID',
@@ -14,6 +15,7 @@ export const AUTH_ERROR_CODES = Object.freeze({
 });
 
 const DEFAULT_MESSAGES = Object.freeze({
+  [AUTH_ERROR_CODES.CONFIG_MISSING]: 'Servico de autenticacao indisponivel por configuracao ausente.',
   [AUTH_ERROR_CODES.REQUEST_INVALID]: 'A requisicao de autenticacao e invalida.',
   [AUTH_ERROR_CODES.CREDENTIALS_MISSING]: 'Informe identificador e senha para continuar.',
   [AUTH_ERROR_CODES.CREDENTIALS_INVALID]: 'Credenciais invalidas.',
@@ -25,6 +27,21 @@ const DEFAULT_MESSAGES = Object.freeze({
   [AUTH_ERROR_CODES.ROLE_FORBIDDEN]: 'O perfil do usuario nao tem acesso para esta operacao.',
   [AUTH_ERROR_CODES.REFRESH_REVOKED]: 'O refresh token foi revogado ou ja foi usado.'
 });
+
+export function isAuthConfigMissingError(error) {
+  return error?.code === AUTH_ERROR_CODES.CONFIG_MISSING;
+}
+
+export function logAuthTechnicalEvent(event, metadata = {}, logger = console) {
+  const logEntry = {
+    event,
+    domain: 'auth',
+    timestamp: new Date().toISOString(),
+    ...metadata
+  };
+
+  logger.error(JSON.stringify(logEntry));
+}
 
 export class AuthError extends Error {
   constructor(code, message, status = AUTH_STATUS_CODES.TOKEN_INVALID, details = null) {
