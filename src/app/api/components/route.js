@@ -28,6 +28,10 @@ export const dynamic = 'force-dynamic';
 const ALLOWED_PERMISSION_TYPES = new Set(['admin-panel', 'group-app', 'component-app']);
 const LEGACY_PERMISSION_TYPE_FALLBACK = 'component-app';
 
+function resolveGroupIdForPermissionType(groupId, permissionType) {
+  return permissionType === 'admin-panel' ? null : groupId;
+}
+
 function serializeComponent(document) {
   const permissionType = ALLOWED_PERMISSION_TYPES.has(document.permissionType)
     ? document.permissionType
@@ -39,7 +43,7 @@ function serializeComponent(document) {
 
   return {
     id: document._id.toString(),
-    groupId: document.groupId,
+    groupId: resolveGroupIdForPermissionType(document.groupId, permissionType),
     fullName: document.fullName,
     birthDate: document.birthDate,
     username: document.username,
@@ -87,7 +91,7 @@ function buildComponentPayload(body, groupId) {
   }
 
   return {
-    groupId,
+    groupId: resolveGroupIdForPermissionType(groupId, permissionType),
     fullName,
     birthDate,
     username,

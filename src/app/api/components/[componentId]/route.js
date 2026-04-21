@@ -30,6 +30,10 @@ export const dynamic = 'force-dynamic';
 const ALLOWED_PERMISSION_TYPES = new Set(['admin-panel', 'group-app', 'component-app']);
 const LEGACY_PERMISSION_TYPE_FALLBACK = 'component-app';
 
+function resolveGroupIdForPermissionType(groupId, permissionType) {
+  return permissionType === 'admin-panel' ? null : groupId;
+}
+
 function serializeComponent(document) {
   const permissionType = ALLOWED_PERMISSION_TYPES.has(document.permissionType)
     ? document.permissionType
@@ -41,7 +45,7 @@ function serializeComponent(document) {
 
   return {
     id: document._id.toString(),
-    groupId: document.groupId,
+    groupId: resolveGroupIdForPermissionType(document.groupId, permissionType),
     fullName: document.fullName,
     birthDate: document.birthDate,
     username: document.username,
@@ -263,11 +267,22 @@ export async function PATCH(request, { params }) {
       return jsonApiError('Componente nao encontrado para este grupo.', 404, 'NOT_FOUND');
     }
 
-    if (Object.hasOwn(parsed.updates, 'normalizedUsername')) {
+    const nextPermissionType = Object.hasOwn(parsed.updates, 'permissionType')
+      ? parsed.updates.permissionType
+      : existingComponent.permissionType;
+    const nextGroupId = resolveGroupIdForPermissionType(groupId, nextPermissionType);
+    const nextNormalizedUsername = Object.hasOwn(parsed.updates, 'normalizedUsername')
+      ? parsed.updates.normalizedUsername
+      : normalizeLowercaseString(existingComponent.normalizedUsername || existingComponent.username || '');
+
+    if (
+      Object.hasOwn(parsed.updates, 'normalizedUsername') ||
+      Object.hasOwn(parsed.updates, 'permissionType')
+    ) {
       const duplicateUsername = await components.findOne({
         _id: { $ne: componentId },
-        groupId,
-        normalizedUsername: parsed.updates.normalizedUsername
+        groupId: nextGroupId,
+        normalizedUsername: nextNormalizedUsername
       });
 
       if (duplicateUsername) {
@@ -289,6 +304,7 @@ export async function PATCH(request, { params }) {
 
     const updatePayload = {
       ...parsed.updates,
+      groupId: nextGroupId,
       updatedAt: now,
       metadata: nextMetadata
     };
@@ -302,7 +318,7 @@ export async function PATCH(request, { params }) {
       updateDocument
     );
 
-    const updatedComponent = await components.findOne({ _id: componentId, groupId });
+    const updatedComponent = await components.findOne({ _id: componentId, groupId: nextGroupId });
 
     if (!updatedComponent) {
       return jsonApiError('Componente nao encontrado para este grupo.', 404, 'NOT_FOUND');

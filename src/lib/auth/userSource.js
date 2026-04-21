@@ -25,9 +25,12 @@ function mapComponentToAuthUser(component) {
   const id = typeof component._id === 'string' ? component._id.trim() : '';
   const username = typeof component.username === 'string' ? component.username.trim() : '';
   const passwordHash = typeof component.passwordHash === 'string' ? component.passwordHash.trim() : '';
+  const permissionType = typeof component.permissionType === 'string' ? component.permissionType.trim() : '';
   const groupId = typeof component.groupId === 'string' ? component.groupId.trim() : '';
+  const role = mapPermissionTypeToRole(permissionType);
+  const normalizedGroupId = role === AUTH_ROLES.ADMIN ? null : groupId;
 
-  if (!id || !username || !passwordHash || !groupId) {
+  if (!id || !username || !passwordHash || (role !== AUTH_ROLES.ADMIN && !groupId)) {
     return null;
   }
 
@@ -41,8 +44,8 @@ function mapComponentToAuthUser(component) {
     email: '',
     username,
     identifier: username,
-    role: mapPermissionTypeToRole(component.permissionType),
-    groupId,
+    role,
+    groupId: normalizedGroupId,
     passwordHash
   };
 }
