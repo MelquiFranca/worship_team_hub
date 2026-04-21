@@ -152,6 +152,59 @@ export function AuthSessionProvider({ children }) {
     setRole(null);
   }, []);
 
+  const loadSessionFromServer = useCallback(
+    async (options = {}) => {
+      const { signal, clearClientDataOnFailure = true, setLoadingState = true } = options;
+
+      if (setLoadingState) {
+        setIsLoading(true);
+      }
+
+      try {
+        const response = await fetch(AUTH_ME_ENDPOINT, {
+          method: 'GET',
+          credentials: 'include',
+          signal
+        });
+
+        const payload = await response.json().catch(() => null);
+        const normalized = response.ok ? normalizeAuthSessionPayload(payload) : null;
+
+        if (normalized) {
+          setIsAuthenticated(true);
+          setSession(normalized.session);
+          setUser(normalized.user);
+          setClaims(normalized.claims);
+          setAudience(normalized.audience);
+          setRole(normalized.role);
+          return true;
+        }
+
+        clearAuthState({ clearClientData: clearClientDataOnFailure });
+        return false;
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          return false;
+        }
+
+        clearAuthState({ clearClientData: clearClientDataOnFailure });
+        return false;
+      } finally {
+        if (setLoadingState) {
+          setIsLoading(false);
+        }
+      }
+    },
+    [clearAuthState]
+  );
+
+  const refreshSession = useCallback(async () => {
+    await loadSessionFromServer({
+      clearClientDataOnFailure: true,
+      setLoadingState: false
+    });
+  }, [loadSessionFromServer]);
+
   const logout = useCallback(async () => {
     try {
       await fetch('/api/auth/logout', {
@@ -166,55 +219,17 @@ export function AuthSessionProvider({ children }) {
   }, [clearAuthState]);
 
   useEffect(() => {
-    let isActive = true;
     const controller = new AbortController();
-
-    async function loadSession() {
-      try {
-        const response = await fetch(AUTH_ME_ENDPOINT, {
-          method: 'GET',
-          credentials: 'include',
-          signal: controller.signal
-        });
-
-        const payload = await response.json().catch(() => null);
-        const normalized = response.ok ? normalizeAuthSessionPayload(payload) : null;
-
-        if (!isActive) {
-          return;
-        }
-
-        if (normalized) {
-          setIsAuthenticated(true);
-          setSession(normalized.session);
-          setUser(normalized.user);
-          setClaims(normalized.claims);
-          setAudience(normalized.audience);
-          setRole(normalized.role);
-          return;
-        }
-
-        clearAuthState({ clearClientData: true });
-      } catch (error) {
-        if (!isActive || error?.name === 'AbortError') {
-          return;
-        }
-
-        clearAuthState();
-      } finally {
-        if (isActive) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadSession();
+    loadSessionFromServer({
+      signal: controller.signal,
+      clearClientDataOnFailure: true,
+      setLoadingState: true
+    });
 
     return () => {
-      isActive = false;
       controller.abort();
     };
-  }, [clearAuthState]);
+  }, [loadSessionFromServer]);
 
   const permissions = useMemo(
     () => buildPermissions({ audience, role, isAuthenticated }),
@@ -250,9 +265,10 @@ export function AuthSessionProvider({ children }) {
       audience,
       role,
       permissions,
-      logout
+      logout,
+      refreshSession
     }),
-    [isLoading, isAuthenticated, session, user, claims, audience, role, permissions, logout]
+    [isLoading, isAuthenticated, session, user, claims, audience, role, permissions, logout, refreshSession]
   );
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;

@@ -167,6 +167,7 @@ export default function MainBottomNav() {
 
     async function loadProfile() {
       if (isAuthSessionLoading || !isAuthenticated) {
+        setProfile(null);
         return;
       }
 

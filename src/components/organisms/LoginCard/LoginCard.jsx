@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import styles from './LoginCard.module.css';
 
 const GROUP_NAME = 'Worship Team Hub';
@@ -144,6 +145,7 @@ async function loginWithFallbackAudience({ identifier, password, isAdminMode }) 
 
 export default function LoginCard({ mode = 'group' }) {
   const router = useRouter();
+  const { refreshSession } = useAuthSession();
   const isAdminMode = mode === 'admin';
   const identifierRef = useRef(null);
   const passwordRef = useRef(null);
@@ -268,6 +270,7 @@ export default function LoginCard({ mode = 'group' }) {
         password,
         isAdminMode
       });
+      await refreshSession();
 
       setFormSuccess(isAdminMode ? 'Acesso administrativo autorizado. Redirecionando...' : 'Login realizado com sucesso. Redirecionando...');
 

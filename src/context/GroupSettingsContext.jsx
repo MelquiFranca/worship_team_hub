@@ -9,6 +9,7 @@ import {
 } from '@/theme/groupTheme';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
 import { CLIENT_AUTH_STORAGE_KEYS } from '@/lib/auth/clientSessionCleanup';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { requestJson } from '@/lib/api/http';
 
 export const GROUP_SETTINGS_STORAGE_KEY = CLIENT_AUTH_STORAGE_KEYS.groupSettings;
@@ -224,6 +225,7 @@ function validateGroupSettings(settings) {
 const GroupSettingsContext = createContext(null);
 
 export function GroupSettingsProvider({ children }) {
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuthSession();
   const [settings, setSettings] = useState(defaultGroupSettings);
   const [savedSettings, setSavedSettings] = useState(defaultGroupSettings);
   const [isReady, setIsReady] = useState(false);
@@ -264,18 +266,30 @@ export function GroupSettingsProvider({ children }) {
       }
     }
 
-    if (isReady) {
+    if (isReady && !isAuthLoading && isAuthenticated) {
       loadRemoteGroupSettings();
     }
 
     return () => {
       isMounted = false;
     };
-  }, [isReady]);
+  }, [isReady, isAuthLoading, isAuthenticated]);
 
   useEffect(() => {
     applyGroupThemeToDocument(settings.themeName);
   }, [settings.themeName]);
+
+  useEffect(() => {
+    if (isAuthLoading || isAuthenticated) {
+      return;
+    }
+
+    setSettings(defaultGroupSettings);
+    setSavedSettings(defaultGroupSettings);
+    setIsSaving(false);
+    setLastSavedAt(null);
+    setFeedback({ type: 'idle', message: '' });
+  }, [isAuthLoading, isAuthenticated]);
 
   const validationErrors = useMemo(() => validateGroupSettings(settings), [settings]);
   const isDirty = useMemo(() => !settingsEqual(settings, savedSettings), [settings, savedSettings]);
