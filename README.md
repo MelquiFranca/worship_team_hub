@@ -79,6 +79,7 @@ Aplicacao base em Next.js com App Router.
 - O cliente (`component-app`) registra `PushSubscription` automaticamente via `PushManager`.
 - O backend envia notificacoes usando `web-push` diretamente para as subscriptions salvas dos componentes.
 - Sem chaves VAPID configuradas, os envios ficam desabilitados e a tentativa e registrada como falha de configuracao.
+- node -e "const webpush=require('web-push'); console.log(webpush.generateVAPIDKeys())"
 
 ## Documentacao
 

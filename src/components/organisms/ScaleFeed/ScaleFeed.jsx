@@ -384,22 +384,53 @@ function isSupportedPlaylistUrl(value) {
   }
 }
 
-function createPlaylistItemFromLink(rawUrl, currentLength) {
+async function createPlaylistItemFromLink(rawUrl, currentLength) {
   const url = rawUrl.trim();
   const extractedVideoId = extractVideoIdFromUrl(url);
   const extractedPlaylistId = extractPlaylistIdFromUrl(url);
   const syntheticPlaylistVideoId = extractedPlaylistId ? `playlist:${extractedPlaylistId}` : '';
   const fallbackId = `manual-${Date.now()}`;
   const effectiveId = extractedVideoId || syntheticPlaylistVideoId || fallbackId;
-  const linkKindLabel = extractedPlaylistId && !extractedVideoId ? 'Playlist' : 'Link';
+  const isLikelyPlaylist = extractedPlaylistId && !extractedVideoId;
+  const linkKindLabel = isLikelyPlaylist ? 'Playlist' : 'Video';
+
+  let resolvedTitle = `${linkKindLabel} adicionado ${currentLength + 1}`;
+  let resolvedChannelTitle = 'Link manual';
+  let resolvedUrl = url;
+  let resolvedVideoId = effectiveId;
+
+  try {
+    const response = await fetch(`/api/youtube/preview?url=${encodeURIComponent(url)}`);
+    const payload = await response.json();
+
+    if (response.ok && payload && typeof payload === 'object') {
+      if (typeof payload.title === 'string' && payload.title.trim()) {
+        resolvedTitle = payload.title.trim();
+      }
+
+      if (typeof payload.channelTitle === 'string' && payload.channelTitle.trim()) {
+        resolvedChannelTitle = payload.channelTitle.trim();
+      }
+
+      if (typeof payload.url === 'string' && payload.url.trim()) {
+        resolvedUrl = payload.url.trim();
+      }
+
+      if (typeof payload.videoId === 'string' && payload.videoId.trim()) {
+        resolvedVideoId = payload.videoId.trim();
+      }
+    }
+  } catch {
+    // Keep safe fallback values when preview endpoint is unavailable.
+  }
 
   return {
-    id: effectiveId,
-    videoId: effectiveId,
-    title: `${linkKindLabel} adicionado ${currentLength + 1}`,
-    channelTitle: 'Link manual',
-    url,
-    videoUrl: url,
+    id: resolvedVideoId,
+    videoId: resolvedVideoId,
+    title: resolvedTitle,
+    channelTitle: resolvedChannelTitle,
+    url: resolvedUrl,
+    videoUrl: resolvedUrl,
     thumbnailUrl: ''
   };
 }
@@ -1035,7 +1066,7 @@ function PlaylistPanel({
       return;
     }
 
-    const nextItem = createPlaylistItemFromLink(nextLink, playlist.length);
+    const nextItem = await createPlaylistItemFromLink(nextLink, playlist.length);
     const alreadyExists = playlist.some(
       (item) =>
         (nextItem.videoId && (item.videoId === nextItem.videoId || item.id === nextItem.videoId)) ||
