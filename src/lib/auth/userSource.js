@@ -1,4 +1,3 @@
-import { authUsers as seededAuthUsers } from '../../data/authUsers.js';
 import { ObjectId } from 'mongodb';
 import { AUTH_ROLES } from './constants.js';
 import { getMongoCollections } from '../db/mongodb.js';
@@ -47,25 +46,6 @@ function mapComponentToAuthUser(component) {
     role,
     groupId: normalizedGroupId,
     passwordHash
-  };
-}
-
-function mapSeedUserWithOverride(seedUser, override) {
-  if (!seedUser || typeof seedUser !== 'object') {
-    return null;
-  }
-
-  const passwordHashOverride = typeof override?.passwordHash === 'string'
-    ? override.passwordHash.trim()
-    : '';
-
-  if (!passwordHashOverride) {
-    return seedUser;
-  }
-
-  return {
-    ...seedUser,
-    passwordHash: passwordHashOverride
   };
 }
 
@@ -154,36 +134,8 @@ function attachGroupInfo(user, groupsById) {
 }
 
 export async function loadAuthUsers() {
-  const baseUsers = Array.isArray(seededAuthUsers) ? [...seededAuthUsers] : [];
-
   try {
-    const { db, components, authUserOverrides } = await getMongoCollections();
-    const seedOverrides = await authUserOverrides
-      .find({
-        userId: { $in: baseUsers.map((user) => user.id) },
-        passwordHash: { $type: 'string', $ne: '' }
-      })
-      .project({
-        userId: 1,
-        passwordHash: 1
-      })
-      .toArray();
-    const seedOverrideByUserId = new Map(
-      seedOverrides
-        .map((entry) => {
-          const userId = typeof entry?.userId === 'string' ? entry.userId.trim() : '';
-
-          if (!userId) {
-            return null;
-          }
-
-          return [userId, entry];
-        })
-        .filter(Boolean)
-    );
-    const resolvedSeedUsers = baseUsers.map((user) =>
-      mapSeedUserWithOverride(user, seedOverrideByUserId.get(user.id))
-    );
+    const { db, components } = await getMongoCollections();
     const dbComponents = await components
       .find({
         passwordHash: { $type: 'string', $ne: '' },
@@ -200,10 +152,7 @@ export async function loadAuthUsers() {
       .toArray();
 
     const groupsCollection = db.collection('groups');
-    const allGroupIds = resolveGroupIds([
-      ...resolvedSeedUsers,
-      ...dbComponents
-    ]);
+    const allGroupIds = resolveGroupIds(dbComponents);
     const groupFilter = buildGroupIdFilter(allGroupIds);
     const dbGroups = groupFilter
       ? await groupsCollection
@@ -217,12 +166,7 @@ export async function loadAuthUsers() {
       : [];
     const groupsById = mapGroupsById(dbGroups);
 
-    const byId = new Map(
-      resolvedSeedUsers
-        .map((user) => attachGroupInfo(user, groupsById))
-        .filter(Boolean)
-        .map((user) => [user.id, user])
-    );
+    const byId = new Map();
 
     dbComponents.forEach((component) => {
       const authUser = attachGroupInfo(mapComponentToAuthUser(component), groupsById);
@@ -234,6 +178,6 @@ export async function loadAuthUsers() {
 
     return Array.from(byId.values());
   } catch {
-    return baseUsers;
+    return [];
   }
 }

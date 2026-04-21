@@ -1,4 +1,3 @@
-import { authUsers as seededAuthUsers } from '../../data/authUsers.js';
 import { readJsonBody } from '../api/request.js';
 import { isPlainObject, normalizeString } from '../api/validation.js';
 import { parseComponentPhotoInput, serializeComponentPhoto } from '../components/photo.js';
@@ -10,11 +9,6 @@ import { verifyAccessSession } from './service.js';
 import { loadAuthUsers } from './userSource.js';
 
 const PROFILE_ALLOWED_AUDIENCES = new Set(['admin-panel', 'group-app', 'component-app']);
-const SEEDED_USER_IDS = new Set(
-  (Array.isArray(seededAuthUsers) ? seededAuthUsers : [])
-    .map((user) => (typeof user?.id === 'string' ? user.id.trim() : ''))
-    .filter(Boolean)
-);
 
 function getBearerToken(request) {
   const authorization = request.headers.get('authorization') || '';
@@ -138,10 +132,6 @@ function buildProfilePatchInput(body) {
   };
 }
 
-async function getSeedUserOverride(authUserOverrides, userId) {
-  return authUserOverrides.findOne({ userId });
-}
-
 async function getComponentProfileDocument(components, user, claims) {
   const filter = {
     _id: user.id
@@ -177,12 +167,7 @@ export async function requireProfileAccessSession(request) {
 }
 
 export async function getCurrentAuthProfile(session) {
-  const { components, authUserOverrides } = await getMongoCollections();
-
-  if (SEEDED_USER_IDS.has(session.user.id)) {
-    const override = await getSeedUserOverride(authUserOverrides, session.user.id);
-    return serializeCurrentProfile(session.user, session.claims, override);
-  }
+  const { components } = await getMongoCollections();
 
   const component = await getComponentProfileDocument(components, session.user, session.claims);
 
@@ -204,59 +189,13 @@ export async function updateCurrentAuthProfile(session, body) {
     return { error: parsed.error };
   }
 
-  const { components, authUserOverrides } = await getMongoCollections();
+  const { components } = await getMongoCollections();
   const now = new Date().toISOString();
   const nextUpdates = {
     ...parsed.updates,
     updatedAt: now
   };
   const nextUnset = { ...parsed.unset };
-
-  if (SEEDED_USER_IDS.has(session.user.id)) {
-    const baseUser = (Array.isArray(seededAuthUsers) ? seededAuthUsers : []).find((user) => user.id === session.user.id);
-
-    if (!baseUser) {
-      return { error: 'Usuario da sessao nao encontrado.', status: 404, code: 'NOT_FOUND' };
-    }
-
-    const override = await getSeedUserOverride(authUserOverrides, session.user.id);
-
-    if (parsed.passwordInput.hasPasswordUpdate) {
-      const currentPasswordHash = normalizeString(override?.passwordHash) || normalizeString(baseUser.passwordHash);
-
-      if (!verifyPassword(parsed.passwordInput.currentPassword, currentPasswordHash)) {
-        return { error: 'Senha atual invalida.' };
-      }
-
-      nextUpdates.passwordHash = createPasswordHash(parsed.passwordInput.newPassword);
-    }
-
-    if (Object.keys(nextUpdates).length === 1 && Object.keys(nextUnset).length === 0) {
-      return { error: 'Informe ao menos um campo valido para atualizacao.' };
-    }
-
-    const updateDocument = {
-      $set: {
-        ...nextUpdates,
-        userId: session.user.id
-      },
-      $setOnInsert: {
-        createdAt: now
-      }
-    };
-
-    if (Object.keys(nextUnset).length > 0) {
-      updateDocument.$unset = nextUnset;
-    }
-
-    await authUserOverrides.updateOne({ userId: session.user.id }, updateDocument, { upsert: true });
-
-    const updatedOverride = await getSeedUserOverride(authUserOverrides, session.user.id);
-
-    return {
-      item: serializeCurrentProfile(session.user, session.claims, updatedOverride)
-    };
-  }
 
   const component = await getComponentProfileDocument(components, session.user, session.claims);
 
