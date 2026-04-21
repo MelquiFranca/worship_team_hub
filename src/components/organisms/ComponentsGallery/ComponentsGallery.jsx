@@ -47,11 +47,36 @@ function ComponentBlock({ member, canEdit }) {
 }
 
 export default function ComponentsGallery({ components = [], canEdit = false }) {
+  const activeComponentsCount = components.filter((member) => member.isActive !== false).length;
+  const inactiveComponentsCount = components.length - activeComponentsCount;
+
   return (
     <section className={styles.galleryPage} aria-label="Lista de componentes">
       <header className={styles.galleryHeader}>
-        <h1>Componentes</h1>
-        <p>Visualize todos os componentes em blocos com foto e nome.</p>
+        <div className={styles.galleryHeaderCopy}>
+          <p className={styles.galleryHeaderKicker}>Componentes</p>
+          <h1>Base de componentes</h1>
+          <p className={styles.galleryHeaderDescription}>
+            Visualize todos os componentes em blocos com foto e nome.
+          </p>
+        </div>
+
+        <div className={styles.galleryHeaderStats} aria-label="Resumo dos componentes">
+          <article>
+            <span>Contexto</span>
+            <strong>
+              {components.length} componente{components.length === 1 ? '' : 's'}
+            </strong>
+          </article>
+          <article>
+            <span>Status</span>
+            <strong>{activeComponentsCount} ativos</strong>
+          </article>
+          <article>
+            <span>Detalhe</span>
+            <strong>{inactiveComponentsCount} inativos</strong>
+          </article>
+        </div>
       </header>
 
       {components.length ? (

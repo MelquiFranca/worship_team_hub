@@ -209,7 +209,7 @@ function buildPatchPayload(body, photoInput) {
 export async function GET(request) {
   try {
     const session = await requireApiAccessSession(request, {
-      allowedAudiences: new Set(['admin-panel', 'group-app'])
+      allowedAudiences: new Set(['admin-panel', 'group-app', 'component-app'])
     });
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });

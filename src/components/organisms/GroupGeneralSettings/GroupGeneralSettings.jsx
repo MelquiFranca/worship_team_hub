@@ -174,29 +174,39 @@ export default function GroupGeneralSettings() {
     () => functionOptions.filter((option) => option.isCustom),
     [functionOptions]
   );
+  const settingsStatusLabel =
+    feedback.type === 'success'
+      ? 'Salvo'
+      : feedback.type === 'error'
+        ? 'Revisar'
+        : isDirty
+          ? 'Alteracoes nao salvas'
+          : 'Atualizado';
 
   return (
     <article className={styles.shell}>
       <header className={styles.hero}>
-        <div>
-          <p className={styles.eyebrow}>Configuracoes gerais</p>
+        <div className={styles.heroCopy}>
+          <p className={styles.kicker}>Configuracoes gerais</p>
           <h1 className={styles.title}>Configuracoes gerais do grupo</h1>
           <p className={styles.lead}>
             Centralize identidade visual, funcoes da escala e tema de cores em um unico lugar.
           </p>
         </div>
 
-        <div className={styles.heroStatus}>
-          <span className={styles.statusBadge} data-tone={feedback.type}>
-            {feedback.type === 'success'
-              ? 'Salvo'
-              : feedback.type === 'error'
-                ? 'Revisar'
-                : isDirty
-                  ? 'Alteracoes nao salvas'
-                  : 'Atualizado'}
-          </span>
-          <span className={styles.helperText}>{formatSavedTime(lastSavedAt)}</span>
+        <div className={styles.heroStats} aria-label="Resumo das configuracoes">
+          <article>
+            <span>Contexto</span>
+            <strong>Configuracoes do grupo</strong>
+          </article>
+          <article>
+            <span>Status</span>
+            <strong>{settingsStatusLabel}</strong>
+          </article>
+          <article>
+            <span>Detalhe</span>
+            <strong>{themeMeta?.label || 'Tema padrao'}</strong>
+          </article>
         </div>
       </header>
 

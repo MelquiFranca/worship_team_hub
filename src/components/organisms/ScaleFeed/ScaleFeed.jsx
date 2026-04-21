@@ -2018,28 +2018,38 @@ export default function ScaleFeed({
   return (
     <section className={styles.feedPage} aria-label="Feed de escalas">
       <header className={styles.feedHeader}>
-        <div className={styles.feedHeaderTopRow}>
-          <h1>Escalas</h1>
-          {typeof onChangeTimeScope === 'function' && timeScopeOptions.length ? (
-            <div className={styles.feedFilterControl}>
-              <label htmlFor="scales-time-scope">Filtro</label>
-              <select
-                id="scales-time-scope"
-                className={styles.feedFilterSelect}
-                value={timeScope}
-                onChange={(event) => onChangeTimeScope(event.target.value)}
-                aria-label="Filtrar periodo das escalas"
-              >
-                {timeScopeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
+        <div className={styles.feedHeaderCopy}>
+          <p className={styles.feedHeaderKicker}>Escalas</p>
+          <h1>Escalas do grupo</h1>
+          <p className={styles.feedHeaderDescription}>
+            Por padrao, exibindo escalas de hoje e datas futuras.
+          </p>
         </div>
-        <p>Por padrao, exibindo escalas de hoje e datas futuras.</p>
+
+        <div className={styles.feedHeaderStats} aria-label="Resumo das escalas">
+          <article>
+            <span>Contexto</span>
+            <strong>Filtro de periodo</strong>
+            {typeof onChangeTimeScope === 'function' && timeScopeOptions.length ? (
+              <div className={styles.feedFilterControl}>
+                <label htmlFor="scales-time-scope">Detalhe</label>
+                <select
+                  id="scales-time-scope"
+                  className={styles.feedFilterSelect}
+                  value={timeScope}
+                  onChange={(event) => onChangeTimeScope(event.target.value)}
+                  aria-label="Filtrar periodo das escalas"
+                >
+                  {timeScopeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </article>
+        </div>
       </header>
 
       {feedback ? (
