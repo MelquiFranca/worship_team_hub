@@ -2,7 +2,7 @@ import ScalesPageClient from './ScalesPageClient';
 import styles from './page.module.css';
 
 export const metadata = {
-  title: 'Escalas | Escalas App',
+  title: 'Escalas | Worship Team Hub',
   description: 'Tela de escalas em formato de feed com componentes e playlists.'
 };
 

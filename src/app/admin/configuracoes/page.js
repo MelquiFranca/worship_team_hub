@@ -1,7 +1,7 @@
 import styles from './page.module.css';
 
 export const metadata = {
-  title: 'Configuracoes Admin | Escalas App',
+  title: 'Configuracoes Admin | Worship Team Hub',
   description: 'Placeholder de configuracoes da visao administrativa.'
 };
 

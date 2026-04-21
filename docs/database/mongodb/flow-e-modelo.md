@@ -1,4 +1,4 @@
-# Fluxo completo de implementação - Estrutura MongoDB (Escalas App)
+# Fluxo completo de implementação - Estrutura MongoDB (Worship Team Hub)
 
 ## 1) Premissas e contexto atual
 

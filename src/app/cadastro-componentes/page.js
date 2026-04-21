@@ -2,7 +2,7 @@ import ComponentRegistrationForm from '@/components/organisms/ComponentRegistrat
 import styles from './page.module.css';
 
 export const metadata = {
-  title: 'Cadastro de Componentes | Escalas App',
+  title: 'Cadastro de Componentes | Worship Team Hub',
   description: 'Tela de cadastro de componentes com calendario reutilizavel e preview de foto.'
 };
 

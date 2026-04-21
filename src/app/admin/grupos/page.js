@@ -5,7 +5,7 @@ import { getMongoCollections } from '../../../lib/db/mongodb.js';
 import { serializeComponentPhoto } from '../../../lib/components/photo.js';
 
 export const metadata = {
-  title: 'Grupos Admin | Escalas App',
+  title: 'Grupos Admin | Worship Team Hub',
   description: 'Listagem administrativa de grupos com status e imagem.'
 };
 

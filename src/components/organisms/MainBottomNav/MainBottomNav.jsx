@@ -90,6 +90,8 @@ export default function MainBottomNav() {
   const { settings } = useGroupSettings();
   const [openMenu, setOpenMenu] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
   const navRef = useRef(null);
   const createMenuFirstItemRef = useRef(null);
   const avatarMenuFirstItemRef = useRef(null);
@@ -108,6 +110,7 @@ export default function MainBottomNav() {
   const canShowSettingsLink = !isAuthSessionLoading && audience === 'group-app';
   const canShowUnavailabilityLink =
     !isAuthSessionLoading && Boolean(permissions.isComponentApp || permissions.isGroupApp);
+  const canInstallApp = Boolean(deferredInstallPrompt) && !isInstalled;
   const visibleSlotCount = 3 + Number(canShowCreateMenu) + Number(canShowSettingsLink);
   const escalasActive = isActiveRoute(currentPathname, '/escalas');
   const componentesActive = isActiveRoute(currentPathname, '/componentes');
@@ -194,6 +197,36 @@ export default function MainBottomNav() {
     };
   }, [isAuthSessionLoading, isAuthenticated]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (isStandalone) {
+      setIsInstalled(true);
+    }
+
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setDeferredInstallPrompt(event);
+    }
+
+    function handleAppInstalled() {
+      setIsInstalled(true);
+      setDeferredInstallPrompt(null);
+      setOpenMenu(null);
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
   const handleOpenMenu = useCallback((menuName) => {
     if (menuName === 'create' && !canShowCreateMenu) {
       return;
@@ -207,6 +240,21 @@ export default function MainBottomNav() {
     await logout();
     router.replace('/login');
   }, [logout, router]);
+
+  const handleInstallApp = useCallback(async () => {
+    if (!deferredInstallPrompt) {
+      return;
+    }
+
+    deferredInstallPrompt.prompt();
+
+    try {
+      await deferredInstallPrompt.userChoice;
+    } finally {
+      setDeferredInstallPrompt(null);
+      setOpenMenu(null);
+    }
+  }, [deferredInstallPrompt]);
 
   if (currentPathname === '/login') {
     return null;
@@ -341,6 +389,11 @@ export default function MainBottomNav() {
                 <Link href="/minha-indisponibilidade" className={styles.popoverItem} onClick={() => closeMenus()}>
                   Minha indisponibilidade
                 </Link>
+              ) : null}
+              {canInstallApp ? (
+                <button type="button" className={styles.popoverItemButton} onClick={handleInstallApp}>
+                  Instalar app
+                </button>
               ) : null}
               <button type="button" className={styles.popoverItemButton} onClick={handleLogout}>
                 Sair

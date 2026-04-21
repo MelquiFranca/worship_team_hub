@@ -9,7 +9,7 @@ import {
 } from '@/lib/admin/groupAdmin';
 
 export const metadata = {
-  title: 'Editar Grupo Admin | Escalas App',
+  title: 'Editar Grupo Admin | Worship Team Hub',
   description: 'Edicao administrativa de grupo com configuracoes iniciais e gestor group-app.'
 };
 

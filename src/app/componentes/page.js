@@ -2,7 +2,7 @@ import ComponentsPageClient from './ComponentsPageClient';
 import styles from './page.module.css';
 
 export const metadata = {
-  title: 'Componentes | Escalas App',
+  title: 'Componentes | Worship Team Hub',
   description: 'Tela de componentes com visual alinhado a tela de escalas.'
 };
 

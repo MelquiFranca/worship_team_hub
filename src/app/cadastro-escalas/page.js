@@ -21,7 +21,7 @@ export async function generateMetadata({ searchParams }) {
   const isEditMode = Boolean(scaleId);
 
   return {
-    title: isEditMode ? 'Edicao de Escala | Escalas App' : 'Cadastro de Escalas | Escalas App',
+    title: isEditMode ? 'Edicao de Escala | Worship Team Hub' : 'Cadastro de Escalas | Worship Team Hub',
     description: isEditMode
       ? 'Edite data, turno, componentes e playlist da escala selecionada.'
       : 'Cadastro de escalas com componentes, funcoes, calendario e playlist do YouTube.'

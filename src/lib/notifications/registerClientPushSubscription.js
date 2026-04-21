@@ -1,3 +1,5 @@
+import { ensureAppServiceWorkerRegistration } from '@/lib/pwa/registerAppServiceWorker';
+
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = `${base64String}${padding}`.replace(/-/g, '+').replace(/_/g, '/');
@@ -41,7 +43,11 @@ export async function registerClientPushSubscription() {
     return { ok: false, reason: 'vapid-not-configured' };
   }
 
-  const registration = await navigator.serviceWorker.register('/push-sw.js');
+  const registration = await ensureAppServiceWorkerRegistration();
+
+  if (!registration) {
+    return { ok: false, reason: 'service-worker-registration-failed' };
+  }
 
   let permission = Notification.permission;
   if (permission === 'default') {

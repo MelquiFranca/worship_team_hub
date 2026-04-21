@@ -2,8 +2,8 @@ import LoginCard from '@/components/organisms/LoginCard/LoginCard';
 import styles from './page.module.css';
 
 export const metadata = {
-  title: 'Login Administrativo | Escalas App',
-  description: 'Tela de login separada para administradores do Escalas App.'
+  title: 'Login Administrativo | Worship Team Hub',
+  description: 'Tela de login separada para administradores do Worship Team Hub.'
 };
 
 export default function AdminLoginPage() {

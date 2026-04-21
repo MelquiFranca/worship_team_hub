@@ -2,7 +2,7 @@ import GroupGeneralSettings from '@/components/organisms/GroupGeneralSettings/Gr
 import styles from './page.module.css';
 
 export const metadata = {
-  title: 'Configuracoes gerais do grupo | Escalas App',
+  title: 'Configuracoes gerais do grupo | Worship Team Hub',
   description: 'Tela de configuracoes gerais do grupo com nome, foto, funcoes e tema.'
 };
 

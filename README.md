@@ -1,4 +1,4 @@
-# Escalas App
+# Worship Team Hub
 
 Aplicacao base em Next.js com App Router.
 
