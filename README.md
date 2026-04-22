@@ -20,6 +20,11 @@ Aplicacao base em Next.js com App Router.
    Variaveis obrigatorias de autenticacao JWT:
    - Defina `JWT_SECRET` ou `AUTH_JWT_SECRET` com segredo forte (minimo recomendado: 32 caracteres aleatorios).
    - Nao use fallback/default em ambiente de producao.
+   Variaveis recomendadas de rate limit (defaults no `.env.example`):
+   - `RATE_LIMIT_AUTH_LOGIN_MAX` / `RATE_LIMIT_AUTH_LOGIN_WINDOW_SECONDS`
+   - `RATE_LIMIT_AUTH_REFRESH_MAX` / `RATE_LIMIT_AUTH_REFRESH_WINDOW_SECONDS`
+   - `RATE_LIMIT_YOUTUBE_SEARCH_MAX` / `RATE_LIMIT_YOUTUBE_SEARCH_WINDOW_SECONDS`
+   - `RATE_LIMIT_YOUTUBE_PREVIEW_MAX` / `RATE_LIMIT_YOUTUBE_PREVIEW_WINDOW_SECONDS`
 3. Rode em desenvolvimento:
    ```bash
    npm run dev
