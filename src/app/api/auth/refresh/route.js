@@ -11,6 +11,13 @@ import {
   refreshAuthSession,
   toAuthErrorResponse
 } from '../../../../lib/auth/index.js';
+import {
+  buildRateLimitErrorPayload,
+  buildRateLimitResponseInit,
+  buildRefreshRateLimitKey,
+  enforceRateLimit,
+  getRateLimitPolicy
+} from '../../../../lib/api/rateLimit.js';
 import { loadAuthUsers } from '../../../../lib/auth/userSource.js';
 
 export const runtime = 'nodejs';
@@ -42,11 +49,28 @@ export async function POST(request) {
   try {
     assertJwtSecretConfigured();
     const body = await readJsonBody(request);
+    const requestId = resolveRequestId(request);
     const refreshToken =
       request.cookies?.get(AUTH_COOKIE_NAMES.refreshToken)?.value ||
       body?.refreshToken ||
       body?.token ||
       '';
+
+    const rateLimitResult = enforceRateLimit({
+      policy: getRateLimitPolicy('authRefresh'),
+      key: buildRefreshRateLimitKey(request, body),
+      request,
+      route: '/api/auth/refresh',
+      method: 'POST',
+      requestId
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        buildRateLimitErrorPayload(rateLimitResult),
+        buildRateLimitResponseInit(rateLimitResult)
+      );
+    }
 
     const authUsers = await loadAuthUsers();
     const result = await refreshAuthSession(authUsers, refreshToken);

@@ -1,4 +1,11 @@
 import { NextResponse } from 'next/server';
+import {
+  buildIntegrationRateLimitKey,
+  buildRateLimitErrorPayload,
+  buildRateLimitResponseInit,
+  enforceRateLimit,
+  getRateLimitPolicy
+} from '../../../../lib/api/rateLimit.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -138,6 +145,21 @@ async function fetchPlaylistMetadataFromApi(playlistId, apiKey) {
 }
 
 export async function GET(request) {
+  const rateLimitResult = enforceRateLimit({
+    policy: getRateLimitPolicy('youtubePreview'),
+    key: buildIntegrationRateLimitKey(request),
+    request,
+    route: '/api/youtube/preview',
+    method: 'GET'
+  });
+
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      buildRateLimitErrorPayload(rateLimitResult),
+      buildRateLimitResponseInit(rateLimitResult)
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const rawUrl = searchParams.get('url')?.trim();
 

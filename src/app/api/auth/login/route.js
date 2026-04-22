@@ -10,6 +10,13 @@ import {
   logAuthTechnicalEvent,
   toAuthErrorResponse
 } from '../../../../lib/auth/index.js';
+import {
+  buildLoginRateLimitKey,
+  buildRateLimitErrorPayload,
+  buildRateLimitResponseInit,
+  enforceRateLimit,
+  getRateLimitPolicy
+} from '../../../../lib/api/rateLimit.js';
 import { loadAuthUsers } from '../../../../lib/auth/userSource.js';
 
 export const runtime = 'nodejs';
@@ -41,6 +48,7 @@ export async function POST(request) {
   try {
     assertJwtSecretConfigured();
     const body = await readJsonBody(request);
+    const requestId = resolveRequestId(request);
 
     if (!body || typeof body !== 'object') {
       return NextResponse.json(
@@ -51,6 +59,22 @@ export async function POST(request) {
           }
         },
         { status: 400 }
+      );
+    }
+
+    const rateLimitResult = enforceRateLimit({
+      policy: getRateLimitPolicy('authLogin'),
+      key: buildLoginRateLimitKey(request, body),
+      request,
+      route: '/api/auth/login',
+      method: 'POST',
+      requestId
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        buildRateLimitErrorPayload(rateLimitResult),
+        buildRateLimitResponseInit(rateLimitResult)
       );
     }
 
