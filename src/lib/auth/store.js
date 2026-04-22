@@ -21,7 +21,7 @@ function normalizeJti(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function useMemoryRefreshStore() {
+function shouldUseMemoryRefreshStore() {
   return process.env.AUTH_REFRESH_STORE?.trim().toLowerCase() === 'memory';
 }
 
@@ -175,7 +175,7 @@ function rotateRefreshSessionInMemory(token, claims, nextSessionRecord, now = no
 }
 
 export async function storeRefreshSession(sessionRecord) {
-  if (useMemoryRefreshStore()) {
+  if (shouldUseMemoryRefreshStore()) {
     return storeRefreshSessionInMemory(sessionRecord);
   }
 
@@ -203,7 +203,7 @@ export async function storeRefreshSession(sessionRecord) {
 }
 
 export async function revokeRefreshSession(jti, reason = 'revoked', replacedByJti = null) {
-  if (useMemoryRefreshStore()) {
+  if (shouldUseMemoryRefreshStore()) {
     return revokeRefreshSessionInMemory(jti, reason, replacedByJti);
   }
 
@@ -254,7 +254,7 @@ function buildRefreshSessionFilter(token, claims, now) {
 }
 
 export async function validateRefreshSession(token, claims, now = nowInSeconds()) {
-  if (useMemoryRefreshStore()) {
+  if (shouldUseMemoryRefreshStore()) {
     return validateRefreshSessionInMemory(token, claims, now);
   }
 
@@ -315,7 +315,7 @@ export async function validateRefreshSession(token, claims, now = nowInSeconds()
 }
 
 export async function rotateRefreshSession(token, claims, nextSessionRecord, now = nowInSeconds()) {
-  if (useMemoryRefreshStore()) {
+  if (shouldUseMemoryRefreshStore()) {
     return rotateRefreshSessionInMemory(token, claims, nextSessionRecord, now);
   }
 
