@@ -17,19 +17,27 @@ Aplicacao base em Next.js com App Router.
    ```bash
    cp .env.example .env.local
    ```
-   Variaveis obrigatorias de autenticacao JWT:
-   - Defina `JWT_SECRET` ou `AUTH_JWT_SECRET` com segredo forte (minimo recomendado: 32 caracteres aleatorios).
-   - Nao use fallback/default em ambiente de producao.
-   Variaveis recomendadas de rate limit (defaults no `.env.example`):
-   - `RATE_LIMIT_AUTH_LOGIN_MAX` / `RATE_LIMIT_AUTH_LOGIN_WINDOW_SECONDS`
-   - `RATE_LIMIT_AUTH_REFRESH_MAX` / `RATE_LIMIT_AUTH_REFRESH_WINDOW_SECONDS`
-   - `RATE_LIMIT_YOUTUBE_SEARCH_MAX` / `RATE_LIMIT_YOUTUBE_SEARCH_WINDOW_SECONDS`
-   - `RATE_LIMIT_YOUTUBE_PREVIEW_MAX` / `RATE_LIMIT_YOUTUBE_PREVIEW_WINDOW_SECONDS`
+   Baseline de variaveis:
+   - Obrigatorias para bootstrap/runtime: `MONGODB_URI` e ao menos uma entre `AUTH_JWT_SECRET`/`JWT_SECRET`.
+   - Condicional: `YOUTUBE_API_KEY` (obrigatoria somente quando integracao YouTube for habilitada/acionada).
+   - Segredo sensivel (nao versionar valor real): `AUTH_JWT_SECRET`, `JWT_SECRET`, `YOUTUBE_API_KEY`, `PUSH_VAPID_PRIVATE_KEY`.
+   - Operacionais/opcionais: rate limit, cookies/issuer, `AUTH_REFRESH_STORE`, `MONGODB_DB_NAME`, `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_SUBJECT`.
+   - Valores e classificacao completos estao em `.env.example`.
 3. Rode em desenvolvimento:
    ```bash
    npm run dev
    ```
 4. Abra `http://localhost:3000`.
+
+## Baseline de producao e segredos
+
+- Runbook operacional completo: `docs/setup/production-env-secrets.md`.
+- Pre-deploy minimo recomendado:
+  - `npm run lint`
+  - `NODE_ENV=production AUTH_JWT_SECRET=<segredo-forte> MONGODB_URI=<uri> npm run build`
+  - Se integracao YouTube estiver habilitada: adicionar `YOUTUBE_API_KEY=<api-key>`
+  - `npm run test:auth`
+  - `npm run test:smoke`
 
 ## Scripts
 
@@ -111,7 +119,9 @@ Aplicacao base em Next.js com App Router.
 ## Documentacao
 
 - Fluxo detalhado: `docs/setup/next-setup.md`
+- Runbook de ambiente de producao e segredos: `docs/setup/production-env-secrets.md`
 - Spec da feature: `docs/specs/features/configurar-ambiente-next/`
+- Spec do baseline de producao e segredos: `docs/specs/features/baseline-env-producao-e-segredos/`
 - Spec de imagem em banco: `docs/specs/features/armazenamento-imagem-banco-componentes/`
 - Spec de imagem de escalas em banco: `docs/specs/features/persistencia-imagens-escalas-banco/`
 - Spec de integracao da listagem de grupos no banco: `docs/specs/features/integracao-grupos-admin-banco/`
