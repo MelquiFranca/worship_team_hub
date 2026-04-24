@@ -38,6 +38,10 @@ Aplicacao base em Next.js com App Router.
   - Se integracao YouTube estiver habilitada: adicionar `YOUTUBE_API_KEY=<api-key>`
   - `npm run test:auth`
   - `npm run test:smoke`
+- Deploy no Netlify:
+  - Build command: `npm run build` (nao usar `npm start` no campo de build).
+  - Variaveis obrigatorias no ambiente de producao: `MONGODB_URI` e `AUTH_JWT_SECRET` (ou `JWT_SECRET`).
+  - Observacao: configuracoes definidas pela UI do Netlify podem sobrescrever `netlify.toml`.
 
 ## Scripts
 

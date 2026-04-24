@@ -136,6 +136,16 @@ npm run test:auth
 npm run test:smoke
 ```
 
+## Nota operacional - Netlify
+
+- Build command correto: `npm run build`.
+- Nao usar `npm start` no campo de build da plataforma; `next start` e comando de runtime e pode falhar no bootstrap por baseline incompleto.
+- Garantir no painel do site (Site configuration > Environment variables), no minimo:
+  - `MONGODB_URI`
+  - `AUTH_JWT_SECRET` ou `JWT_SECRET`
+- Se `YOUTUBE_API_KEY` for necessaria no ambiente, provisionar tambem antes do deploy.
+- Observacao: valores configurados na UI podem prevalecer sobre `netlify.toml`.
+
 ## Checklist operacional
 
 - [ ] `.env.example` atualizado e sem segredos reais.
