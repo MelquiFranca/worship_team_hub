@@ -1538,18 +1538,24 @@ function ScaleCard({
   const scaleShift = scale?.shift || 'Turno nao informado';
   const hasResolvedAuthSession = Boolean(currentUser);
   const currentUserMemberId = useMemo(() => getCurrentUserMemberId(scale.members, currentUser), [scale.members, currentUser]);
+  const currentUserAuthId =
+    typeof currentUser?.id === 'string' && currentUser.id.trim() ? currentUser.id.trim() : null;
   const playlistEditorComponentIds = Array.isArray(scale.playlistEditorComponentIds)
     ? scale.playlistEditorComponentIds
     : [];
   const imageEditorComponentIds = Array.isArray(scale.imageEditorComponentIds)
     ? scale.imageEditorComponentIds
     : [];
+  const canEditImageByPermissionList = Boolean(
+    (currentUserMemberId && imageEditorComponentIds.includes(currentUserMemberId)) ||
+      (currentUserAuthId && imageEditorComponentIds.includes(currentUserAuthId))
+  );
   const canEditPlaylist =
     hasResolvedAuthSession &&
     (!isComponentApp || (currentUserMemberId ? playlistEditorComponentIds.includes(currentUserMemberId) : false));
   const canEditImage =
     hasResolvedAuthSession &&
-    (!isComponentApp || (currentUserMemberId ? imageEditorComponentIds.includes(currentUserMemberId) : false));
+    (!isComponentApp || canEditImageByPermissionList);
   const canSendComments =
     hasResolvedAuthSession;
   const detailsId = `scale-card-${makeDomId(scale?.id || `${scaleDate}-${scaleShift}`)}-details`;

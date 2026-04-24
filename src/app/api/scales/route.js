@@ -203,6 +203,19 @@ function filterPermissionComponentIds(componentIds, allowedIds) {
   return componentIds.filter((componentId) => allowedIdSet.has(componentId));
 }
 
+async function validateGroupComponentIds(componentsCollection, groupId, componentIds) {
+  if (!Array.isArray(componentIds) || componentIds.length === 0) {
+    return true;
+  }
+
+  const existingComponents = await componentsCollection
+    .find({ groupId, _id: { $in: componentIds } })
+    .project({ _id: 1 })
+    .toArray();
+
+  return existingComponents.length === componentIds.length;
+}
+
 export async function GET(request) {
   try {
     const session = await requireApiAccessSession(request, {
@@ -349,7 +362,7 @@ export async function POST(request) {
       (filterPermissionComponentIds(playlistEditorComponentIds, componentIds).length !== playlistEditorComponentIds.length)
     ) {
       return fail(
-        'As permissoes de playlist e imagem precisam apontar para componentes selecionados na escala.',
+        'As permissoes de playlist precisam apontar para componentes selecionados na escala.',
         400,
         'BAD_REQUEST'
       );
@@ -357,10 +370,10 @@ export async function POST(request) {
 
     if (
       Array.isArray(imageEditorComponentIds) &&
-      filterPermissionComponentIds(imageEditorComponentIds, componentIds).length !== imageEditorComponentIds.length
+      !(await validateGroupComponentIds(componentsCollection, groupId, imageEditorComponentIds))
     ) {
       return fail(
-        'As permissoes de playlist e imagem precisam apontar para componentes selecionados na escala.',
+        'Um ou mais IDs de imageEditorComponentIds nao pertencem ao grupo ou nao existem.',
         400,
         'BAD_REQUEST'
       );

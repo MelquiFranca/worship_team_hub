@@ -199,6 +199,32 @@ async function resolveSessionComponentId(componentsCollection, groupId, scaleCom
   return '';
 }
 
+async function doesComponentExistInGroup(componentsCollection, groupId, componentId) {
+  if (!componentId) {
+    return false;
+  }
+
+  const component = await componentsCollection.findOne(
+    { groupId, _id: componentId },
+    { projection: { _id: 1 } }
+  );
+
+  return Boolean(component?._id);
+}
+
+async function validateGroupComponentIds(componentsCollection, groupId, componentIds) {
+  if (!Array.isArray(componentIds) || componentIds.length === 0) {
+    return true;
+  }
+
+  const existingComponents = await componentsCollection
+    .find({ groupId, _id: { $in: componentIds } })
+    .project({ _id: 1 })
+    .toArray();
+
+  return existingComponents.length === componentIds.length;
+}
+
 export async function GET(request, { params }) {
   try {
     const session = await requireApiAccessSession(request, {
@@ -311,6 +337,17 @@ export async function PATCH(request, { params }) {
         : [];
       const isUpdatingPlaylist = requestedFields.includes('playlist');
       const isUpdatingImageAttachment = requestedFields.includes('imageAttachment');
+      let imagePermissionComponentId = sessionComponentId;
+
+      if (isUpdatingImageAttachment) {
+        const sessionUserId = normalizeString(session?.user?.id);
+        const sessionUserIdBelongsToGroup = await doesComponentExistInGroup(
+          components,
+          groupId,
+          sessionUserId
+        );
+        imagePermissionComponentId = sessionUserIdBelongsToGroup ? sessionUserId : sessionComponentId;
+      }
 
       if (isUpdatingPlaylist && (!sessionComponentId || !playlistEditors.includes(sessionComponentId))) {
         return jsonApiError(
@@ -320,7 +357,10 @@ export async function PATCH(request, { params }) {
         );
       }
 
-      if (isUpdatingImageAttachment && (!sessionComponentId || !imageEditors.includes(sessionComponentId))) {
+      if (
+        isUpdatingImageAttachment &&
+        (!imagePermissionComponentId || !imageEditors.includes(imagePermissionComponentId))
+      ) {
         return jsonApiError(
           'Seu perfil nao possui permissao para editar a imagem desta escala.',
           403,
@@ -362,16 +402,19 @@ export async function PATCH(request, { params }) {
     const normalizedPlaylistEditorComponentIds = currentPlaylistEditorComponentIds.filter((componentId) =>
       nextComponentIds.has(componentId)
     );
-    const normalizedImageEditorComponentIds = currentImageEditorComponentIds.filter((componentId) =>
-      nextComponentIds.has(componentId)
-    );
+    const normalizedImageEditorComponentIds = currentImageEditorComponentIds;
 
-    if (
-      normalizedPlaylistEditorComponentIds.length !== currentPlaylistEditorComponentIds.length ||
-      normalizedImageEditorComponentIds.length !== currentImageEditorComponentIds.length
-    ) {
+    if (normalizedPlaylistEditorComponentIds.length !== currentPlaylistEditorComponentIds.length) {
       return jsonApiError(
-        'As permissoes de playlist e imagem precisam apontar para componentes selecionados na escala.',
+        'As permissoes de playlist precisam apontar para componentes selecionados na escala.',
+        400,
+        'BAD_REQUEST'
+      );
+    }
+
+    if (!(await validateGroupComponentIds(components, groupId, normalizedImageEditorComponentIds))) {
+      return jsonApiError(
+        'Um ou mais IDs de imageEditorComponentIds nao pertencem ao grupo ou nao existem.',
         400,
         'BAD_REQUEST'
       );

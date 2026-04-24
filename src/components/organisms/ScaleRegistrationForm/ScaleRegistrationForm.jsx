@@ -501,9 +501,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
         setPlaylistEditorComponentIds(
           scaleItem.playlistEditorComponentIds.filter((componentId) => selectedIds.includes(componentId))
         );
-        setImageEditorComponentIds(
-          scaleItem.imageEditorComponentIds.filter((componentId) => selectedIds.includes(componentId))
-        );
+        setImageEditorComponentIds(scaleItem.imageEditorComponentIds);
         setFunctionsByComponent(nextFunctions);
         setMissingFunctionIds([]);
         setPlaylist(scaleItem.playlist);
@@ -578,24 +576,25 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
         setMissingFunctionIds((currentMissingIds) => currentMissingIds.filter((id) => id !== componentId));
         setPlaylistEditorComponentIds((currentIds) => currentIds.filter((id) => id !== componentId));
-        setImageEditorComponentIds((currentIds) => currentIds.filter((id) => id !== componentId));
       }
 
       return nextIds;
     });
   };
 
-  const togglePermissionComponentId = (componentId, setter) => {
+  const togglePermissionComponentId = (componentId, setter, options = {}) => {
     if (isEditLocked) {
       return;
     }
+
+    const requiresSelectedComponent = Boolean(options.requiresSelectedComponent);
 
     setter((currentIds) => {
       if (currentIds.includes(componentId)) {
         return currentIds.filter((id) => id !== componentId);
       }
 
-      if (!selectedComponentIds.includes(componentId)) {
+      if (requiresSelectedComponent && !selectedComponentIds.includes(componentId)) {
         return currentIds;
       }
 
@@ -872,7 +871,9 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
         componentId: component.id,
         function: functionsByComponent[component.id].trim()
       })),
-      playlistEditorComponentIds,
+      playlistEditorComponentIds: playlistEditorComponentIds.filter((componentId) =>
+        selectedComponentIds.includes(componentId)
+      ),
       imageEditorComponentIds,
       playlist: playlist.map((item) => ({
         videoId: getVideoId(item) || '',
@@ -1183,29 +1184,31 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                       </label>
                     ) : null}
 
-                    {isSelected ? (
-                      <div className={styles.permissionFieldset}>
-                        <span className={styles.permissionLabel}>Permissoes extras</span>
-                        <label className={styles.permissionToggle}>
-                          <input
-                            type="checkbox"
-                            checked={playlistEditorComponentIds.includes(component.id)}
-                            onChange={() => togglePermissionComponentId(component.id, setPlaylistEditorComponentIds)}
-                            disabled={isEditLocked}
-                          />
-                          <span>Editar playlist</span>
-                        </label>
-                        <label className={styles.permissionToggle}>
-                          <input
-                            type="checkbox"
-                            checked={imageEditorComponentIds.includes(component.id)}
-                            onChange={() => togglePermissionComponentId(component.id, setImageEditorComponentIds)}
-                            disabled={isEditLocked}
-                          />
-                          <span>Editar imagem</span>
-                        </label>
-                      </div>
-                    ) : null}
+                    <div className={styles.permissionFieldset}>
+                      <span className={styles.permissionLabel}>Permissoes extras</span>
+                      <label className={styles.permissionToggle}>
+                        <input
+                          type="checkbox"
+                          checked={playlistEditorComponentIds.includes(component.id)}
+                          onChange={() =>
+                            togglePermissionComponentId(component.id, setPlaylistEditorComponentIds, {
+                              requiresSelectedComponent: true
+                            })
+                          }
+                          disabled={isEditLocked || !isSelected}
+                        />
+                        <span>Editar playlist</span>
+                      </label>
+                      <label className={styles.permissionToggle}>
+                        <input
+                          type="checkbox"
+                          checked={imageEditorComponentIds.includes(component.id)}
+                          onChange={() => togglePermissionComponentId(component.id, setImageEditorComponentIds)}
+                          disabled={isEditLocked}
+                        />
+                        <span>Editar imagem</span>
+                      </label>
+                    </div>
                   </article>
                 );
               })}
