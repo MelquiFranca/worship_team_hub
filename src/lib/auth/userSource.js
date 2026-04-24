@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb';
 import { AUTH_ROLES } from './constants.js';
+import { AUTH_ERROR_CODES, createAuthError } from './errors.js';
 import { getMongoCollections } from '../db/mongodb.js';
 
 const PERMISSION_TYPE_TO_ROLE = Object.freeze({
@@ -150,7 +151,6 @@ export async function loadAuthUsers() {
         passwordHash: 1
       })
       .toArray();
-
     const groupsCollection = db.collection('groups');
     const allGroupIds = resolveGroupIds(dbComponents);
     const groupFilter = buildGroupIdFilter(allGroupIds);
@@ -177,7 +177,15 @@ export async function loadAuthUsers() {
     });
 
     return Array.from(byId.values());
-  } catch {
-    return [];
+  } catch (error) {
+    throw createAuthError(
+      AUTH_ERROR_CODES.DEPENDENCY_UNAVAILABLE,
+      undefined,
+      503,
+      {
+        source: 'auth_user_source',
+        reason: error?.message || 'unknown'
+      }
+    );
   }
 }

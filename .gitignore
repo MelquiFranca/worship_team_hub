@@ -15,3 +15,5 @@ pnpm-debug.log*
 skills
 scripts/migrations
 .env
+# Local Netlify folder
+.netlify

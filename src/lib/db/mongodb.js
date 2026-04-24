@@ -1,6 +1,6 @@
 import { MongoClient } from 'mongodb';
 
-const DEFAULT_DB_NAME = 'escalas_app_local';
+const DEFAULT_DB_NAME = 'worship_team_hub';
 
 const globalForMongo = globalThis;
 
