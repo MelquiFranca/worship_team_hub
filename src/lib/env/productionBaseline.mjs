@@ -37,6 +37,13 @@ const PRODUCTION_ENV_INVENTORY = Object.freeze([
   { name: 'AUTH_ACCESS_COOKIE_NAME', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'AUTH_JWT_COOKIE_NAME', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'AUTH_REFRESH_STORE', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
+  { name: 'MONGODB_MULTI_COLLECTION_TRANSACTIONS', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
+  {
+    name: 'MONGODB_MULTI_COLLECTION_TRANSACTIONS_FALLBACK',
+    sensitivity: 'public',
+    visibility: 'server',
+    ...OPTIONAL_ENV
+  },
   { name: 'YOUTUBE_API_KEY', sensitivity: 'sensitive', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'PUSH_VAPID_PUBLIC_KEY', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'PUSH_VAPID_PRIVATE_KEY', sensitivity: 'sensitive', visibility: 'server', ...OPTIONAL_ENV },
@@ -181,6 +188,41 @@ export function collectProductionEnvValidationIssues(env = process.env) {
       createIssue('AUTH_REFRESH_STORE_INVALID', 'AUTH_REFRESH_STORE deve ser "memory" ou "mongodb".', [
         'AUTH_REFRESH_STORE'
       ])
+    );
+  }
+
+  const transactionMode = normalizeEnvValue(env.MONGODB_MULTI_COLLECTION_TRANSACTIONS).toLowerCase();
+  if (
+    transactionMode &&
+    transactionMode !== 'enabled' &&
+    transactionMode !== 'disabled' &&
+    transactionMode !== 'true' &&
+    transactionMode !== 'false'
+  ) {
+    issues.push(
+      createIssue(
+        'MONGODB_MULTI_COLLECTION_TRANSACTIONS_INVALID',
+        'MONGODB_MULTI_COLLECTION_TRANSACTIONS deve ser "enabled" ou "disabled".',
+        ['MONGODB_MULTI_COLLECTION_TRANSACTIONS']
+      )
+    );
+  }
+
+  const transactionFallback = normalizeEnvValue(env.MONGODB_MULTI_COLLECTION_TRANSACTIONS_FALLBACK).toLowerCase();
+  if (
+    transactionFallback &&
+    transactionFallback !== 'compensation' &&
+    transactionFallback !== 'enabled' &&
+    transactionFallback !== 'disabled' &&
+    transactionFallback !== 'true' &&
+    transactionFallback !== 'false'
+  ) {
+    issues.push(
+      createIssue(
+        'MONGODB_MULTI_COLLECTION_TRANSACTIONS_FALLBACK_INVALID',
+        'MONGODB_MULTI_COLLECTION_TRANSACTIONS_FALLBACK deve ser "compensation" ou "disabled".',
+        ['MONGODB_MULTI_COLLECTION_TRANSACTIONS_FALLBACK']
+      )
     );
   }
 

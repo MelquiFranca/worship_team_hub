@@ -116,10 +116,12 @@ async function ensureMongoIndexes(db) {
 }
 
 export async function getMongoCollections() {
+  const client = await getMongoClient();
   const db = await getMongoDb();
   await ensureMongoIndexes(db);
 
   return {
+    client,
     db,
     components: db.collection('components'),
     groupSettings: db.collection('group_settings'),
