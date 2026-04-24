@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import { isAuthError, toAuthErrorResponse } from '../../../lib/auth/index.js';
 import { requireApiAccessSession, resolveRequestGroupId } from '../../../lib/api/auth.js';
 import { jsonApiError } from '../../../lib/api/errors.js';
+import {
+  logBusinessEvent,
+  logRequestFailed,
+  logRequestSucceeded,
+  startMonitoringContext
+} from '../../../lib/api/monitoring.js';
 import { getTrimmedQueryParam, parseLimitParam, readJsonBody } from '../../../lib/api/request.js';
 import { isPlainObject, normalizeIsoDate, normalizeString } from '../../../lib/api/validation.js';
 import { getMongoCollections } from '../../../lib/db/mongodb.js';
@@ -255,10 +261,24 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const monitoringContext = startMonitoringContext({
+    request,
+    route: '/api/scales',
+    method: 'POST'
+  });
   const body = await readJsonBody(request);
+  const fail = (message, status, code, metadata = null) => {
+    logRequestFailed(monitoringContext, {
+      status,
+      domain: 'scales',
+      severity: status >= 500 ? 'error' : 'warn',
+      metadata: metadata || { code }
+    });
+    return jsonApiError(message, status, code);
+  };
 
   if (!isPlainObject(body)) {
-    return jsonApiError('A requisicao de cadastro de escala e invalida.', 400, 'BAD_REQUEST');
+    return fail('A requisicao de cadastro de escala e invalida.', 400, 'BAD_REQUEST');
   }
 
   try {
@@ -283,7 +303,7 @@ export async function POST(request) {
     });
 
     if (!date || !shift || !components || playlist === null || playlistEditorComponentIds === null || imageEditorComponentIds === null) {
-      return jsonApiError(
+      return fail(
         'Informe date, shift, components e permissoes validas para cadastrar a escala.',
         400,
         'BAD_REQUEST'
@@ -291,7 +311,7 @@ export async function POST(request) {
     }
 
     if (imageAttachmentInput.error) {
-      return jsonApiError(imageAttachmentInput.error, 400, 'BAD_REQUEST');
+      return fail(imageAttachmentInput.error, 400, 'BAD_REQUEST');
     }
 
     const {
@@ -306,7 +326,7 @@ export async function POST(request) {
       .toArray();
 
     if (existingComponents.length !== componentIds.length) {
-      return jsonApiError(
+      return fail(
         'Um ou mais componentId informados nao pertencem ao grupo ou nao existem.',
         400,
         'BAD_REQUEST'
@@ -317,7 +337,7 @@ export async function POST(request) {
 
     if (unavailableComponents.length > 0) {
       const componentNames = unavailableComponents.map((component) => component.name).join(', ');
-      return jsonApiError(
+      return fail(
         `Nao e possivel escalar componentes indisponiveis na data ${date}: ${componentNames}.`,
         400,
         'BAD_REQUEST'
@@ -328,7 +348,7 @@ export async function POST(request) {
       Array.isArray(playlistEditorComponentIds) &&
       (filterPermissionComponentIds(playlistEditorComponentIds, componentIds).length !== playlistEditorComponentIds.length)
     ) {
-      return jsonApiError(
+      return fail(
         'As permissoes de playlist e imagem precisam apontar para componentes selecionados na escala.',
         400,
         'BAD_REQUEST'
@@ -339,7 +359,7 @@ export async function POST(request) {
       Array.isArray(imageEditorComponentIds) &&
       filterPermissionComponentIds(imageEditorComponentIds, componentIds).length !== imageEditorComponentIds.length
     ) {
-      return jsonApiError(
+      return fail(
         'As permissoes de playlist e imagem precisam apontar para componentes selecionados na escala.',
         400,
         'BAD_REQUEST'
@@ -408,6 +428,22 @@ export async function POST(request) {
       }
       : insertedScale;
 
+    logBusinessEvent(monitoringContext, {
+      event: 'scale_created',
+      domain: 'scales',
+      status: 201,
+      metadata: {
+        scaleId: insertedScale._id,
+        groupId
+      }
+    });
+    logRequestSucceeded(monitoringContext, {
+      status: 201,
+      domain: 'scales',
+      metadata: {
+        scaleId: insertedScale._id
+      }
+    });
     return NextResponse.json(
       {
         message: 'Escala cadastrada com sucesso.',
@@ -418,13 +454,19 @@ export async function POST(request) {
     );
   } catch (error) {
     if (isAuthError(error)) {
+      logRequestFailed(monitoringContext, {
+        status: error?.status || 401,
+        domain: 'scales',
+        severity: 'warn',
+        metadata: { code: error?.code || 'AUTH_ERROR' }
+      });
       return toAuthErrorResponse(NextResponse.json, error);
     }
 
     if (error?.message === 'MongoDB indisponivel.' || error?.message === 'MongoDB nao configurado.') {
-      return jsonApiError('Servico de persistencia indisponivel no momento.', 500, 'INTERNAL_SERVER_ERROR');
+      return fail('Servico de persistencia indisponivel no momento.', 500, 'INTERNAL_SERVER_ERROR');
     }
 
-    return jsonApiError('Nao foi possivel cadastrar a escala.', 500, 'INTERNAL_SERVER_ERROR');
+    return fail('Nao foi possivel cadastrar a escala.', 500, 'INTERNAL_SERVER_ERROR');
   }
 }

@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import { createPasswordHash, isAuthError, toAuthErrorResponse } from '../../../lib/auth/index.js';
 import { requireApiAccessSession, resolveRequestGroupId } from '../../../lib/api/auth.js';
 import { jsonApiError } from '../../../lib/api/errors.js';
+import {
+  logBusinessEvent,
+  logRequestFailed,
+  logRequestSucceeded,
+  startMonitoringContext
+} from '../../../lib/api/monitoring.js';
 import { getTrimmedQueryParam, parseLimitParam, readJsonBody } from '../../../lib/api/request.js';
 import {
   isPlainObject,
@@ -146,10 +152,24 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const monitoringContext = startMonitoringContext({
+    request,
+    route: '/api/components',
+    method: 'POST'
+  });
   const body = await readJsonBody(request);
+  const fail = (message, status, code, metadata = null) => {
+    logRequestFailed(monitoringContext, {
+      status,
+      domain: 'components',
+      severity: status >= 500 ? 'error' : 'warn',
+      metadata: metadata || { code }
+    });
+    return jsonApiError(message, status, code);
+  };
 
   if (!isPlainObject(body)) {
-    return jsonApiError('A requisicao de cadastro de componente e invalida.', 400, 'BAD_REQUEST');
+    return fail('A requisicao de cadastro de componente e invalida.', 400, 'BAD_REQUEST');
   }
 
   try {
@@ -162,7 +182,7 @@ export async function POST(request) {
     const payload = buildComponentPayload(body, groupId);
 
     if (!payload) {
-      return jsonApiError(
+      return fail(
         'Informe fullName, birthDate, username, password, permissionType e pushTargets validos para continuar.',
         400,
         'BAD_REQUEST'
@@ -170,7 +190,7 @@ export async function POST(request) {
     }
 
     if (payload.error) {
-      return jsonApiError(payload.error, 400, 'BAD_REQUEST');
+      return fail(payload.error, 400, 'BAD_REQUEST');
     }
 
     const { components } = await getMongoCollections();
@@ -180,7 +200,7 @@ export async function POST(request) {
     });
 
     if (existingComponent) {
-      return jsonApiError(
+      return fail(
         'Ja existe um componente com esse username neste grupo.',
         409,
         'CONFLICT'
@@ -217,24 +237,48 @@ export async function POST(request) {
     };
 
     const result = await components.insertOne(document);
+    const insertedId = result.insertedId;
+
+    logBusinessEvent(monitoringContext, {
+      event: 'component_created',
+      domain: 'components',
+      status: 201,
+      metadata: {
+        componentId: insertedId,
+        groupId: payload.groupId
+      }
+    });
+    logRequestSucceeded(monitoringContext, {
+      status: 201,
+      domain: 'components',
+      metadata: {
+        componentId: insertedId
+      }
+    });
 
     return NextResponse.json(
       {
         message: 'Componente cadastrado com sucesso.',
         item: serializeComponent({
           ...document,
-          _id: result.insertedId
+          _id: insertedId
         })
       },
       { status: 201 }
     );
   } catch (error) {
     if (isAuthError(error)) {
+      logRequestFailed(monitoringContext, {
+        status: error?.status || 401,
+        domain: 'components',
+        severity: 'warn',
+        metadata: { code: error?.code || 'AUTH_ERROR' }
+      });
       return toAuthErrorResponse(NextResponse.json, error);
     }
 
     if (error?.code === 11000) {
-      return jsonApiError(
+      return fail(
         'Ja existe um componente com esse username neste grupo.',
         409,
         'CONFLICT'
@@ -242,9 +286,9 @@ export async function POST(request) {
     }
 
     if (error?.message === 'MongoDB indisponivel.' || error?.message === 'MongoDB nao configurado.') {
-      return jsonApiError('Servico de persistencia indisponivel no momento.', 500, 'INTERNAL_SERVER_ERROR');
+      return fail('Servico de persistencia indisponivel no momento.', 500, 'INTERNAL_SERVER_ERROR');
     }
 
-    return jsonApiError('Nao foi possivel cadastrar o componente.', 500, 'INTERNAL_SERVER_ERROR');
+    return fail('Nao foi possivel cadastrar o componente.', 500, 'INTERNAL_SERVER_ERROR');
   }
 }
