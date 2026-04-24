@@ -2,9 +2,13 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { clearClientSessionData } from '@/lib/auth/clientSessionCleanup';
-import { registerClientPushSubscription } from '@/lib/notifications/registerClientPushSubscription';
+import {
+  isRetryablePushRegistrationReason,
+  registerClientPushSubscription
+} from '@/lib/notifications/registerClientPushSubscription';
 
 const AUTH_ME_ENDPOINT = '/api/auth/me';
+const PUSH_REGISTRATION_RETRY_DELAY_MS = 30000;
 
 const defaultPermissions = Object.freeze({
   isAdminPanel: false,
@@ -24,8 +28,28 @@ const defaultPermissions = Object.freeze({
   canEditProfileName: false
 });
 
+const defaultPushNotifications = Object.freeze({
+  supported: false,
+  permission: 'unsupported',
+  isRegistering: false,
+  isReady: false,
+  lastReason: null
+});
+
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizePushPermission(value) {
+  if (value === 'granted' || value === 'denied' || value === 'default') {
+    return value;
+  }
+
+  if (value === 'unsupported') {
+    return value;
+  }
+
+  return 'default';
 }
 
 function buildLeastPrivilegePermissions() {
@@ -135,7 +159,13 @@ export function AuthSessionProvider({ children }) {
   const [claims, setClaims] = useState(null);
   const [audience, setAudience] = useState(null);
   const [role, setRole] = useState(null);
-  const hasAttemptedPushRegistrationRef = useRef(false);
+  const [pushNotifications, setPushNotifications] = useState(() => ({ ...defaultPushNotifications }));
+  const isPushRegistrationInFlightRef = useRef(false);
+
+  const resetPushNotifications = useCallback(() => {
+    isPushRegistrationInFlightRef.current = false;
+    setPushNotifications({ ...defaultPushNotifications });
+  }, []);
 
   const clearAuthState = useCallback((options = {}) => {
     const { clearClientData = false } = options;
@@ -150,7 +180,8 @@ export function AuthSessionProvider({ children }) {
     setClaims(null);
     setAudience(null);
     setRole(null);
-  }, []);
+    resetPushNotifications();
+  }, [resetPushNotifications]);
 
   const loadSessionFromServer = useCallback(
     async (options = {}) => {
@@ -236,24 +267,99 @@ export function AuthSessionProvider({ children }) {
     [audience, role, isAuthenticated]
   );
 
+  const attemptPushRegistration = useCallback(
+    async (options = {}) => {
+      const { requestPermissionIfDefault = false } = options;
+
+      if (isPushRegistrationInFlightRef.current) {
+        return { ok: false, reason: 'registration-in-flight' };
+      }
+
+      isPushRegistrationInFlightRef.current = true;
+      setPushNotifications((current) => ({
+        ...current,
+        isRegistering: true
+      }));
+
+      try {
+        const result = await registerClientPushSubscription({ requestPermissionIfDefault });
+        const supported = result?.supported !== false;
+        const permission = supported ? normalizePushPermission(result?.permission) : 'unsupported';
+        const lastReason = result?.ok ? null : normalizeString(result?.reason) || 'unknown';
+
+        setPushNotifications({
+          supported,
+          permission,
+          isRegistering: false,
+          isReady: Boolean(result?.ok),
+          lastReason
+        });
+
+        return result;
+      } catch {
+        setPushNotifications((current) => ({
+          ...current,
+          isRegistering: false,
+          isReady: false,
+          lastReason: 'unexpected-error'
+        }));
+
+        return { ok: false, reason: 'unexpected-error' };
+      } finally {
+        isPushRegistrationInFlightRef.current = false;
+      }
+    },
+    []
+  );
+
+  const requestPushNotificationPermission = useCallback(async () => {
+    if (isLoading || !isAuthenticated || !permissions.isComponentApp) {
+      return { ok: false, reason: 'not-eligible' };
+    }
+
+    return attemptPushRegistration({ requestPermissionIfDefault: true });
+  }, [attemptPushRegistration, isAuthenticated, isLoading, permissions.isComponentApp]);
+
   useEffect(() => {
     if (isLoading || !isAuthenticated || !permissions.isComponentApp) {
-      if (!isAuthenticated) {
-        hasAttemptedPushRegistrationRef.current = false;
-      }
+      resetPushNotifications();
       return;
     }
 
-    if (hasAttemptedPushRegistrationRef.current) {
+    attemptPushRegistration({ requestPermissionIfDefault: false });
+  }, [attemptPushRegistration, isAuthenticated, isLoading, permissions.isComponentApp, resetPushNotifications]);
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !permissions.isComponentApp) {
       return;
     }
 
-    hasAttemptedPushRegistrationRef.current = true;
+    if (
+      pushNotifications.permission !== 'granted' ||
+      pushNotifications.isReady ||
+      pushNotifications.isRegistering ||
+      !isRetryablePushRegistrationReason(pushNotifications.lastReason)
+    ) {
+      return;
+    }
 
-    registerClientPushSubscription().catch(() => {
-      // Registro push nao deve quebrar a sessao.
-    });
-  }, [isLoading, isAuthenticated, permissions.isComponentApp]);
+    const timer = window.setTimeout(() => {
+      attemptPushRegistration({ requestPermissionIfDefault: false });
+    }, PUSH_REGISTRATION_RETRY_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    attemptPushRegistration,
+    isAuthenticated,
+    isLoading,
+    permissions.isComponentApp,
+    pushNotifications.isReady,
+    pushNotifications.isRegistering,
+    pushNotifications.lastReason,
+    pushNotifications.permission
+  ]);
 
   const value = useMemo(
     () => ({
@@ -265,10 +371,25 @@ export function AuthSessionProvider({ children }) {
       audience,
       role,
       permissions,
+      pushNotifications,
+      requestPushNotificationPermission,
       logout,
       refreshSession
     }),
-    [isLoading, isAuthenticated, session, user, claims, audience, role, permissions, logout, refreshSession]
+    [
+      isLoading,
+      isAuthenticated,
+      session,
+      user,
+      claims,
+      audience,
+      role,
+      permissions,
+      pushNotifications,
+      requestPushNotificationPermission,
+      logout,
+      refreshSession
+    ]
   );
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;
