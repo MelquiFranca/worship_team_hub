@@ -8,6 +8,7 @@ import styles from './ComponentRegistrationForm.module.css';
 
 const PHOTO_UPLOAD_MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ACCEPTED_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const DEFAULT_PERMISSION_TYPE = 'component-app';
 
 function validateForm(values, options = {}) {
   const { isEditMode = false } = options;
@@ -140,7 +141,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
   const [birthDate, setBirthDate] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [permissionType, setPermissionType] = useState('');
+  const [permissionType, setPermissionType] = useState(DEFAULT_PERMISSION_TYPE);
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [savedPhotoDataUrl, setSavedPhotoDataUrl] = useState('');
@@ -244,7 +245,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
     setBirthDate('');
     setUsername('');
     setPassword('');
-    setPermissionType('');
+    setPermissionType(DEFAULT_PERMISSION_TYPE);
     setPhotoFile(null);
     setPhotoPreview('');
     setSavedPhotoDataUrl('');
@@ -636,9 +637,8 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
             required
             disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
           >
-            <option value="">Selecione o tipo de permissao</option>
-            <option value="group-app">group-app</option>
-            <option value="component-app">component-app</option>
+            <option value="component-app">Componente</option>
+            <option value="group-app">Organizador</option>
           </select>
           {errors.permissionType ? (
             <span className={styles.error} id="permissionType-error" role="alert">
