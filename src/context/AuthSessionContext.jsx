@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { clearClientSessionData } from '@/lib/auth/clientSessionCleanup';
+import { requestJson } from '@/lib/api/http';
 import {
   isRetryablePushRegistrationReason,
   registerClientPushSubscription
@@ -192,14 +193,12 @@ export function AuthSessionProvider({ children }) {
       }
 
       try {
-        const response = await fetch(AUTH_ME_ENDPOINT, {
+        const payload = await requestJson(AUTH_ME_ENDPOINT, {
           method: 'GET',
-          credentials: 'include',
+          cache: 'no-store',
           signal
         });
-
-        const payload = await response.json().catch(() => null);
-        const normalized = response.ok ? normalizeAuthSessionPayload(payload) : null;
+        const normalized = normalizeAuthSessionPayload(payload);
 
         if (normalized) {
           setIsAuthenticated(true);

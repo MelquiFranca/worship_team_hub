@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { getRoutePolicy, isPublicAuthPath } from './lib/auth/policies';
+import { NextResponse } from 'next/server.js';
+import { getLoginPathForPolicy, getRoutePolicy, isPublicAuthPath } from './lib/auth/policies.js';
 
 const DEFAULT_COOKIE_NAMES = [
   'access_token',
@@ -219,6 +219,37 @@ function buildAuthErrorResponse(code) {
       headers: { 'cache-control': 'no-store' }
     }
   );
+}
+
+const REDIRECTABLE_SESSION_ERROR_CODES = new Set([
+  'AUTH_TOKEN_MISSING',
+  'AUTH_TOKEN_MALFORMED',
+  'AUTH_TOKEN_EXPIRED',
+  'AUTH_TOKEN_INVALID'
+]);
+
+function isApiPath(pathname) {
+  return pathname.startsWith('/api/');
+}
+
+function buildAuthRedirectResponse(request, policy) {
+  const loginPath = getLoginPathForPolicy(policy);
+
+  return NextResponse.redirect(new URL(loginPath, request.url));
+}
+
+export function buildAuthFailureResponse(code, request, policy) {
+  const pathname = normalizePathname(request?.nextUrl?.pathname);
+  const shouldRedirectToLogin =
+    Boolean(pathname) &&
+    !isApiPath(pathname) &&
+    REDIRECTABLE_SESSION_ERROR_CODES.has(code);
+
+  if (shouldRedirectToLogin) {
+    return buildAuthRedirectResponse(request, policy);
+  }
+
+  return buildAuthErrorResponse(code);
 }
 
 function pemToArrayBuffer(pem) {
@@ -444,16 +475,16 @@ export async function middleware(request) {
   }
 
   if (authResult.status === 'missing') {
-    return buildAuthErrorResponse('AUTH_TOKEN_MISSING');
+    return buildAuthFailureResponse('AUTH_TOKEN_MISSING', request, policy);
   }
 
   if (authResult.status === 'malformed') {
-    return buildAuthErrorResponse('AUTH_TOKEN_MALFORMED');
+    return buildAuthFailureResponse('AUTH_TOKEN_MALFORMED', request, policy);
   }
 
   if (authResult.status === 'expired') {
     logAuthTechnicalEvent('auth_token_expired', request);
-    return buildAuthErrorResponse('AUTH_TOKEN_EXPIRED');
+    return buildAuthFailureResponse('AUTH_TOKEN_EXPIRED', request, policy);
   }
 
   if (authResult.status === 'forbidden') {
@@ -461,7 +492,7 @@ export async function middleware(request) {
   }
 
   logAuthTechnicalEvent('auth_signature_invalid', request);
-  return buildAuthErrorResponse('AUTH_TOKEN_INVALID');
+  return buildAuthFailureResponse('AUTH_TOKEN_INVALID', request, policy);
 }
 
 export const config = {

@@ -29,6 +29,52 @@ function isAuthTokenMissingError(status, payload) {
   return status === 401 && getApiErrorCode(payload) === 'AUTH_TOKEN_MISSING';
 }
 
+const AUTH_SILENT_REFRESH_ERROR_CODES = new Set(['AUTH_TOKEN_MISSING', 'AUTH_TOKEN_EXPIRED']);
+const AUTH_SILENT_REFRESH_BLOCKED_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/refresh',
+  '/api/auth/logout'
+]);
+let refreshInFlightPromise = null;
+
+function isRecoverableSessionError(status, payload) {
+  return status === 401 && AUTH_SILENT_REFRESH_ERROR_CODES.has(getApiErrorCode(payload));
+}
+
+function extractRequestUrl(url) {
+  if (typeof url === 'string') {
+    return url;
+  }
+
+  if (url && typeof url === 'object' && typeof url.url === 'string') {
+    return url.url;
+  }
+
+  return '';
+}
+
+function resolveRequestPathname(url) {
+  const rawUrl = extractRequestUrl(url);
+  if (!rawUrl) {
+    return '/';
+  }
+
+  const baseOrigin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost';
+
+  try {
+    return normalizePathname(new URL(rawUrl, baseOrigin).pathname);
+  } catch {
+    return '/';
+  }
+}
+
+function shouldSkipSilentRefresh(url) {
+  return AUTH_SILENT_REFRESH_BLOCKED_PATHS.has(resolveRequestPathname(url));
+}
+
 function resolveLoginPathByCurrentRoute(pathname) {
   const currentPath = normalizePathname(pathname);
   const isAdminProtectedPath = currentPath === '/admin' || currentPath.startsWith('/admin/');
@@ -128,9 +174,9 @@ export function getApiErrorMessage(payload, status, fallbackMessage = 'Nao foi p
   return fallbackMessage;
 }
 
-export async function requestJson(url, options = {}) {
+function buildJsonRequestInit(options = {}) {
   const { body, headers, method = 'GET', ...fetchOptions } = options;
-  const response = await fetch(url, {
+  return {
     ...fetchOptions,
     method,
     credentials: 'include',
@@ -140,12 +186,67 @@ export async function requestJson(url, options = {}) {
       ...headers
     },
     body: body !== undefined ? JSON.stringify(body) : undefined
+  };
+}
+
+async function refreshAuthSessionSilently() {
+  const response = await fetch('/api/auth/refresh', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
   });
+  const payload = await readResponsePayload(response);
+
+  if (!response.ok) {
+    const error = new Error(getApiErrorMessage(payload, response.status, 'Nao foi possivel renovar a sessao.'));
+    error.status = response.status;
+    error.code = getApiErrorCode(payload);
+    throw error;
+  }
+
+  return payload;
+}
+
+function ensureSingleFlightRefresh() {
+  if (!refreshInFlightPromise) {
+    refreshInFlightPromise = refreshAuthSessionSilently().finally(() => {
+      refreshInFlightPromise = null;
+    });
+  }
+
+  return refreshInFlightPromise;
+}
+
+async function requestJsonInternal(url, options = {}, internalOptions = {}) {
+  const { allowAuthRefresh = true } = internalOptions;
+
+  const response = await fetch(url, buildJsonRequestInit(options));
 
   const payload = await readResponsePayload(response);
 
   if (!response.ok) {
-    if (isAuthTokenMissingError(response.status, payload)) {
+    let shouldRedirectToLogin = false;
+
+    const canTrySilentRefresh =
+      allowAuthRefresh &&
+      typeof window !== 'undefined' &&
+      isRecoverableSessionError(response.status, payload) &&
+      !shouldSkipSilentRefresh(url);
+
+    if (canTrySilentRefresh) {
+      try {
+        await ensureSingleFlightRefresh();
+        return await requestJsonInternal(url, options, { allowAuthRefresh: false });
+      } catch {
+        shouldRedirectToLogin = true;
+      }
+    }
+
+    if (shouldRedirectToLogin || isAuthTokenMissingError(response.status, payload)) {
       redirectToLoginWhenNeeded();
     }
 
@@ -153,4 +254,8 @@ export async function requestJson(url, options = {}) {
   }
 
   return payload;
+}
+
+export async function requestJson(url, options = {}) {
+  return requestJsonInternal(url, options, { allowAuthRefresh: true });
 }

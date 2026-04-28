@@ -6,7 +6,7 @@ import Calendar from '@/components/molecules/Calendar/Calendar';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
-import { getApiErrorMessage, readResponsePayload, requestJson } from '@/lib/api/http';
+import { requestJson } from '@/lib/api/http';
 import styles from './ScaleRegistrationForm.module.css';
 
 const SHIFT_OPTIONS = ['Manha', 'Tarde', 'Noite'];
@@ -113,19 +113,6 @@ function normalizeComponentOptions(payload) {
     .map(normalizeApiComponent)
     .filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-}
-
-function resolveRequestIdFromHeaders(headers) {
-  if (!headers || typeof headers.get !== 'function') {
-    return '';
-  }
-
-  return (
-    headers.get('x-request-id') ||
-    headers.get('request-id') ||
-    headers.get('x-correlation-id') ||
-    ''
-  ).trim();
 }
 
 function formatScaleDateForPayload(date) {
@@ -361,32 +348,10 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
       setComponentLoadMessage('Carregando componentes do backend...');
 
       try {
-        const response = await fetch('/api/components', {
+        const payload = await requestJson('/api/components', {
           method: 'GET',
-          cache: 'no-store',
-          credentials: 'include',
-          headers: {
-            Accept: 'application/json'
-          }
+          cache: 'no-store'
         });
-        const payload = await readResponsePayload(response);
-        const requestId = resolveRequestIdFromHeaders(response.headers);
-
-        if (!response.ok) {
-          const message = getApiErrorMessage(
-            payload,
-            response.status,
-            'Nao foi possivel carregar os componentes do backend.'
-          );
-          throw new Error(message, {
-            cause: {
-              status: response.status,
-              requestId,
-              reason: 'http_error'
-            }
-          });
-        }
-
         const normalizedComponents = normalizeComponentOptions(payload);
 
         if (!isActive) {
@@ -394,13 +359,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
         }
 
         if (!normalizedComponents) {
-          throw new Error('Resposta invalida ao carregar componentes.', {
-            cause: {
-              status: response.status,
-              requestId,
-              reason: 'invalid_payload'
-            }
-          });
+          throw new Error('Resposta invalida ao carregar componentes.');
         }
 
         if (normalizedComponents.length > 0) {
@@ -420,15 +379,6 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
           return;
         }
 
-        const errorStatus =
-          error && typeof error === 'object' && typeof error.cause?.status === 'number'
-            ? error.cause.status
-            : null;
-        const errorRequestId =
-          error && typeof error === 'object' && typeof error.cause?.requestId === 'string'
-            ? error.cause.requestId
-            : '';
-
         console.error(
           JSON.stringify({
             event: 'components_load_failed',
@@ -437,8 +387,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
               typeof window !== 'undefined' && typeof window.location?.pathname === 'string'
                 ? window.location.pathname
                 : '/cadastro-escalas',
-            status: errorStatus,
-            requestId: errorRequestId || null,
+            status: null,
+            requestId: null,
             timestamp: new Date().toISOString()
           })
         );
