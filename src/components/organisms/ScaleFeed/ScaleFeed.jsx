@@ -13,6 +13,7 @@ const COMMENTS_VIEW = 'comments';
 const IMAGES_VIEW = 'images';
 const MESSAGE_TYPE_TEXT = 'text';
 const CURRENT_USER_ID = 'current-user';
+const CURRENT_USER_SCALES_FILTER_ID = 'scales-only-current-user';
 const COMPONENT_APP_PERMISSION_MESSAGE =
   'Seu perfil de componente pode visualizar os cards e enviar mensagens, mas notificacoes e edicao geral continuam bloqueadas.';
 const CURRENT_USER_BADGE_LABEL = 'Você';
@@ -1521,7 +1522,8 @@ function ScaleCard({
   imageLibrary,
   onPersistScaleImage,
   isComponentApp,
-  currentUser
+  currentUser,
+  shouldHighlightParticipation = false
 }) {
   const [activeView, setActiveView] = useState(COMPONENTS_VIEW);
   const [notifyFeedback, setNotifyFeedback] = useState('');
@@ -1760,15 +1762,22 @@ function ScaleCard({
   };
 
   return (
-    <article className={`${styles.scaleCard} ${isExpanded ? styles.scaleCardExpanded : ''}`}>
-      <header className={styles.cardHeader}>
+    <article
+      className={`${styles.scaleCard} ${isExpanded ? styles.scaleCardExpanded : ''} ${
+        shouldHighlightParticipation ? styles.scaleCardCurrentUser : ''
+      }`}
+    >
+      <header className={`${styles.cardHeader} ${shouldHighlightParticipation ? styles.cardHeaderCurrentUser : ''}`}>
         <div className={styles.headerContent}>
           <div className={styles.headerAvatar} aria-hidden="true">
             {scaleShift.slice(0, 1)}
           </div>
           <div className={styles.headerMeta}>
             <strong>{scaleDate}</strong>
-            <span>Turno: {scaleShift}</span>
+            <div className={styles.headerMetaInline}>
+              <span>Turno: {scaleShift}</span>
+              {shouldHighlightParticipation ? <span className={styles.headerCurrentUserTag}>Voce está escalado</span> : null}
+            </div>
           </div>
         </div>
 
@@ -1945,6 +1954,7 @@ export default function ScaleFeed({
   const [feedback, setFeedback] = useState('');
   const [expandedScaleIds, setExpandedScaleIds] = useState({});
   const [hydratedScales, setHydratedScales] = useState(() => scales);
+  const [onlyCurrentUserScales, setOnlyCurrentUserScales] = useState(false);
   const scaleImageLibrary = useMemo(() => collectImageLibrary(hydratedScales), [hydratedScales]);
   const imageLibrary = useMemo(
     () => mergeImageLibraries(persistedImageLibrary, scaleImageLibrary),
@@ -1952,6 +1962,21 @@ export default function ScaleFeed({
   );
   const { user: authUser, permissions, isLoading: isAuthSessionLoading } = useAuthSession();
   const isComponentApp = !isAuthSessionLoading && Boolean(permissions.isComponentApp);
+  const scalesWithParticipation = useMemo(
+    () =>
+      hydratedScales.map((scale) => ({
+        scale,
+        includesCurrentUser: Boolean(getCurrentUserMemberId(scale?.members, authUser))
+      })),
+    [authUser, hydratedScales]
+  );
+  const visibleScales = useMemo(
+    () =>
+      onlyCurrentUserScales
+        ? scalesWithParticipation.filter((entry) => entry.includesCurrentUser)
+        : scalesWithParticipation,
+    [onlyCurrentUserScales, scalesWithParticipation]
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -2085,6 +2110,17 @@ export default function ScaleFeed({
                 </select>
               </div>
             ) : null}
+            <div className={styles.feedFilterCheckboxControl}>
+              <label htmlFor={CURRENT_USER_SCALES_FILTER_ID}>
+                <input
+                  id={CURRENT_USER_SCALES_FILTER_ID}
+                  type="checkbox"
+                  checked={onlyCurrentUserScales}
+                  onChange={(event) => setOnlyCurrentUserScales(event.target.checked)}
+                />
+                Exibir somente escalas em que estou escalado
+              </label>
+            </div>
           </article>
         </div>
       </header>
@@ -2095,12 +2131,12 @@ export default function ScaleFeed({
         </p>
       ) : null}
 
-      {!hydratedScales.length ? (
+      {!visibleScales.length ? (
         <p className={styles.emptyState}>Nenhuma escala encontrada.</p>
       ) : null}
 
       <div className={styles.feedList}>
-        {hydratedScales.map((scale, index) => {
+        {visibleScales.map(({ scale, includesCurrentUser }, index) => {
           const scaleId = scale?.id || `${scale?.date || 'sem-data'}-${scale?.shift || 'sem-turno'}-${index}`;
           return (
             <ScaleCard
@@ -2119,6 +2155,7 @@ export default function ScaleFeed({
               }
               onEdit={handleEdit}
               currentUser={authUser}
+              shouldHighlightParticipation={includesCurrentUser && !onlyCurrentUserScales}
             />
           );
         })}
