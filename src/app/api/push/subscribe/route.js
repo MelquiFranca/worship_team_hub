@@ -14,7 +14,7 @@ import { resolveSessionComponent } from '../../../../lib/notifications/resolveSe
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const PUSH_SUBSCRIBE_ALLOWED_AUDIENCES = new Set(['component-app']);
+const PUSH_SUBSCRIBE_ALLOWED_AUDIENCES = new Set(['component-app', 'group-app']);
 
 function mergePushSubscriptions(currentSubscriptions, nextSubscription) {
   const nextEndpoint = normalizeString(nextSubscription?.endpoint);
@@ -50,7 +50,11 @@ export async function POST(request) {
     }
 
     const { components } = await getMongoCollections();
-    const component = await resolveSessionComponent(components, groupId, session.user);
+    const sessionUserId = normalizeString(session.user?.id);
+    const componentById = sessionUserId
+      ? await components.findOne({ _id: sessionUserId, groupId })
+      : null;
+    const component = componentById || (await resolveSessionComponent(components, groupId, session.user));
 
     if (!component?._id) {
       return jsonApiError('Nao foi possivel identificar o componente da sessao para registrar push.', 404, 'NOT_FOUND');

@@ -312,24 +312,31 @@ export function AuthSessionProvider({ children }) {
   );
 
   const requestPushNotificationPermission = useCallback(async () => {
-    if (isLoading || !isAuthenticated || !permissions.isComponentApp) {
+    if (isLoading || !isAuthenticated || (!permissions.isComponentApp && !permissions.isGroupApp)) {
       return { ok: false, reason: 'not-eligible' };
     }
 
     return attemptPushRegistration({ requestPermissionIfDefault: true });
-  }, [attemptPushRegistration, isAuthenticated, isLoading, permissions.isComponentApp]);
+  }, [attemptPushRegistration, isAuthenticated, isLoading, permissions.isComponentApp, permissions.isGroupApp]);
 
   useEffect(() => {
-    if (isLoading || !isAuthenticated || !permissions.isComponentApp) {
+    if (isLoading || !isAuthenticated || (!permissions.isComponentApp && !permissions.isGroupApp)) {
       resetPushNotifications();
       return;
     }
 
     attemptPushRegistration({ requestPermissionIfDefault: false });
-  }, [attemptPushRegistration, isAuthenticated, isLoading, permissions.isComponentApp, resetPushNotifications]);
+  }, [
+    attemptPushRegistration,
+    isAuthenticated,
+    isLoading,
+    permissions.isComponentApp,
+    permissions.isGroupApp,
+    resetPushNotifications
+  ]);
 
   useEffect(() => {
-    if (isLoading || !isAuthenticated || !permissions.isComponentApp) {
+    if (isLoading || !isAuthenticated || (!permissions.isComponentApp && !permissions.isGroupApp)) {
       return;
     }
 
@@ -354,6 +361,7 @@ export function AuthSessionProvider({ children }) {
     isAuthenticated,
     isLoading,
     permissions.isComponentApp,
+    permissions.isGroupApp,
     pushNotifications.isReady,
     pushNotifications.isRegistering,
     pushNotifications.lastReason,

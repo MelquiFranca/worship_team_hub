@@ -19,7 +19,7 @@ function resolveFeedbackMessage(reason) {
   }
 
   if (reason === 'not-eligible') {
-    return 'Somente contas de componente podem ativar este tipo de notificacao.';
+    return 'Somente contas component-app ou group-app podem ativar este tipo de notificacao.';
   }
 
   if (reason) {
@@ -39,7 +39,7 @@ export default function PushNotificationPermissionPrompt() {
   } = useAuthSession();
   const [feedback, setFeedback] = useState('');
 
-  if (isLoading || !isAuthenticated || !permissions.isComponentApp) {
+  if (isLoading || !isAuthenticated || (!permissions.isComponentApp && !permissions.isGroupApp)) {
     return null;
   }
 
