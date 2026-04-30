@@ -275,7 +275,12 @@ function normalizeScaleItem(payload) {
           (typeof item?.photo === 'string' && item.photo) ||
           (typeof item?.photoDataUrl === 'string' && item.photoDataUrl) ||
           (typeof item?.photoUrl === 'string' && item.photoUrl) ||
-          ''
+          '',
+        categoryTagIds: Array.isArray(item?.categoryTagIds)
+          ? item.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+          : Array.isArray(item?.component?.categoryTagIds)
+            ? item.component.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+            : []
       };
     })
     .filter(Boolean);
@@ -298,16 +303,26 @@ function normalizeScaleItem(payload) {
   };
 }
 
-function mergeScaleComponentsIntoOptions(currentOptions, scaleComponents) {
+function mergeScaleComponentsIntoOptions(currentOptions, scaleComponents, fallbackCategoryTagId = '') {
   const byId = new Map(currentOptions.map((component) => [component.id, component]));
 
   scaleComponents.forEach((item) => {
     if (!byId.has(item.componentId)) {
+      const normalizedCategoryTagIds = Array.isArray(item.categoryTagIds)
+        ? item.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+        : [];
+      const categoryTagIds = normalizedCategoryTagIds.length
+        ? normalizedCategoryTagIds
+        : fallbackCategoryTagId
+          ? [fallbackCategoryTagId]
+          : [];
+
       byId.set(item.componentId, {
         id: item.componentId,
         name: item.componentName || 'Componente sem nome',
         photo: normalizePhotoUrl(item.componentPhoto || ''),
-        role: 'Componente'
+        role: 'Componente',
+        categoryTagIds
       });
     }
   });
@@ -496,7 +511,13 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
         setFunctionsByComponent(nextFunctions);
         setMissingFunctionIds([]);
         setPlaylist(scaleItem.playlist);
-        setComponentOptions((currentOptions) => mergeScaleComponentsIntoOptions(currentOptions, scaleItem.components));
+        setComponentOptions((currentOptions) =>
+          mergeScaleComponentsIntoOptions(
+            currentOptions,
+            scaleItem.components,
+            scaleItem.categoryTagId || categoryTags[0]?.id || ''
+          )
+        );
       } catch (error) {
         if (!isActive) {
           return;

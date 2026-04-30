@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | AC-01 | Pass | Controle checkbox `scales-only-current-user` adicionado em `ScaleFeed.jsx`, com estado inicial habilitado por padrao (`true`) | Validado por analise de codigo. |
 | AC-02 | Pass | `visibleScales` filtra por `includesCurrentUser` quando `onlyCurrentUserScales` esta ativo | Validado por analise de codigo. |
-| AC-03 | Pass | Prop `shouldHighlightParticipation` + classes `cardHeaderCurrentUser` e `scaleCardCurrentUser` com tag visual `Voce está escalado` para destaque reforcado | Validado por analise de codigo. |
+| AC-03 | Pass | Prop `shouldHighlightParticipation` + classes `cardHeaderCurrentUser` e `scaleCardCurrentUser` com tag visual `Voce escalado` para destaque reforcado | Validado por analise de codigo. |
 | AC-04 | Pass | Filtro de periodo mantido e combinado no mesmo fluxo, sem alterar contrato da API | Validado por analise de codigo + `npm run lint` sem erros. |
 
 ## Resultado final
