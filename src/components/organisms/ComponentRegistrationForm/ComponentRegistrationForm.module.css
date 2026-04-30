@@ -242,6 +242,24 @@
   gap: 10px;
 }
 
+.categoryChecks {
+  display: grid;
+  gap: 8px;
+}
+
+.categoryCheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text, #0f172a);
+  font-size: 0.9rem;
+}
+
+.categoryCheck input {
+  width: 16px;
+  height: 16px;
+}
+
 .submitButton {
   border: 0;
   border-radius: 10px;

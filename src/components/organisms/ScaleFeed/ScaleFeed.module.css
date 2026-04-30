@@ -136,7 +136,7 @@
 
 .scaleCard {
   background: var(--app-surface, #fff);
-  border: 1px solid var(--app-border-strong, #d4d4d8);
+  border: 1px solid color-mix(in srgb, var(--scale-category-color, var(--app-border-strong, #d4d4d8)) 40%, var(--app-border-strong, #d4d4d8));
   border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--app-shadow-soft);
@@ -172,9 +172,47 @@
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.14);
   color: #1d4ed8;
+  font-size: 0.70rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.categoryTag {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--scale-category-color, #475569) 14%, #ffffff);
+  color: var(--scale-category-color, #475569);
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.2;
+}
+.groupTags {
+  display: inline-flex;
+  gap: 5px;
+}
+.feedFilterChips {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.categoryFilterChip {
+  border: 1px solid color-mix(in srgb, var(--scale-category-color, #475569) 35%, #d4d4d8);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--scale-category-color, #475569);
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.categoryFilterChipActive {
+  background: color-mix(in srgb, var(--scale-category-color, #475569) 14%, #ffffff);
 }
 
 .headerContent {
@@ -182,6 +220,7 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1;
 }
 
 .headerAvatar {
@@ -199,13 +238,14 @@
   display: grid;
   line-height: 1.1;
   gap: 4px;
+  flex: 1;
   align-content: start;
 }
 
 .headerMetaInline {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 30px;
 }
 
 .headerMeta strong {

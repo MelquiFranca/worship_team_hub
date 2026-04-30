@@ -20,13 +20,21 @@ import {
   parseComponentPhotoInput,
   serializeComponentPhoto
 } from '../../../lib/components/photo.js';
-import { normalizeUnavailableDatesInput, serializeUnavailableDates } from '../../../lib/components/unavailability.js';
+import {
+  normalizeUnavailabilityByDateInput,
+  serializeUnavailableDates,
+  serializeUnavailabilityByDate
+} from '../../../lib/components/unavailability.js';
 import { getMongoCollections } from '../../../lib/db/mongodb.js';
 import {
   normalizePushTargetsInput,
   serializeComponentPushTargets
 } from '../../../lib/notifications/pushTargets.js';
 import { serializePushSubscriptions } from '../../../lib/notifications/pushSubscriptions.js';
+import {
+  normalizeCategoryTagIdsInput,
+  resolveCategoryTagIdsFromSettingsDocument
+} from '../../../lib/categories/tags.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,6 +54,11 @@ function serializeComponent(document) {
   const pushSubscriptions = serializePushSubscriptions(document.pushSubscriptions);
   const photoDataUrl = serializeComponentPhoto(document);
   const unavailableDates = serializeUnavailableDates(document, { futureOnly: true });
+  const categoryTagIds = normalizeCategoryTagIdsInput(document?.categoryTagIds) || [];
+  const unavailabilityByDate = serializeUnavailabilityByDate(document, {
+    futureOnly: true,
+    fallbackCategoryTagIds: categoryTagIds
+  });
 
   return {
     id: document._id.toString(),
@@ -64,12 +77,14 @@ function serializeComponent(document) {
     pushSubscriptionCount: pushSubscriptions.length,
     hasPushSubscription: pushSubscriptions.length > 0,
     unavailableDates,
+    categoryTagIds,
+    unavailabilityByDate,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
   };
 }
 
-function buildComponentPayload(body, groupId) {
+function buildComponentPayload(body, groupId, allowedCategoryTagIds) {
   const fullName = normalizeString(body?.fullName);
   const birthDate = normalizeIsoDate(body?.birthDate);
   const username = normalizeString(body?.username);
@@ -77,7 +92,11 @@ function buildComponentPayload(body, groupId) {
   const permissionType = normalizeString(body?.permissionType);
   const photoUrl = normalizeString(body?.photoUrl);
   const pushTargets = normalizePushTargetsInput(body?.pushTargets);
-  const unavailableDates = normalizeUnavailableDatesInput(body?.unavailableDates ?? [], { futureOnly: true });
+  const categoryTagIds = normalizeCategoryTagIdsInput(body?.categoryTagIds, { allowedCategoryTagIds });
+  const unavailabilityByDate = normalizeUnavailabilityByDateInput(body?.unavailabilityByDate ?? [], {
+    futureOnly: true,
+    allowedCategoryTagIds
+  });
   const photoInput = parseComponentPhotoInput(body, { allowRemoval: false });
 
   if (
@@ -87,7 +106,8 @@ function buildComponentPayload(body, groupId) {
     !password.trim() ||
     !ALLOWED_PERMISSION_TYPES.has(permissionType) ||
     pushTargets === null ||
-    unavailableDates === null
+    !categoryTagIds ||
+    unavailabilityByDate === null
   ) {
     return null;
   }
@@ -110,8 +130,14 @@ function buildComponentPayload(body, groupId) {
       photoInput.photoProvided ??
       Boolean(photoInput.photo || photoUrl || body?.photoProvided),
     pushTargets,
-    unavailableDates
+    categoryTagIds,
+    unavailabilityByDate
   };
+}
+
+async function resolveGroupCategoryTagIds(groupSettingsCollection, groupId) {
+  const settings = await groupSettingsCollection.findOne({ groupId }, { projection: { categoryTags: 1 } });
+  return resolveCategoryTagIdsFromSettingsDocument(settings);
 }
 
 export async function GET(request) {
@@ -127,7 +153,8 @@ export async function GET(request) {
       return jsonApiError('Informe um limit entre 1 e 100.', 400, 'BAD_REQUEST');
     }
 
-    const { components } = await getMongoCollections();
+    const { components, groupSettings } = await getMongoCollections();
+    const allowedCategoryTagIds = await resolveGroupCategoryTagIds(groupSettings, groupId);
     const filter = { groupId };
     const query = components.find(filter).sort({ createdAt: -1 });
 
@@ -135,7 +162,44 @@ export async function GET(request) {
       query.limit(limit);
     }
 
-    const items = (await query.toArray()).map(serializeComponent);
+    const documents = await query.toArray();
+    const migratedDocuments = documents.map((document) => {
+      const hasStoredCategoryTagIds = Array.isArray(document?.categoryTagIds) && document.categoryTagIds.length > 0;
+      const hasStoredUnavailabilityByDate = Array.isArray(document?.unavailabilityByDate);
+      const categoryTagIds =
+        normalizeCategoryTagIdsInput(document?.categoryTagIds, { allowedCategoryTagIds }) ||
+        allowedCategoryTagIds;
+      const unavailabilityByDate = serializeUnavailabilityByDate(document, {
+        futureOnly: false,
+        allowedCategoryTagIds,
+        fallbackCategoryTagIds: categoryTagIds
+      });
+
+      return {
+        ...document,
+        categoryTagIds,
+        unavailabilityByDate,
+        __needsBackfill: !hasStoredCategoryTagIds || !hasStoredUnavailabilityByDate
+      };
+    });
+    const items = migratedDocuments.map(serializeComponent);
+    const backfillOperations = migratedDocuments
+      .filter((document) => document.__needsBackfill)
+      .map((document) =>
+        components.updateOne(
+          { _id: document._id, groupId },
+          {
+            $set: {
+              categoryTagIds: document.categoryTagIds,
+              unavailabilityByDate: document.unavailabilityByDate
+            }
+          }
+        )
+      );
+
+    if (backfillOperations.length > 0) {
+      await Promise.all(backfillOperations);
+    }
 
     return NextResponse.json({ items, count: items.length, groupId });
   } catch (error) {
@@ -179,11 +243,22 @@ export async function POST(request) {
       bodyGroupId: typeof body.groupId === 'string' ? body.groupId : '',
       queryGroupId
     });
-    const payload = buildComponentPayload(body, groupId);
+    const { components, groupSettings } = await getMongoCollections();
+    const allowedCategoryTagIds = await resolveGroupCategoryTagIds(groupSettings, groupId);
+
+    if (Object.hasOwn(body, 'categoryTagIds') && session.claims.aud !== 'group-app') {
+      return fail(
+        'Somente usuarios group-app podem configurar categorias de tag de componentes.',
+        403,
+        'FORBIDDEN'
+      );
+    }
+
+    const payload = buildComponentPayload(body, groupId, allowedCategoryTagIds);
 
     if (!payload) {
       return fail(
-        'Informe fullName, birthDate, username, password, permissionType e pushTargets validos para continuar.',
+        'Informe fullName, birthDate, username, password, permissionType, categoryTagIds e pushTargets validos para continuar.',
         400,
         'BAD_REQUEST'
       );
@@ -193,7 +268,6 @@ export async function POST(request) {
       return fail(payload.error, 400, 'BAD_REQUEST');
     }
 
-    const { components } = await getMongoCollections();
     const existingComponent = await components.findOne({
       groupId: payload.groupId,
       normalizedUsername: payload.normalizedUsername
@@ -223,7 +297,8 @@ export async function POST(request) {
       ...(payload.photo ? { photo: payload.photo } : {}),
       photoProvided: payload.photoProvided,
       pushTargets: payload.pushTargets,
-      unavailableDates: payload.unavailableDates,
+      categoryTagIds: payload.categoryTagIds,
+      unavailabilityByDate: payload.unavailabilityByDate,
       pushSubscriptions: [],
       createdAt: now,
       updatedAt: now,

@@ -22,13 +22,17 @@ function normalizeComponent(item, index) {
     (typeof item?.photo === 'string' && item.photo.trim()) ||
     '';
   const isActive = typeof item?.isActive === 'boolean' ? item.isActive : true;
+  const categoryTagIds = Array.isArray(item?.categoryTagIds)
+    ? item.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+    : [];
 
-  return { id, name, photo, isActive };
+  return { id, name, photo, isActive, categoryTagIds };
 }
 
 export default function ComponentsPageClient() {
   const { audience, isLoading: isAuthLoading } = useAuthSession();
   const [components, setComponents] = useState([]);
+  const [categoryTags, setCategoryTags] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -37,12 +41,20 @@ export default function ComponentsPageClient() {
     setError('');
 
     try {
-      const payload = await requestJson('/api/components?limit=100');
+      const [payload, groupSettingsPayload] = await Promise.all([
+        requestJson('/api/components?limit=100'),
+        requestJson('/api/group-settings')
+      ]);
       const items = Array.isArray(payload?.items) ? payload.items : [];
       const normalized = items
         .map((item, index) => normalizeComponent(item, index))
         .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
       setComponents(normalized);
+      setCategoryTags(
+        Array.isArray(groupSettingsPayload?.item?.categoryTags)
+          ? groupSettingsPayload.item.categoryTags
+          : []
+      );
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -50,6 +62,7 @@ export default function ComponentsPageClient() {
           : 'Nao foi possivel carregar os componentes.'
       );
       setComponents([]);
+      setCategoryTags([]);
     } finally {
       setIsLoading(false);
     }
@@ -78,5 +91,11 @@ export default function ComponentsPageClient() {
     );
   }
 
-  return <ComponentsGallery components={components} canEdit={Boolean(!isAuthLoading && audience === 'group-app')} />;
+  return (
+    <ComponentsGallery
+      components={components}
+      categoryTags={categoryTags}
+      canEdit={Boolean(!isAuthLoading && audience === 'group-app')}
+    />
+  );
 }

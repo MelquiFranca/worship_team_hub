@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
 import styles from './GroupGeneralSettings.module.css';
 
@@ -74,6 +74,7 @@ export default function GroupGeneralSettings() {
     toggleAvailableFunction,
     addFunctionOption,
     removeFunctionOption,
+    categoryTags,
     saveSettings
   } = useGroupSettings();
 
@@ -81,6 +82,7 @@ export default function GroupGeneralSettings() {
   const [fileError, setFileError] = useState('');
   const [newFunctionName, setNewFunctionName] = useState('');
   const [newFunctionHint, setNewFunctionHint] = useState('');
+  const [newFunctionCategoryTagId, setNewFunctionCategoryTagId] = useState('');
   const [functionEditorMessage, setFunctionEditorMessage] = useState('');
 
   const selectedFunctions = useMemo(() => new Set(settings.availableFunctions), [settings.availableFunctions]);
@@ -147,7 +149,7 @@ export default function GroupGeneralSettings() {
   }
 
   function handleAddFunctionType() {
-    const result = addFunctionOption(newFunctionName, newFunctionHint);
+    const result = addFunctionOption(newFunctionName, newFunctionHint, newFunctionCategoryTagId);
 
     if (!result.ok) {
       setFunctionEditorMessage(result.message || 'Nao foi possivel adicionar a funcao.');
@@ -169,6 +171,13 @@ export default function GroupGeneralSettings() {
 
     setFunctionEditorMessage('Tipo de funcao excluido.');
   }
+
+
+  useEffect(() => {
+    if (!newFunctionCategoryTagId && categoryTags[0]?.id) {
+      setNewFunctionCategoryTagId(categoryTags[0].id);
+    }
+  }, [newFunctionCategoryTagId, categoryTags]);
 
   const customFunctionOptions = useMemo(
     () => functionOptions.filter((option) => option.isCustom),
@@ -362,6 +371,20 @@ export default function GroupGeneralSettings() {
                   placeholder="Ex.: Melodias e solos"
                 />
               </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Categoria da funcao</span>
+                <select
+                  className={styles.textInput}
+                  value={newFunctionCategoryTagId}
+                  onChange={(event) => setNewFunctionCategoryTagId(event.target.value)}
+                >
+                  {categoryTags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             <button type="button" className={styles.secondaryButton} onClick={handleAddFunctionType}>
               Adicionar tipo
@@ -374,6 +397,9 @@ export default function GroupGeneralSettings() {
                     <div>
                       <strong>{option.label}</strong>
                       <span>{option.hint || 'Funcao personalizada'}</span>
+                      <span>
+                        Categoria: {categoryTags.find((tag) => tag.id === option.categoryTagId)?.label || 'Nao definida'}
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -450,6 +476,36 @@ export default function GroupGeneralSettings() {
             </span>
             <span className={styles.previewChip}>Funcao principal: {primaryFunctionLabel}</span>
             <span className={styles.previewChip}>{settings.photo ? 'Foto personalizada' : 'Foto padrao'}</span>
+          </div>
+        </section>
+
+        <section className={styles.card} aria-labelledby="categories-title">
+          <div className={styles.cardHeader}>
+            <div>
+              <p className={styles.sectionLabel}>Categorias</p>
+              <h2 id="categories-title" className={styles.sectionTitle}>
+                Tags de categoria
+              </h2>
+            </div>
+            <span className={styles.smallTone}>{categoryTags.length} categoria(s)</span>
+          </div>
+
+          <div className={styles.categoryEditor}>
+            <div className={styles.customFunctionList}>
+              {categoryTags.map((tag) => (
+                <div key={tag.id} className={styles.customFunctionItem}>
+                  <div className={styles.categoryRow}>
+                    <div className={styles.colorInputWrap}>
+                      <span className={styles.colorInput} style={{ backgroundColor: tag.color }} aria-hidden="true" />
+                      <input className={styles.textInput} type="text" value={tag.color} readOnly />
+                    </div>
+                    <input className={styles.textInput} type="text" value={tag.label} readOnly />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className={styles.fieldMeta}>Categorias fixas da aplicacao: Louvor e Midia.</p>
+            {validationErrors.categoryTags ? <p className={styles.errorText}>{validationErrors.categoryTags}</p> : null}
           </div>
         </section>
       </div>

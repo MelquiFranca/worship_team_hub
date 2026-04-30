@@ -69,8 +69,31 @@ function normalizeApiComponent(component) {
       (typeof component.function === 'string' && component.function) ||
       (typeof component.primaryFunction === 'string' && component.primaryFunction) ||
       'Componente',
+    categoryTagIds: Array.isArray(component.categoryTagIds)
+      ? component.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+      : [],
     unavailableDates: Array.isArray(component.unavailableDates)
       ? component.unavailableDates.filter((entry) => typeof entry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry))
+      : [],
+    unavailabilityByDate: Array.isArray(component.unavailabilityByDate)
+      ? component.unavailabilityByDate
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') {
+            return null;
+          }
+
+          const date = typeof entry.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.date) ? entry.date : '';
+          const categoryTagIds = Array.isArray(entry.categoryTagIds)
+            ? entry.categoryTagIds.filter((item) => typeof item === 'string' && item.trim())
+            : [];
+
+          if (!date || !categoryTagIds.length) {
+            return null;
+          }
+
+          return { date, categoryTagIds };
+        })
+        .filter(Boolean)
       : []
   };
 }
@@ -127,16 +150,21 @@ function formatScaleDateForPayload(date) {
   return `${year}-${month}-${day}`;
 }
 
-function componentIsUnavailableOnDate(component, isoDate) {
-  if (!isoDate) {
+function componentIsUnavailableOnDate(component, isoDate, categoryTagId) {
+  if (!isoDate || !categoryTagId) {
     return false;
   }
 
-  if (!Array.isArray(component?.unavailableDates)) {
+  if (!Array.isArray(component?.unavailabilityByDate)) {
     return false;
   }
 
-  return component.unavailableDates.includes(isoDate);
+  return component.unavailabilityByDate.some(
+    (entry) =>
+      entry?.date === isoDate &&
+      Array.isArray(entry?.categoryTagIds) &&
+      entry.categoryTagIds.includes(categoryTagId)
+  );
 }
 
 function parseScaleDate(value) {
@@ -258,6 +286,7 @@ function normalizeScaleItem(payload) {
   return {
     date: typeof candidate.date === 'string' ? candidate.date : '',
     shift: typeof candidate.shift === 'string' ? candidate.shift : '',
+    categoryTagId: typeof candidate.categoryTagId === 'string' ? candidate.categoryTagId : '',
     components,
     playlist: normalizeScalePlaylist(candidate.playlist),
     playlistEditorComponentIds: normalizePermissionComponentIds(
@@ -307,7 +336,7 @@ function isSupportedYouTubeUrl(rawUrl) {
 
 export default function ScaleRegistrationForm({ scaleId = '' }) {
   const { permissions, isLoading: isAuthSessionLoading } = useAuthSession();
-  const { settings, availableFunctionOptions } = useGroupSettings();
+  const { settings, availableFunctionOptions, categoryTags } = useGroupSettings();
   const normalizedScaleId = typeof scaleId === 'string' ? scaleId.trim() : '';
   const isEditMode = Boolean(normalizedScaleId);
   const isComponentApp = !isAuthSessionLoading && Boolean(permissions.isComponentApp);
@@ -319,6 +348,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const [scaleDate, setScaleDate] = useState(null);
   const [scaleDateError, setScaleDateError] = useState('');
   const [shift, setShift] = useState('');
+  const [categoryTagId, setCategoryTagId] = useState('');
   const [selectedComponentIds, setSelectedComponentIds] = useState([]);
   const [playlistEditorComponentIds, setPlaylistEditorComponentIds] = useState([]);
   const [imageEditorComponentIds, setImageEditorComponentIds] = useState([]);
@@ -339,6 +369,16 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const [isScaleLoading, setIsScaleLoading] = useState(isEditMode);
   const [scaleLoadError, setScaleLoadError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    if (categoryTagId) {
+      return;
+    }
+
+    if (Array.isArray(categoryTags) && categoryTags.length > 0) {
+      setCategoryTagId(categoryTags[0].id);
+    }
+  }, [categoryTagId, categoryTags]);
 
   useEffect(() => {
     let isActive = true;
@@ -447,6 +487,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
         setScaleDate(dateValue);
         setShift(scaleItem.shift || '');
+        setCategoryTagId(scaleItem.categoryTagId || categoryTags[0]?.id || '');
         setSelectedComponentIds(selectedIds);
         setPlaylistEditorComponentIds(
           scaleItem.playlistEditorComponentIds.filter((componentId) => selectedIds.includes(componentId))
@@ -478,33 +519,53 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
     return () => {
       isActive = false;
     };
-  }, [isEditMode, normalizedScaleId]);
+  }, [categoryTags, isEditMode, normalizedScaleId]);
 
+  const filteredComponentOptions = useMemo(() => {
+    if (!categoryTagId) {
+      return componentOptions;
+    }
+
+    return componentOptions.filter((component) => Array.isArray(component.categoryTagIds) && component.categoryTagIds.includes(categoryTagId));
+  }, [categoryTagId, componentOptions]);
+  const isLouvorCategory = categoryTagId === 'louvor';
+
+  useEffect(() => {
+    if (isLouvorCategory) {
+      return;
+    }
+
+    setPlaylist([]);
+    setPlaylistEditorComponentIds([]);
+  }, [isLouvorCategory]);
   const selectedComponents = useMemo(
     () => componentOptions.filter((component) => selectedComponentIds.includes(component.id)),
     [componentOptions, selectedComponentIds]
   );
-  const hasAvailableComponents = componentOptions.length > 0;
+  const hasAvailableComponents = filteredComponentOptions.length > 0;
   const isSubmitBlockedByComponents = !hasAvailableComponents || componentLoadState === 'loading';
   const selectedScaleDateIso = useMemo(() => formatScaleDateForPayload(scaleDate), [scaleDate]);
   const unavailableSelectedComponents = useMemo(
-    () => selectedComponents.filter((component) => componentIsUnavailableOnDate(component, selectedScaleDateIso)),
-    [selectedComponents, selectedScaleDateIso]
+    () => selectedComponents.filter((component) => componentIsUnavailableOnDate(component, selectedScaleDateIso, categoryTagId)),
+    [categoryTagId, selectedComponents, selectedScaleDateIso]
   );
 
   const selectedFunctionsCount = selectedComponents.filter((component) =>
     Boolean(functionsByComponent[component.id]?.trim())
   ).length;
+  const selectedCategoryTagLabel =
+    categoryTags.find((tag) => tag.id === categoryTagId)?.label ||
+    'Pendente';
   const functionSelectOptions = useMemo(() => {
     const configuredIds = new Set(settings.availableFunctions);
-    const configuredLabels = availableFunctionOptions
-      .filter((option) => configuredIds.has(option.id))
-      .map((option) => option.label);
+    const configuredOptions = availableFunctionOptions.filter((option) => configuredIds.has(option.id));
+    const filteredByCategory = configuredOptions.filter(
+      (option) => !option.categoryTagId || option.categoryTagId === categoryTagId
+    );
+    const optionLabels = (filteredByCategory.length ? filteredByCategory : configuredOptions).map((option) => option.label);
 
-    return configuredLabels.length
-      ? configuredLabels
-      : GROUP_FUNCTION_OPTIONS.map((option) => option.label);
-  }, [availableFunctionOptions, settings.availableFunctions]);
+    return optionLabels.length ? optionLabels : GROUP_FUNCTION_OPTIONS.map((option) => option.label);
+  }, [availableFunctionOptions, categoryTagId, settings.availableFunctions]);
 
   const toggleComponent = (componentId) => {
     if (isEditLocked) {
@@ -757,6 +818,33 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
     setMissingFunctionIds((currentMissingIds) => currentMissingIds.filter((id) => allowedIds.has(id)));
   }, [componentOptions]);
 
+  useEffect(() => {
+    if (!categoryTagId) {
+      return;
+    }
+
+    const allowedIds = new Set(
+      componentOptions
+        .filter((component) => Array.isArray(component.categoryTagIds) && component.categoryTagIds.includes(categoryTagId))
+        .map((component) => component.id)
+    );
+
+    setSelectedComponentIds((currentIds) => currentIds.filter((id) => allowedIds.has(id)));
+    setPlaylistEditorComponentIds((currentIds) => currentIds.filter((id) => allowedIds.has(id)));
+    setFunctionsByComponent((currentFunctions) => {
+      const nextFunctions = {};
+
+      Object.entries(currentFunctions).forEach(([componentId, value]) => {
+        if (allowedIds.has(componentId)) {
+          nextFunctions[componentId] = value;
+        }
+      });
+
+      return nextFunctions;
+    });
+    setMissingFunctionIds((currentMissingIds) => currentMissingIds.filter((id) => allowedIds.has(id)));
+  }, [categoryTagId, componentOptions]);
+
   const handleSubmit = async () => {
     if (isEditLocked) {
       setSubmitError('Seu perfil de componente nao tem permissao para editar esta escala.');
@@ -785,6 +873,10 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
     if (!shift) {
       validationErrors.push('Selecione o turno da escala.');
+    }
+
+    if (!categoryTagId) {
+      validationErrors.push('Selecione a categoria da escala.');
     }
 
     if (!selectedComponents.length) {
@@ -817,22 +909,25 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
     const payload = {
       date: formatScaleDateForPayload(scaleDate),
       shift,
+      categoryTagId,
       components: selectedComponents.map((component) => ({
         componentId: component.id,
         function: functionsByComponent[component.id].trim()
       })),
-      playlistEditorComponentIds: playlistEditorComponentIds.filter((componentId) =>
-        selectedComponentIds.includes(componentId)
-      ),
+      playlistEditorComponentIds: isLouvorCategory
+        ? playlistEditorComponentIds.filter((componentId) => selectedComponentIds.includes(componentId))
+        : [],
       imageEditorComponentIds,
-      playlist: playlist.map((item) => ({
-        videoId: getVideoId(item) || '',
-        title: item.title || '',
-        channelTitle: item.channelTitle || '',
-        url: item.url || item.videoUrl || '',
-        videoUrl: item.videoUrl || item.url || '',
-        thumbnailUrl: item.thumbnailUrl || ''
-      }))
+      playlist: isLouvorCategory
+        ? playlist.map((item) => ({
+          videoId: getVideoId(item) || '',
+          title: item.title || '',
+          channelTitle: item.channelTitle || '',
+          url: item.url || item.videoUrl || '',
+          videoUrl: item.videoUrl || item.url || '',
+          thumbnailUrl: item.thumbnailUrl || ''
+        }))
+        : []
     };
 
     setIsSubmitting(true);
@@ -938,10 +1033,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
             <strong>{shift || 'Nao definido'}</strong>
           </article>
           <article>
-            <span>Playlist</span>
-            <strong>
-              {playlist.length} musica{playlist.length === 1 ? '' : 's'}
-            </strong>
+            <span>Categoria</span>
+            <strong>{selectedCategoryTagLabel}</strong>
           </article>
         </div>
       </header>
@@ -1020,6 +1113,24 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                   ))}
                 </div>
               </div>
+
+              <div className={styles.fieldGroup}>
+                <span className={styles.fieldLabel}>Categoria da escala</span>
+                <div className={styles.shiftGroup} role="radiogroup" aria-label="Categoria da escala">
+                  {categoryTags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      className={`${styles.shiftButton} ${categoryTagId === tag.id ? styles.shiftButtonActive : ''}`}
+                      onClick={() => setCategoryTagId(tag.id)}
+                      disabled={isEditLocked}
+                      aria-pressed={categoryTagId === tag.id}
+                    >
+                      {tag.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
 
@@ -1058,9 +1169,9 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
             ) : null}
 
             <div className={styles.componentGrid}>
-              {componentOptions.map((component) => {
+              {filteredComponentOptions.map((component) => {
                 const isSelected = selectedComponentIds.includes(component.id);
-                const isUnavailableForDate = componentIsUnavailableOnDate(component, selectedScaleDateIso);
+                const isUnavailableForDate = componentIsUnavailableOnDate(component, selectedScaleDateIso, categoryTagId);
                 const isSelectionBlocked = isUnavailableForDate && !isSelected;
 
                 return (
@@ -1136,19 +1247,21 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
                     <div className={styles.permissionFieldset}>
                       <span className={styles.permissionLabel}>Permissoes extras</span>
-                      <label className={styles.permissionToggle}>
-                        <input
-                          type="checkbox"
-                          checked={playlistEditorComponentIds.includes(component.id)}
-                          onChange={() =>
-                            togglePermissionComponentId(component.id, setPlaylistEditorComponentIds, {
-                              requiresSelectedComponent: true
-                            })
-                          }
-                          disabled={isEditLocked || !isSelected}
-                        />
-                        <span>Editar playlist</span>
-                      </label>
+                      {isLouvorCategory ? (
+                        <label className={styles.permissionToggle}>
+                          <input
+                            type="checkbox"
+                            checked={playlistEditorComponentIds.includes(component.id)}
+                            onChange={() =>
+                              togglePermissionComponentId(component.id, setPlaylistEditorComponentIds, {
+                                requiresSelectedComponent: true
+                              })
+                            }
+                            disabled={isEditLocked || !isSelected}
+                          />
+                          <span>Editar playlist</span>
+                        </label>
+                      ) : null}
                       <label className={styles.permissionToggle}>
                         <input
                           type="checkbox"
@@ -1164,17 +1277,24 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
               })}
             </div>
 
+            {!filteredComponentOptions.length ? (
+              <p className={styles.emptyState}>
+                Nenhum componente vinculado a categoria selecionada.
+              </p>
+            ) : null}
+
             <div className={styles.selectionSummary}>
               <span>{selectedComponents.length} componente(s) selecionado(s)</span>
               <span>{selectedFunctionsCount} funcao(oes) selecionada(s)</span>
-              <span>{playlistEditorComponentIds.length} com acesso a playlist</span>
+              {isLouvorCategory ? <span>{playlistEditorComponentIds.length} com acesso a playlist</span> : null}
               <span>{imageEditorComponentIds.length} com acesso a imagem</span>
             </div>
           </section>
         </div>
 
         <aside className={styles.sideColumn}>
-          <section className={styles.card}>
+          {isLouvorCategory ? (
+            <section className={styles.card}>
             <div className={styles.cardHeader}>
               <h2>Busca de musicas</h2>
               <p>Pesquise no YouTube e adicione os resultados na playlist da escala.</p>
@@ -1258,9 +1378,11 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                 </p>
               )}
             </div>
-          </section>
+            </section>
+          ) : null}
 
-          <section className={styles.card}>
+          {isLouvorCategory ? (
+            <section className={styles.card}>
             <div className={styles.cardHeader}>
               <h2>Adicionar por link</h2>
               <p>Cole um link do YouTube/YouTube Music (musica, video ou playlist), carregue o preview e adicione.</p>
@@ -1339,9 +1461,11 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
             ) : (
               <p className={styles.emptyState}>Nenhum preview carregado ainda.</p>
             )}
-          </section>
+            </section>
+          ) : null}
 
-          <section className={styles.card}>
+          {isLouvorCategory ? (
+            <section className={styles.card}>
             <div className={styles.cardHeader}>
               <h2>Playlist da escala</h2>
               <p>Evite duplicatas e acompanhe a ordem do repertorio.</p>
@@ -1374,7 +1498,8 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
             ) : (
               <p className={styles.emptyState}>Nenhuma musica adicionada ainda.</p>
             )}
-          </section>
+            </section>
+          ) : null}
 
           <section className={styles.card}>
             <div className={styles.cardHeader}>
@@ -1396,9 +1521,15 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                 <strong>{selectedComponents.length}</strong>
               </div>
               <div>
-                <span className={styles.fieldLabel}>Playlist</span>
-                <strong>{playlist.length}</strong>
+                <span className={styles.fieldLabel}>Categoria</span>
+                <strong>{selectedCategoryTagLabel}</strong>
               </div>
+              {isLouvorCategory ? (
+                <div>
+                  <span className={styles.fieldLabel}>Playlist</span>
+                  <strong>{playlist.length}</strong>
+                </div>
+              ) : null}
             </div>
 
             <div className={styles.actionRow}>

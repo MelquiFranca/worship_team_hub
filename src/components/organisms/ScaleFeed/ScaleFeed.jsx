@@ -247,6 +247,29 @@ function mergeImageLibraries(...libraries) {
   return merged;
 }
 
+function resolveScaleCategoryMeta(categoryTags, categoryTagId) {
+  const id = typeof categoryTagId === 'string' ? categoryTagId.trim() : '';
+  const fallback = { id: id || 'sem-categoria', label: 'Sem categoria', color: '#475569' };
+
+  if (!Array.isArray(categoryTags) || !categoryTags.length || !id) {
+    return fallback;
+  }
+
+  const found = categoryTags.find((entry) => entry?.id === id);
+  if (!found) {
+    return fallback;
+  }
+
+  const color = typeof found.color === 'string' && found.color.trim() ? found.color.trim() : fallback.color;
+  const label = typeof found.label === 'string' && found.label.trim() ? found.label.trim() : fallback.label;
+
+  return {
+    id,
+    label,
+    color
+  };
+}
+
 function normalizePermissionComponentIds(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -1523,6 +1546,7 @@ function ScaleCard({
   onPersistScaleImage,
   isComponentApp,
   currentUser,
+  categoryTags = [],
   shouldHighlightParticipation = false
 }) {
   const [activeView, setActiveView] = useState(COMPONENTS_VIEW);
@@ -1538,6 +1562,11 @@ function ScaleCard({
   const [isPlaylistSaving, setIsPlaylistSaving] = useState(false);
   const scaleDate = scale?.date || 'Data nao informada';
   const scaleShift = scale?.shift || 'Turno nao informado';
+  const categoryMeta = useMemo(
+    () => resolveScaleCategoryMeta(categoryTags, scale?.categoryTagId),
+    [categoryTags, scale?.categoryTagId]
+  );
+  const isLouvorCategory = categoryMeta.id === 'louvor';
   const hasResolvedAuthSession = Boolean(currentUser);
   const currentUserMemberId = useMemo(() => getCurrentUserMemberId(scale.members, currentUser), [scale.members, currentUser]);
   const currentUserAuthId =
@@ -1573,6 +1602,12 @@ function ScaleCard({
   useEffect(() => {
     setCurrentMessages(Array.isArray(scale.messages) ? scale.messages : []);
   }, [scale.messages]);
+
+  useEffect(() => {
+    if (!isLouvorCategory && activeView === PLAYLIST_VIEW) {
+      setActiveView(COMPONENTS_VIEW);
+    }
+  }, [activeView, isLouvorCategory]);
 
   const handleNotify = async () => {
     if (isComponentApp) {
@@ -1766,6 +1801,7 @@ function ScaleCard({
       className={`${styles.scaleCard} ${isExpanded ? styles.scaleCardExpanded : ''} ${
         shouldHighlightParticipation ? styles.scaleCardCurrentUser : ''
       }`}
+      style={{ '--scale-category-color': categoryMeta.color }}
     >
       <header className={`${styles.cardHeader} ${shouldHighlightParticipation ? styles.cardHeaderCurrentUser : ''}`}>
         <div className={styles.headerContent}>
@@ -1776,8 +1812,11 @@ function ScaleCard({
             <strong>{scaleDate}</strong>
             <div className={styles.headerMetaInline}>
               <span>Turno: {scaleShift}</span>
-              {shouldHighlightParticipation ? <span className={styles.headerCurrentUserTag}>Voce está escalado</span> : null}
             </div>
+          </div>
+          <div className={styles.groupTags}>
+            <span className={styles.categoryTag}>{categoryMeta.label}</span>
+            {shouldHighlightParticipation ? <span className={styles.headerCurrentUserTag}>Escalado</span> : null}
           </div>
         </div>
 
@@ -1799,7 +1838,7 @@ function ScaleCard({
           {activeView === COMPONENTS_VIEW ? (
             <ComponentsPanel members={scale.members} currentUser={currentUser} />
           ) : null}
-          {activeView === PLAYLIST_VIEW ? (
+          {isLouvorCategory && activeView === PLAYLIST_VIEW ? (
             <PlaylistPanel
               scaleId={scaleId}
               playlist={currentPlaylist}
@@ -1863,18 +1902,20 @@ function ScaleCard({
             >
               <IconUsers />
             </button>
-            <button
-              type="button"
-              className={`${styles.iconButton} ${
-                activeView === PLAYLIST_VIEW ? styles.actionButtonActive : ''
-              }`}
-              onClick={() => setActiveView(PLAYLIST_VIEW)}
-              aria-pressed={activeView === PLAYLIST_VIEW}
-              aria-label="Abrir playlist"
-              title="Playlist"
-            >
-              <IconPlay />
-            </button>
+            {isLouvorCategory ? (
+              <button
+                type="button"
+                className={`${styles.iconButton} ${
+                  activeView === PLAYLIST_VIEW ? styles.actionButtonActive : ''
+                }`}
+                onClick={() => setActiveView(PLAYLIST_VIEW)}
+                aria-pressed={activeView === PLAYLIST_VIEW}
+                aria-label="Abrir playlist"
+                title="Playlist"
+              >
+                <IconPlay />
+              </button>
+            ) : null}
             <button
               type="button"
               className={`${styles.iconButton} ${
@@ -1946,6 +1987,8 @@ function ScaleCard({
 export default function ScaleFeed({
   scales,
   imageLibrary: persistedImageLibrary = [],
+  categoryTags = [],
+  sessionCategoryTagIds = [],
   timeScope = 'current-and-future',
   onChangeTimeScope,
   timeScopeOptions = []
@@ -1955,6 +1998,7 @@ export default function ScaleFeed({
   const [expandedScaleIds, setExpandedScaleIds] = useState({});
   const [hydratedScales, setHydratedScales] = useState(() => scales);
   const [onlyCurrentUserScales, setOnlyCurrentUserScales] = useState(false);
+  const [selectedCategoryTagIds, setSelectedCategoryTagIds] = useState([]);
   const scaleImageLibrary = useMemo(() => collectImageLibrary(hydratedScales), [hydratedScales]);
   const imageLibrary = useMemo(
     () => mergeImageLibraries(persistedImageLibrary, scaleImageLibrary),
@@ -1970,12 +2014,35 @@ export default function ScaleFeed({
       })),
     [authUser, hydratedScales]
   );
+  const filterCategoryTags = useMemo(() => {
+    const source = Array.isArray(categoryTags) && categoryTags.length
+      ? categoryTags
+      : Array.from(
+        new Set(hydratedScales.map((scale) => (typeof scale?.categoryTagId === 'string' ? scale.categoryTagId : '')).filter(Boolean))
+      ).map((id) => ({ id, label: id, color: '#475569' }));
+    return source;
+  }, [categoryTags, hydratedScales]);
+
+  useEffect(() => {
+    const defaults = Array.isArray(sessionCategoryTagIds) && sessionCategoryTagIds.length
+      ? sessionCategoryTagIds
+      : filterCategoryTags.map((tag) => tag.id);
+    setSelectedCategoryTagIds(defaults);
+  }, [sessionCategoryTagIds, filterCategoryTags]);
+
   const visibleScales = useMemo(
-    () =>
-      onlyCurrentUserScales
-        ? scalesWithParticipation.filter((entry) => entry.includesCurrentUser)
-        : scalesWithParticipation,
-    [onlyCurrentUserScales, scalesWithParticipation]
+    () => {
+      const categoryFilterIsActive = selectedCategoryTagIds.length > 0;
+      const selectedTagIdSet = new Set(selectedCategoryTagIds);
+      const byCategory = categoryFilterIsActive
+        ? scalesWithParticipation.filter((entry) => selectedTagIdSet.has(entry.scale?.categoryTagId))
+        : scalesWithParticipation;
+
+      return onlyCurrentUserScales
+        ? byCategory.filter((entry) => entry.includesCurrentUser)
+        : byCategory;
+    },
+    [onlyCurrentUserScales, scalesWithParticipation, selectedCategoryTagIds]
   );
 
   useEffect(() => {
@@ -2121,6 +2188,27 @@ export default function ScaleFeed({
                 Exibir somente escalas em que estou escalado
               </label>
             </div>
+            <div className={styles.feedFilterChips}>
+              {filterCategoryTags.map((tag) => {
+                const active = selectedCategoryTagIds.includes(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className={`${styles.categoryFilterChip} ${active ? styles.categoryFilterChipActive : ''}`}
+                    style={{ '--scale-category-color': tag.color }}
+                    onClick={() =>
+                      setSelectedCategoryTagIds((current) =>
+                        current.includes(tag.id) ? current.filter((id) => id !== tag.id) : [...current, tag.id]
+                      )
+                    }
+                    aria-pressed={active}
+                  >
+                    {tag.label}
+                  </button>
+                );
+              })}
+            </div>
           </article>
         </div>
       </header>
@@ -2155,6 +2243,7 @@ export default function ScaleFeed({
               }
               onEdit={handleEdit}
               currentUser={authUser}
+              categoryTags={categoryTags}
               shouldHighlightParticipation={includesCurrentUser && !onlyCurrentUserScales}
             />
           );

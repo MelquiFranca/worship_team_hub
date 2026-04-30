@@ -4,7 +4,7 @@ import { requireApiAccessSession, resolveRequestGroupId } from '../../../../lib/
 import { jsonApiError } from '../../../../lib/api/errors.js';
 import { getTrimmedQueryParam } from '../../../../lib/api/request.js';
 import { serializeComponentPhoto } from '../../../../lib/components/photo.js';
-import { serializeUnavailableDates } from '../../../../lib/components/unavailability.js';
+import { serializeUnavailableDates, serializeUnavailabilityByDate } from '../../../../lib/components/unavailability.js';
 import { getMongoCollections } from '../../../../lib/db/mongodb.js';
 
 export const runtime = 'nodejs';
@@ -14,7 +14,10 @@ function toGroupedResponse(groupId, components) {
   const groupedByDate = new Map();
 
   for (const component of components) {
-    const unavailableDates = serializeUnavailableDates(component, { futureOnly: true });
+    const unavailabilityByDate = serializeUnavailabilityByDate(component, { futureOnly: true });
+    const unavailableDates = unavailabilityByDate.length > 0
+      ? unavailabilityByDate.map((entry) => entry.date)
+      : serializeUnavailableDates(component, { futureOnly: true });
 
     if (!unavailableDates.length) {
       continue;
@@ -75,9 +78,12 @@ export async function GET(request) {
       .find({
         groupId,
         isActive: { $ne: false },
-        unavailableDates: { $exists: true, $ne: [] }
+        $or: [
+          { unavailabilityByDate: { $exists: true, $ne: [] } },
+          { unavailableDates: { $exists: true, $ne: [] } }
+        ]
       })
-      .project({ _id: 1, fullName: 1, unavailableDates: 1, photo: 1, photoUrl: 1 })
+      .project({ _id: 1, fullName: 1, unavailabilityByDate: 1, unavailableDates: 1, photo: 1, photoUrl: 1 })
       .toArray();
 
     return NextResponse.json(toGroupedResponse(groupId, documents));

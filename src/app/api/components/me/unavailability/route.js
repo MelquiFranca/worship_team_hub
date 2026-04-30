@@ -7,19 +7,36 @@ import { isPlainObject } from '../../../../../lib/api/validation.js';
 import { resolveSessionComponent } from '../../../../../lib/notifications/resolveSessionComponent.js';
 import {
   normalizeUnavailableDatesInput,
-  serializeUnavailableDates
+  normalizeUnavailabilityByDateInput,
+  serializeUnavailabilityByDate
 } from '../../../../../lib/components/unavailability.js';
 import { getMongoCollections } from '../../../../../lib/db/mongodb.js';
+import {
+  normalizeCategoryTagIdsInput,
+  resolveCategoryTagIdsFromSettingsDocument
+} from '../../../../../lib/categories/tags.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function serializePayload(document) {
+  const categoryTagIds = normalizeCategoryTagIdsInput(document?.categoryTagIds) || [];
+
   return {
     componentId: document._id.toString(),
-    unavailableDates: serializeUnavailableDates(document, { futureOnly: true }),
+    unavailableDates: [],
+    unavailabilityByDate: serializeUnavailabilityByDate(document, {
+      futureOnly: true,
+      fallbackCategoryTagIds: categoryTagIds
+    }),
+    categoryTagIds,
     updatedAt: document.updatedAt
   };
+}
+
+async function resolveGroupCategoryTagIds(groupSettingsCollection, groupId) {
+  const settings = await groupSettingsCollection.findOne({ groupId }, { projection: { categoryTags: 1 } });
+  return resolveCategoryTagIdsFromSettingsDocument(settings);
 }
 
 async function resolveCurrentSessionComponent(componentsCollection, session, groupId) {
@@ -76,27 +93,51 @@ export async function PATCH(request) {
     return jsonApiError('A requisicao de indisponibilidade e invalida.', 400, 'BAD_REQUEST');
   }
 
-  const unavailableDates = normalizeUnavailableDatesInput(body.unavailableDates, { futureOnly: true });
-
-  if (unavailableDates === null) {
-    return jsonApiError(
-      'Informe unavailableDates com uma lista de datas futuras no formato YYYY-MM-DD.',
-      400,
-      'BAD_REQUEST'
-    );
-  }
-
   try {
     const session = await requireApiAccessSession(request, {
       allowedAudiences: new Set(['component-app', 'group-app'])
     });
     const groupId = resolveRequestGroupId(session.claims);
     const now = new Date().toISOString();
-    const { components } = await getMongoCollections();
+    const { components, groupSettings } = await getMongoCollections();
+    const allowedCategoryTagIds = await resolveGroupCategoryTagIds(groupSettings, groupId);
     const current = await resolveCurrentSessionComponent(components, session, groupId);
 
     if (!current) {
       return jsonApiError('Componente nao encontrado para esta sessao.', 404, 'NOT_FOUND');
+    }
+
+    let unavailabilityByDate = null;
+
+    if (Object.hasOwn(body, 'unavailabilityByDate')) {
+      unavailabilityByDate = normalizeUnavailabilityByDateInput(body.unavailabilityByDate, {
+        futureOnly: true,
+        allowedCategoryTagIds
+      });
+
+      if (unavailabilityByDate === null) {
+        return jsonApiError(
+          'Informe unavailabilityByDate com datas futuras e categoryTagIds validos.',
+          400,
+          'BAD_REQUEST'
+        );
+      }
+    } else {
+      const unavailableDates = normalizeUnavailableDatesInput(body.unavailableDates, { futureOnly: true });
+
+      if (unavailableDates === null) {
+        return jsonApiError(
+          'Informe unavailableDates com uma lista de datas futuras no formato YYYY-MM-DD.',
+          400,
+          'BAD_REQUEST'
+        );
+      }
+
+      unavailabilityByDate = unavailableDates.map((date) => ({
+        date,
+        categoryTagIds:
+          normalizeCategoryTagIdsInput(current?.categoryTagIds, { allowedCategoryTagIds }) || allowedCategoryTagIds
+      }));
     }
 
     const nextMetadata = {
@@ -110,7 +151,8 @@ export async function PATCH(request) {
       { _id: current._id, groupId },
       {
         $set: {
-          unavailableDates,
+          unavailabilityByDate,
+          unavailableDates: [],
           updatedAt: now,
           metadata: nextMetadata
         }

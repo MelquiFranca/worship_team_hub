@@ -34,6 +34,10 @@ function validateForm(values, options = {}) {
     nextErrors.permissionType = 'Selecione o tipo de permissao.';
   }
 
+  if (!Array.isArray(values.categoryTagIds) || values.categoryTagIds.length === 0) {
+    nextErrors.categoryTagIds = 'Selecione ao menos uma categoria.';
+  }
+
   return nextErrors;
 }
 
@@ -128,6 +132,9 @@ function normalizeLoadedComponent(payload, fallbackId) {
     photoUrl: normalizePhotoValue(source.photoUrl),
     photoDataUrl: normalizePhotoValue(source.photoDataUrl),
     photoProvided: Boolean(source.photoProvided),
+    categoryTagIds: Array.isArray(source.categoryTagIds)
+      ? source.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+      : [],
     isActive: source.isActive !== false,
     pushTargets: Array.isArray(source.pushTargets) ? source.pushTargets : []
   };
@@ -142,6 +149,8 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [permissionType, setPermissionType] = useState(DEFAULT_PERMISSION_TYPE);
+  const [categoryTags, setCategoryTags] = useState([]);
+  const [categoryTagIds, setCategoryTagIds] = useState([]);
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [savedPhotoDataUrl, setSavedPhotoDataUrl] = useState('');
@@ -173,6 +182,22 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
   useEffect(() => {
     let isMounted = true;
 
+    async function loadCategoryTags() {
+      try {
+        const payload = await requestJson('/api/group-settings');
+        const tags = Array.isArray(payload?.item?.categoryTags) ? payload.item.categoryTags : [];
+        if (!isMounted) {
+          return;
+        }
+        setCategoryTags(tags);
+        setCategoryTagIds((current) => (current.length ? current : tags.map((tag) => tag.id)));
+      } catch {
+        if (isMounted) {
+          setCategoryTags([]);
+        }
+      }
+    }
+
     async function loadComponent() {
       if (!isEditMode) {
         return;
@@ -203,6 +228,11 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
         setUsername(loaded.username);
         setPassword('');
         setPermissionType(loaded.permissionType);
+        setCategoryTagIds(
+          loaded.categoryTagIds.length
+            ? loaded.categoryTagIds
+            : []
+        );
         setPhotoFile(null);
         setSavedPhotoDataUrl(loaded.photoDataUrl);
         setSavedPhotoUrl(loaded.photoUrl);
@@ -229,12 +259,19 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
       }
     }
 
+    loadCategoryTags();
     loadComponent();
 
     return () => {
       isMounted = false;
     };
   }, [canManageComponent, componentId, isEditMode]);
+
+  useEffect(() => {
+    if (categoryTagIds.length === 0 && categoryTags.length > 0) {
+      setCategoryTagIds(categoryTags.map((tag) => tag.id));
+    }
+  }, [categoryTagIds.length, categoryTags]);
 
   function clearFeedback() {
     setFeedback({ type: 'idle', message: '' });
@@ -246,6 +283,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
     setUsername('');
     setPassword('');
     setPermissionType(DEFAULT_PERMISSION_TYPE);
+    setCategoryTagIds(categoryTags.map((tag) => tag.id));
     setPhotoFile(null);
     setPhotoPreview('');
     setSavedPhotoDataUrl('');
@@ -274,7 +312,8 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
         birthDate,
         username,
         password,
-        permissionType
+        permissionType,
+        categoryTagIds
       },
       { isEditMode }
     );
@@ -304,6 +343,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
         birthDate: birthDate instanceof Date ? toLocalIsoDate(birthDate) : birthDate,
         username: username.trim(),
         permissionType,
+        categoryTagIds,
         photoUrl: savedPhotoUrl,
         photoProvided: nextPhotoDataUrl ? true : savedPhotoProvided,
         pushTargets: pushTargetsInput
@@ -630,7 +670,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
             value={permissionType}
             onChange={(event) => {
               clearFeedback();
-              setPermissionType(event.target.value);
+        setPermissionType(event.target.value);
             }}
             aria-invalid={Boolean(errors.permissionType)}
             aria-describedby={errors.permissionType ? 'permissionType-error' : undefined}
@@ -643,6 +683,39 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
           {errors.permissionType ? (
             <span className={styles.error} id="permissionType-error" role="alert">
               {errors.permissionType}
+            </span>
+          ) : null}
+        </div>
+
+        <div className={styles.field}>
+          <label>Categorias</label>
+          <div className={styles.categoryChecks}>
+            {categoryTags.map((tag) => {
+              const checked = categoryTagIds.includes(tag.id);
+              return (
+                <label key={tag.id} className={styles.categoryCheck}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      clearFeedback();
+                      setCategoryTagIds((current) => {
+                        if (current.includes(tag.id)) {
+                          return current.filter((id) => id !== tag.id);
+                        }
+                        return [...current, tag.id];
+                      });
+                    }}
+                    disabled={isFetchingComponent || (isEditMode && !canManageComponent)}
+                  />
+                  <span>{tag.label}</span>
+                </label>
+              );
+            })}
+          </div>
+          {errors.categoryTagIds ? (
+            <span className={styles.error} role="alert">
+              {errors.categoryTagIds}
             </span>
           ) : null}
         </div>

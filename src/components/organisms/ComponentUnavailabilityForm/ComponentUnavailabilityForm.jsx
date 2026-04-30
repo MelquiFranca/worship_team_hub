@@ -91,6 +91,11 @@ function getInitials(name) {
   return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
 }
 
+function getCategoryTagLabel(categoryTags, categoryTagId) {
+  const found = categoryTags.find((entry) => entry?.id === categoryTagId);
+  return found?.label || categoryTagId;
+}
+
 export default function ComponentUnavailabilityForm() {
   const { permissions, isLoading: isAuthLoading } = useAuthSession();
   const isGroupApp = Boolean(permissions?.isGroupApp);
@@ -98,6 +103,9 @@ export default function ComponentUnavailabilityForm() {
   const minSelectableIso = useMemo(() => toIsoDate(minSelectableDate), [minSelectableDate]);
   const [viewDate, setViewDate] = useState(() => getTomorrowDate());
   const [selectedDates, setSelectedDates] = useState([]);
+  const [selectedCategoryTagIdsByDate, setSelectedCategoryTagIdsByDate] = useState({});
+  const [userCategoryTagIds, setUserCategoryTagIds] = useState([]);
+  const [groupCategoryTags, setGroupCategoryTags] = useState([]);
   const [groupedItems, setGroupedItems] = useState([]);
   const [groupedTotalEntries, setGroupedTotalEntries] = useState(0);
   const [groupedFeedback, setGroupedFeedback] = useState({ type: 'idle', message: '' });
@@ -190,19 +198,64 @@ export default function ComponentUnavailabilityForm() {
       setFeedback({ type: 'idle', message: '' });
 
       try {
-        const payload = await requestJson('/api/components/me/unavailability');
+        const [payload, groupSettingsPayload] = await Promise.all([
+          requestJson('/api/components/me/unavailability'),
+          requestJson('/api/group-settings')
+        ]);
         const unavailableDates = Array.isArray(payload?.item?.unavailableDates) ? payload.item.unavailableDates : [];
+        const unavailabilityByDate = Array.isArray(payload?.item?.unavailabilityByDate)
+          ? payload.item.unavailabilityByDate
+          : [];
+        const categoryTagIds = Array.isArray(payload?.item?.categoryTagIds)
+          ? payload.item.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+          : [];
 
         if (!active) {
           return;
         }
 
-        const normalized = unavailableDates
+        const normalizedByDateDates = unavailabilityByDate
+          .map((entry) => (typeof entry?.date === 'string' ? entry.date.trim() : ''))
+          .filter((entry) => Boolean(entry) && entry >= minSelectableIso);
+        const normalizedLegacyDates = unavailableDates
           .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-          .filter((entry) => Boolean(entry) && entry >= minSelectableIso)
-          .sort((left, right) => left.localeCompare(right));
+          .filter((entry) => Boolean(entry) && entry >= minSelectableIso);
+        const normalized = Array.from(
+          new Set(normalizedByDateDates.length > 0 ? normalizedByDateDates : normalizedLegacyDates)
+        ).sort((left, right) => left.localeCompare(right));
 
         setSelectedDates(normalized);
+        setUserCategoryTagIds(categoryTagIds);
+        setGroupCategoryTags(
+          Array.isArray(groupSettingsPayload?.item?.categoryTags)
+            ? groupSettingsPayload.item.categoryTags
+            : []
+        );
+        setSelectedCategoryTagIdsByDate(() => {
+          const next = {};
+          unavailabilityByDate.forEach((entry) => {
+            if (!entry || typeof entry !== 'object') {
+              return;
+            }
+
+            const date = typeof entry.date === 'string' ? entry.date.trim() : '';
+            const categoryIds = Array.isArray(entry.categoryTagIds)
+              ? entry.categoryTagIds.filter((item) => typeof item === 'string' && item.trim())
+              : [];
+
+            if (date && categoryIds.length > 0) {
+              next[date] = categoryIds;
+            }
+          });
+
+          normalized.forEach((date) => {
+            if (!next[date]) {
+              next[date] = categoryTagIds;
+            }
+          });
+
+          return next;
+        });
       } catch (error) {
         if (!active) {
           return;
@@ -247,8 +300,17 @@ export default function ComponentUnavailabilityForm() {
 
       if (next.has(isoDate)) {
         next.delete(isoDate);
+        setSelectedCategoryTagIdsByDate((currentMap) => {
+          const nextMap = { ...currentMap };
+          delete nextMap[isoDate];
+          return nextMap;
+        });
       } else {
         next.add(isoDate);
+        setSelectedCategoryTagIdsByDate((currentMap) => ({
+          ...currentMap,
+          [isoDate]: currentMap[isoDate]?.length ? currentMap[isoDate] : userCategoryTagIds
+        }));
       }
 
       return Array.from(next).sort((left, right) => left.localeCompare(right));
@@ -257,6 +319,24 @@ export default function ComponentUnavailabilityForm() {
 
   async function handleSave() {
     const futureDates = sortedSelectedDates.filter((date) => date >= minSelectableIso);
+    const unavailabilityByDate = futureDates.map((date) => ({
+      date,
+      categoryTagIds: selectedCategoryTagIdsByDate[date]?.length
+        ? selectedCategoryTagIdsByDate[date]
+        : userCategoryTagIds
+    }));
+
+    const hasInvalidCategorySelection = unavailabilityByDate.some(
+      (entry) => !Array.isArray(entry.categoryTagIds) || entry.categoryTagIds.length === 0
+    );
+
+    if (hasInvalidCategorySelection) {
+      setFeedback({
+        type: 'error',
+        message: 'Selecione ao menos uma categoria para cada data marcada.'
+      });
+      return;
+    }
 
     setIsSaving(true);
     setFeedback({ type: 'idle', message: '' });
@@ -264,7 +344,7 @@ export default function ComponentUnavailabilityForm() {
     try {
       const payload = await requestJson('/api/components/me/unavailability', {
         method: 'PATCH',
-        body: { unavailableDates: futureDates }
+        body: { unavailabilityByDate }
       });
 
       setSelectedDates(futureDates);
@@ -383,10 +463,43 @@ export default function ComponentUnavailabilityForm() {
         <ul className={styles.selectedList} aria-label="Dias indisponiveis selecionados">
           {sortedSelectedDates.map((isoDate) => {
             const parsedDate = fromIsoDate(isoDate);
+            const selectedCategoryTagIds = selectedCategoryTagIdsByDate[isoDate] || userCategoryTagIds;
 
             return (
               <li key={isoDate} className={styles.selectedItem}>
-                <span>{parsedDate ? formatDateLabel(parsedDate) : isoDate}</span>
+                <div className={styles.selectedItemBody}>
+                  <span>{parsedDate ? formatDateLabel(parsedDate) : isoDate}</span>
+                  <div className={styles.selectedCategoryTags}>
+                    {groupCategoryTags
+                      .filter((tag) => userCategoryTagIds.includes(tag.id))
+                      .map((tag) => {
+                        const checked = selectedCategoryTagIds.includes(tag.id);
+                        return (
+                          <label key={`${isoDate}-${tag.id}`} className={styles.selectedCategoryCheck}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setFeedback({ type: 'idle', message: '' });
+                                setSelectedCategoryTagIdsByDate((current) => {
+                                  const currentIds = current[isoDate] || userCategoryTagIds;
+                                  const nextIds = currentIds.includes(tag.id)
+                                    ? currentIds.filter((id) => id !== tag.id)
+                                    : [...currentIds, tag.id];
+                                  return {
+                                    ...current,
+                                    [isoDate]: nextIds
+                                  };
+                                });
+                              }}
+                              disabled={isLoading || isSaving}
+                            />
+                            <span>{getCategoryTagLabel(groupCategoryTags, tag.id)}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
                 <button
                   type="button"
                   className={styles.removeButton}

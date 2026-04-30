@@ -3,6 +3,11 @@ import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
 import { GROUP_THEME_FALLBACK, resolveGroupTheme } from '@/theme/groupTheme';
 import { normalizeIsoDate, normalizeLowercaseString, normalizeString } from '@/lib/api/validation';
 import { parseComponentPhotoInput, serializeComponentPhoto } from '@/lib/components/photo';
+import {
+  DEFAULT_GROUP_CATEGORY_TAGS,
+  normalizeCategoryTagsInput,
+  normalizeSingleCategoryTagId
+} from '@/lib/categories/tags';
 
 const BASE_FUNCTION_OPTIONS = GROUP_FUNCTION_OPTIONS.map((option) => ({
   id: option.id,
@@ -15,7 +20,8 @@ const DEFAULT_GROUP_SETTINGS = Object.freeze({
   name: 'Equipe principal',
   functionOptions: BASE_FUNCTION_OPTIONS,
   availableFunctions: ['vocal', 'guitarra', 'teclado'],
-  themeName: GROUP_THEME_FALLBACK
+  themeName: GROUP_THEME_FALLBACK,
+  categoryTags: DEFAULT_GROUP_CATEGORY_TAGS
 });
 
 const DEFAULT_GROUP_STATUS = 'active';
@@ -39,7 +45,7 @@ function toFunctionIdSeed(value) {
     .replace(/^-+|-+$/g, '');
 }
 
-export function normalizeFunctionOptions(value) {
+export function normalizeFunctionOptions(value, allowedCategoryTagIds = DEFAULT_GROUP_CATEGORY_TAGS.map((tag) => tag.id)) {
   const source = Array.isArray(value) ? value : DEFAULT_GROUP_SETTINGS.functionOptions;
   const items = [];
   const seenIds = new Set();
@@ -63,7 +69,8 @@ export function normalizeFunctionOptions(value) {
       id,
       label,
       hint,
-      isCustom: Boolean(item.isCustom)
+      isCustom: Boolean(item.isCustom),
+      categoryTagId: normalizeSingleCategoryTagId(item.categoryTagId, { allowedCategoryTagIds }) || allowedCategoryTagIds[0]
     });
   });
 
@@ -110,7 +117,9 @@ export function normalizeGroupName(value) {
 }
 
 export function serializeGroupSettings(document, groupId) {
-  const functionOptions = normalizeFunctionOptions(document?.functionOptions);
+  const categoryTags = normalizeCategoryTagsInput(document?.categoryTags);
+  const categoryTagIds = categoryTags.map((tag) => tag.id);
+  const functionOptions = normalizeFunctionOptions(document?.functionOptions, categoryTagIds);
   const availableFunctions = normalizeAvailableFunctions(document?.availableFunctions, functionOptions);
 
   return {
@@ -122,6 +131,7 @@ export function serializeGroupSettings(document, groupId) {
     photoProvided: Boolean(document?.photoProvided),
     functionOptions,
     availableFunctions,
+    categoryTags,
     themeName: normalizeThemeName(document?.themeName),
     createdAt: normalizeString(document?.createdAt),
     updatedAt: normalizeString(document?.updatedAt)
@@ -145,7 +155,9 @@ export function normalizeGroupInput(body) {
 
 export function normalizeSettingsInput(rawSettings, fallbackName) {
   const settings = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
-  const functionOptions = normalizeFunctionOptions(settings.functionOptions);
+  const categoryTags = normalizeCategoryTagsInput(settings.categoryTags);
+  const categoryTagIds = categoryTags.map((tag) => tag.id);
+  const functionOptions = normalizeFunctionOptions(settings.functionOptions, categoryTagIds);
 
   if (!functionOptions.length) {
     return { error: 'Cadastre ao menos um tipo de funcao.' };
@@ -174,6 +186,7 @@ export function normalizeSettingsInput(rawSettings, fallbackName) {
       name: normalizedName,
       functionOptions,
       availableFunctions,
+      categoryTags,
       themeName: normalizeThemeName(settings.themeName),
       photoInput
     }
@@ -231,6 +244,7 @@ export function buildGroupSettingsDocument(settingsValue, groupId, existingDocum
     name: settingsValue.name,
     functionOptions: settingsValue.functionOptions,
     availableFunctions: settingsValue.availableFunctions,
+    categoryTags: settingsValue.categoryTags,
     themeName: settingsValue.themeName,
     updatedAt: now,
     metadata: {
@@ -328,7 +342,8 @@ export function getDefaultGroupSettings(name = '') {
     photoUrl: '',
     photoProvided: false,
     functionOptions: normalizeFunctionOptions(DEFAULT_GROUP_SETTINGS.functionOptions),
-    availableFunctions: normalizeAvailableFunctions(DEFAULT_GROUP_SETTINGS.availableFunctions)
+    availableFunctions: normalizeAvailableFunctions(DEFAULT_GROUP_SETTINGS.availableFunctions),
+    categoryTags: normalizeCategoryTagsInput(DEFAULT_GROUP_SETTINGS.categoryTags)
   };
 }
 

@@ -9,6 +9,11 @@ import { GROUP_FUNCTION_OPTIONS } from '../../../data/groupFunctions.js';
 import { GROUP_THEME_FALLBACK, resolveGroupTheme } from '../../../theme/groupTheme.js';
 import { getMongoCollections } from '../../../lib/db/mongodb.js';
 import { parseComponentPhotoInput, serializeComponentPhoto } from '../../../lib/components/photo.js';
+import {
+  DEFAULT_GROUP_CATEGORY_TAGS,
+  normalizeCategoryTagsInput,
+  normalizeSingleCategoryTagId
+} from '../../../lib/categories/tags.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,8 +29,10 @@ const DEFAULT_GROUP_SETTINGS = Object.freeze({
   name: 'Equipe principal',
   functionOptions: BASE_FUNCTION_OPTIONS,
   availableFunctions: ['vocal', 'guitarra', 'teclado'],
-  themeName: GROUP_THEME_FALLBACK
+  themeName: GROUP_THEME_FALLBACK,
+  categoryTags: DEFAULT_GROUP_CATEGORY_TAGS
 });
+const FIXED_CATEGORY_TAGS = normalizeCategoryTagsInput(DEFAULT_GROUP_CATEGORY_TAGS);
 
 function normalizeGroupName(value) {
   return normalizeString(value);
@@ -57,7 +64,7 @@ function toFunctionIdSeed(value) {
     .replace(/^-+|-+$/g, '');
 }
 
-function normalizeFunctionOptions(value) {
+function normalizeFunctionOptions(value, allowedCategoryTagIds = DEFAULT_GROUP_CATEGORY_TAGS.map((tag) => tag.id)) {
   const source = Array.isArray(value) ? value : DEFAULT_GROUP_SETTINGS.functionOptions;
   const items = [];
   const seenIds = new Set();
@@ -81,7 +88,8 @@ function normalizeFunctionOptions(value) {
       id,
       label,
       hint,
-      isCustom: Boolean(item.isCustom)
+      isCustom: Boolean(item.isCustom),
+      categoryTagId: normalizeSingleCategoryTagId(item.categoryTagId, { allowedCategoryTagIds }) || allowedCategoryTagIds[0]
     });
   });
 
@@ -116,7 +124,9 @@ function normalizeAvailableFunctions(value, functionOptions = DEFAULT_GROUP_SETT
 
 function serializeGroupSettings(document, groupId) {
   const photoDataUrl = serializeComponentPhoto(document);
-  const functionOptions = normalizeFunctionOptions(document?.functionOptions);
+  const categoryTags = FIXED_CATEGORY_TAGS;
+  const categoryTagIds = categoryTags.map((tag) => tag.id);
+  const functionOptions = normalizeFunctionOptions(document?.functionOptions, categoryTagIds);
   const availableFunctions = normalizeAvailableFunctions(document?.availableFunctions, functionOptions);
 
   return {
@@ -129,6 +139,7 @@ function serializeGroupSettings(document, groupId) {
     photoProvided: Boolean(photoDataUrl),
     functionOptions,
     availableFunctions,
+    categoryTags,
     themeName: normalizeThemeName(document?.themeName),
     createdAt: normalizeString(document?.createdAt),
     updatedAt: normalizeString(document?.updatedAt)
@@ -149,10 +160,12 @@ function buildPatchPayload(body, photoInput) {
     updates.name = name;
   }
 
+  const categoryTagsFromBody = Object.hasOwn(body, 'categoryTags') ? normalizeCategoryTagsInput(body.categoryTags) : null;
+  const allowedCategoryTagIdsFromBody = FIXED_CATEGORY_TAGS.map((tag) => tag.id);
   let functionOptions = null;
 
   if (Object.hasOwn(body, 'functionOptions')) {
-    functionOptions = normalizeFunctionOptions(body.functionOptions);
+    functionOptions = normalizeFunctionOptions(body.functionOptions, allowedCategoryTagIdsFromBody);
 
     if (!functionOptions.length) {
       return { error: 'Cadastre ao menos um tipo de funcao.' };
@@ -174,6 +187,14 @@ function buildPatchPayload(body, photoInput) {
 
   if (Object.hasOwn(body, 'themeName')) {
     updates.themeName = normalizeThemeName(body.themeName);
+  }
+
+  if (Object.hasOwn(body, 'categoryTags')) {
+    const asJson = JSON.stringify(categoryTagsFromBody || []);
+    const fixedAsJson = JSON.stringify(FIXED_CATEGORY_TAGS);
+    if (asJson !== fixedAsJson) {
+      return { error: 'As categorias Louvor e Midia sao padrao fixo e nao podem ser alteradas.' };
+    }
   }
 
   if (photoInput?.error) {
@@ -213,7 +234,7 @@ export async function GET(request) {
     });
     const queryGroupId = getTrimmedQueryParam(request, 'groupId');
     const groupId = resolveRequestGroupId(session.claims, { queryGroupId });
-    const { groupSettings } = await getMongoCollections();
+    const { groupSettings, components, scales } = await getMongoCollections();
     const current = await groupSettings.findOne({ groupId });
 
     return NextResponse.json({
@@ -265,14 +286,21 @@ export async function PATCH(request) {
 
     const { groupSettings } = await getMongoCollections();
     const existing = await groupSettings.findOne({ groupId });
-    const existingFunctionOptions = normalizeFunctionOptions(existing?.functionOptions);
-    const nextFunctionOptions = parsed.updates.functionOptions || existingFunctionOptions;
+    const nextCategoryTags = normalizeCategoryTagsInput(parsed.updates.categoryTags || existing?.categoryTags || DEFAULT_GROUP_CATEGORY_TAGS);
+    const nextCategoryTagIds = nextCategoryTags.map((tag) => tag.id);
+    const existingFunctionOptions = normalizeFunctionOptions(existing?.functionOptions, nextCategoryTagIds);
+    const nextFunctionOptions = parsed.updates.functionOptions
+      ? normalizeFunctionOptions(parsed.updates.functionOptions, nextCategoryTagIds)
+      : existingFunctionOptions;
+    parsed.updates.functionOptions = nextFunctionOptions;
 
     if (!Object.hasOwn(parsed.updates, 'availableFunctions')) {
       parsed.updates.availableFunctions = normalizeAvailableFunctions(existing?.availableFunctions, nextFunctionOptions);
     } else {
       parsed.updates.availableFunctions = normalizeAvailableFunctions(parsed.updates.availableFunctions, nextFunctionOptions);
     }
+
+    parsed.updates.categoryTags = FIXED_CATEGORY_TAGS;
 
     const now = new Date().toISOString();
     const metadata = {
@@ -294,6 +322,7 @@ export async function PATCH(request) {
       nextSet.name = nextSet.name || DEFAULT_GROUP_SETTINGS.name;
       nextSet.functionOptions = nextSet.functionOptions || DEFAULT_GROUP_SETTINGS.functionOptions;
       nextSet.availableFunctions = normalizeAvailableFunctions(nextSet.availableFunctions, nextSet.functionOptions);
+      nextSet.categoryTags = FIXED_CATEGORY_TAGS;
       nextSet.themeName = nextSet.themeName || DEFAULT_GROUP_SETTINGS.themeName;
       nextSet.createdAt = now;
       nextSet.metadata = {

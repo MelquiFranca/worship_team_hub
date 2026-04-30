@@ -289,6 +289,30 @@
   background: rgba(255, 255, 255, 0.82);
 }
 
+.selectedItemBody {
+  display: grid;
+  gap: 8px;
+}
+
+.selectedCategoryTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selectedCategoryCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: var(--app-text, #0f172a);
+}
+
+.selectedCategoryCheck input {
+  width: 15px;
+  height: 15px;
+}
+
 .removeButton {
   min-height: 32px;
   padding: 0 12px;

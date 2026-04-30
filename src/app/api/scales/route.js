@@ -16,12 +16,18 @@ import {
   parseScaleImageAttachmentInput,
   serializeScaleImageAttachment
 } from '../../../lib/scales/imageAttachment.js';
-import { getUnavailableComponentsForDate } from '../../../lib/scales/componentAvailability.js';
+import { getUnavailableComponentsForDateByCategory } from '../../../lib/scales/componentAvailability.js';
 import {
   createInitialScalePushNotificationState,
   dispatchScalePushNotifications,
   serializeScalePushNotification
 } from '../../../lib/notifications/scalePushNotifications.js';
+import {
+  normalizeCategoryTagIdsInput,
+  normalizeSingleCategoryTagId,
+  resolveCategoryTagIdsFromSettingsDocument
+} from '../../../lib/categories/tags.js';
+import { resolveSessionComponent } from '../../../lib/notifications/resolveSessionComponent.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,6 +63,7 @@ export function serializeScale(document) {
     groupId: document.groupId,
     date: document.date,
     shift: document.shift,
+    categoryTagId: normalizeSingleCategoryTagId(document.categoryTagId) || 'louvor',
     imageAttachment: serializeScaleImageAttachment(document.imageAttachment),
     components: document.components || [],
     playlist: document.playlist || [],
@@ -67,6 +74,29 @@ export function serializeScale(document) {
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
   };
+}
+
+async function resolveGroupCategoryTagIds(groupSettingsCollection, groupId) {
+  const settings = await groupSettingsCollection.findOne({ groupId }, { projection: { categoryTags: 1 } });
+  return resolveCategoryTagIdsFromSettingsDocument(settings);
+}
+
+async function resolveSessionCategoryTagIds(componentsCollection, groupId, session, groupCategoryTagIds) {
+  const sessionUserId = normalizeString(session?.user?.id);
+  const byId = sessionUserId
+    ? await componentsCollection.findOne(
+      { _id: sessionUserId, groupId, isActive: { $ne: false } },
+      { projection: { categoryTagIds: 1 } }
+    )
+    : null;
+  const byIdentity = byId?._id
+    ? byId
+    : await resolveSessionComponent(componentsCollection, groupId, session.user);
+  const normalized = normalizeCategoryTagIdsInput(byIdentity?.categoryTagIds, {
+    allowedCategoryTagIds: groupCategoryTagIds
+  });
+
+  return normalized || [];
 }
 
 export function normalizeScaleMessages(value) {
@@ -238,11 +268,29 @@ export async function GET(request) {
       );
     }
 
-    const { scales } = await getMongoCollections();
+    const { scales, groupSettings, components } = await getMongoCollections();
+    const groupCategoryTagIds = await resolveGroupCategoryTagIds(groupSettings, groupId);
+    const defaultCategoryTagId = groupCategoryTagIds[0] || 'louvor';
+    await scales.updateMany(
+      {
+        groupId,
+        $or: [
+          { categoryTagId: { $exists: false } },
+          { categoryTagId: '' },
+          { categoryTagId: null }
+        ]
+      },
+      { $set: { categoryTagId: defaultCategoryTagId } }
+    );
+    const sessionCategoryTagIds =
+      session.claims.aud === 'group-app' || session.claims.aud === 'component-app'
+        ? await resolveSessionCategoryTagIds(components, groupId, session, groupCategoryTagIds)
+        : groupCategoryTagIds;
     const currentLocalIsoDate = getCurrentLocalIsoDate();
     const mongoFilter = timeScope === SCALE_TIME_SCOPE_ALL
       ? { groupId }
       : { groupId, date: { $gte: currentLocalIsoDate } };
+
     const query = scales.find(mongoFilter).sort({ date: -1, createdAt: -1 });
 
     if (limit) {
@@ -258,7 +306,9 @@ export async function GET(request) {
       filters: {
         timeScope,
         currentLocalIsoDate
-      }
+      },
+      categoryTags: groupCategoryTagIds,
+      sessionCategoryTagIds
     });
   } catch (error) {
     if (isAuthError(error)) {
@@ -271,6 +321,32 @@ export async function GET(request) {
 
     return jsonApiError('Nao foi possivel listar as escalas.', 500, 'INTERNAL_SERVER_ERROR');
   }
+}
+
+function getSelectedCategoryTagId(body, allowedCategoryTagIds) {
+  const categoryTagId = normalizeSingleCategoryTagId(body.categoryTagId, { allowedCategoryTagIds });
+
+  if (!categoryTagId) {
+    return '';
+  }
+
+  return categoryTagId;
+}
+
+function validateComponentsByCategory(selectedComponents, existingComponents, selectedCategoryTagId, allowedCategoryTagIds) {
+  const byId = new Map(
+    existingComponents.map((component) => {
+      const componentCategoryTagIds =
+        normalizeCategoryTagIdsInput(component?.categoryTagIds, { allowedCategoryTagIds }) || allowedCategoryTagIds;
+
+      return [component._id, componentCategoryTagIds];
+    })
+  );
+
+  return selectedComponents.every((entry) => {
+    const tags = byId.get(entry.componentId);
+    return Array.isArray(tags) && tags.includes(selectedCategoryTagId);
+  });
 }
 
 export async function POST(request) {
@@ -315,9 +391,26 @@ export async function POST(request) {
       defaultSourceScaleLabel
     });
 
-    if (!date || !shift || !components || playlist === null || playlistEditorComponentIds === null || imageEditorComponentIds === null) {
+    const {
+      scales,
+      components: componentsCollection,
+      groupSettings,
+      scalePushNotificationDispatches
+    } = await getMongoCollections();
+    const groupCategoryTagIds = await resolveGroupCategoryTagIds(groupSettings, groupId);
+    const categoryTagId = getSelectedCategoryTagId(body, groupCategoryTagIds);
+
+    if (
+      !date ||
+      !shift ||
+      !components ||
+      playlist === null ||
+      playlistEditorComponentIds === null ||
+      imageEditorComponentIds === null ||
+      !categoryTagId
+    ) {
       return fail(
-        'Informe date, shift, components e permissoes validas para cadastrar a escala.',
+        'Informe date, shift, categoryTagId, components e permissoes validas para cadastrar a escala.',
         400,
         'BAD_REQUEST'
       );
@@ -326,16 +419,10 @@ export async function POST(request) {
     if (imageAttachmentInput.error) {
       return fail(imageAttachmentInput.error, 400, 'BAD_REQUEST');
     }
-
-    const {
-      scales,
-      components: componentsCollection,
-      scalePushNotificationDispatches
-    } = await getMongoCollections();
     const componentIds = components.map((item) => item.componentId);
     const existingComponents = await componentsCollection
       .find({ groupId, _id: { $in: componentIds.map((componentId) => componentId) } })
-      .project({ _id: 1, fullName: 1, username: 1, unavailableDates: 1 })
+      .project({ _id: 1, fullName: 1, username: 1, unavailableDates: 1, unavailabilityByDate: 1, categoryTagIds: 1 })
       .toArray();
 
     if (existingComponents.length !== componentIds.length) {
@@ -346,7 +433,19 @@ export async function POST(request) {
       );
     }
 
-    const unavailableComponents = getUnavailableComponentsForDate(existingComponents, date);
+    if (!validateComponentsByCategory(components, existingComponents, categoryTagId, groupCategoryTagIds)) {
+      return fail(
+        'Todos os componentes selecionados devem estar vinculados a categoria da escala.',
+        400,
+        'BAD_REQUEST'
+      );
+    }
+
+    const unavailableComponents = getUnavailableComponentsForDateByCategory(
+      existingComponents,
+      date,
+      categoryTagId
+    );
 
     if (unavailableComponents.length > 0) {
       const componentNames = unavailableComponents.map((component) => component.name).join(', ');
@@ -385,6 +484,7 @@ export async function POST(request) {
       groupId,
       date,
       shift,
+      categoryTagId,
       ...(imageAttachmentInput.imageAttachment ? { imageAttachment: imageAttachmentInput.imageAttachment } : {}),
       components,
       playlist,

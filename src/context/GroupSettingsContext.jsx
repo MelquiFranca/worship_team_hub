@@ -11,6 +11,11 @@ import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
 import { CLIENT_AUTH_STORAGE_KEYS } from '@/lib/auth/clientSessionCleanup';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { requestJson } from '@/lib/api/http';
+import {
+  DEFAULT_GROUP_CATEGORY_TAGS,
+  normalizeCategoryTagsInput,
+  normalizeSingleCategoryTagId
+} from '@/lib/categories/tags';
 
 export const GROUP_SETTINGS_STORAGE_KEY = CLIENT_AUTH_STORAGE_KEYS.groupSettings;
 
@@ -28,7 +33,8 @@ const defaultGroupSettings = Object.freeze({
   photo: '',
   functionOptions: BASE_FUNCTION_OPTIONS,
   availableFunctions: ['vocal', 'guitarra', 'teclado'],
-  themeName: GROUP_THEME_FALLBACK
+  themeName: GROUP_THEME_FALLBACK,
+  categoryTags: DEFAULT_GROUP_CATEGORY_TAGS
 });
 
 function normalizeNameForStorage(value) {
@@ -78,6 +84,7 @@ function normalizeFunctionOptions(value) {
   const source = Array.isArray(value) ? value : defaultGroupSettings.functionOptions;
   const options = [];
   const seenIds = new Set();
+  const allowedCategoryTagIds = normalizeCategoryTagsInput(defaultGroupSettings.categoryTags).map((tag) => tag.id);
 
   source.forEach((item) => {
     if (!item || typeof item !== 'object') {
@@ -99,7 +106,9 @@ function normalizeFunctionOptions(value) {
       id,
       label,
       hint,
-      isCustom: Boolean(item.isCustom)
+      isCustom: Boolean(item.isCustom),
+      categoryTagId:
+        normalizeSingleCategoryTagId(item.categoryTagId, { allowedCategoryTagIds }) || allowedCategoryTagIds[0]
     });
   });
 
@@ -133,16 +142,46 @@ function normalizeThemeName(value) {
   return resolved.name;
 }
 
+function normalizeCategoryTagLabel(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeCategoryTagColor(value) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : '';
+}
+
+function toCategoryTagIdSeed(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+}
+
 export function normalizeStoredGroupSettings(rawSettings) {
   const source = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
-  const functionOptions = normalizeFunctionOptions(source.functionOptions);
+  const categoryTags = normalizeCategoryTagsInput(source.categoryTags);
+  const allowedCategoryTagIds = categoryTags.map((tag) => tag.id);
+  const functionOptions = normalizeFunctionOptions(source.functionOptions).map((option) => ({
+    ...option,
+    categoryTagId:
+      normalizeSingleCategoryTagId(option.categoryTagId, { allowedCategoryTagIds }) || allowedCategoryTagIds[0]
+  }));
 
   return {
     name: normalizeNameForStorage(source.name),
     photo: normalizePhotoForState(source.photo),
     functionOptions,
     availableFunctions: normalizeAvailableFunctions(source.availableFunctions, functionOptions),
-    themeName: normalizeThemeName(source.themeName)
+    themeName: normalizeThemeName(source.themeName),
+    categoryTags
   };
 }
 
@@ -162,7 +201,8 @@ function normalizeApiGroupSettings(payload) {
     photo: photoDataUrl || photo || photoUrl,
     functionOptions: source.functionOptions,
     availableFunctions: source.availableFunctions,
-    themeName: source.themeName
+    themeName: source.themeName,
+    categoryTags: source.categoryTags
   });
 }
 
@@ -188,6 +228,16 @@ function settingsEqual(left, right) {
     left.name === right.name &&
     left.photo === right.photo &&
     left.themeName === right.themeName &&
+    left.categoryTags.length === right.categoryTags.length &&
+    left.categoryTags.every((item, index) => {
+      const rightItem = right.categoryTags[index];
+
+      return (
+        item.id === rightItem?.id &&
+        item.label === rightItem?.label &&
+        item.color === rightItem?.color
+      );
+    }) &&
     left.functionOptions.length === right.functionOptions.length &&
     left.functionOptions.every((item, index) => {
       const rightItem = right.functionOptions[index];
@@ -217,6 +267,10 @@ function validateGroupSettings(settings) {
 
   if (!settings.availableFunctions.length) {
     errors.availableFunctions = 'Selecione ao menos uma funcao.';
+  }
+
+  if (!Array.isArray(settings.categoryTags) || settings.categoryTags.length === 0) {
+    errors.categoryTags = 'Cadastre ao menos uma categoria de tag.';
   }
 
   return errors;
@@ -298,14 +352,21 @@ export function GroupSettingsProvider({ children }) {
     setSettings((current) => {
       const nextValue = typeof patch === 'function' ? patch(current) : patch;
       const nextSettings = { ...current, ...nextValue };
-      const functionOptions = normalizeFunctionOptions(nextSettings.functionOptions);
+      const categoryTags = normalizeCategoryTagsInput(nextSettings.categoryTags);
+      const allowedCategoryTagIds = categoryTags.map((tag) => tag.id);
+      const functionOptions = normalizeFunctionOptions(nextSettings.functionOptions).map((option) => ({
+        ...option,
+        categoryTagId:
+          normalizeSingleCategoryTagId(option.categoryTagId, { allowedCategoryTagIds }) || allowedCategoryTagIds[0]
+      }));
 
       return {
         name: normalizeNameForState(nextSettings.name),
         photo: normalizePhotoForState(nextSettings.photo),
         functionOptions,
         availableFunctions: normalizeAvailableFunctions(nextSettings.availableFunctions, functionOptions),
-        themeName: normalizeThemeName(nextSettings.themeName)
+        themeName: normalizeThemeName(nextSettings.themeName),
+        categoryTags
       };
     });
     setFeedback({ type: 'idle', message: '' });
@@ -345,7 +406,7 @@ export function GroupSettingsProvider({ children }) {
     setFeedback({ type: 'idle', message: '' });
   }, []);
 
-  const addFunctionOption = useCallback((label, hint = '') => {
+  const addFunctionOption = useCallback((label, hint = '', categoryTagId = '') => {
     const normalizedLabel = normalizeFunctionLabel(label);
     const normalizedHint = normalizeFunctionHint(hint) || 'Funcao personalizada';
 
@@ -382,7 +443,11 @@ export function GroupSettingsProvider({ children }) {
           id: candidateId,
           label: normalizedLabel,
           hint: normalizedHint,
-          isCustom: true
+          isCustom: true,
+          categoryTagId:
+            normalizeSingleCategoryTagId(categoryTagId, {
+              allowedCategoryTagIds: current.categoryTags.map((tag) => tag.id)
+            }) || current.categoryTags[0]?.id || DEFAULT_GROUP_CATEGORY_TAGS[0].id
         }
       ];
 
@@ -449,6 +514,148 @@ export function GroupSettingsProvider({ children }) {
     return result;
   }, []);
 
+  const addCategoryTag = useCallback((label, color) => {
+    const normalizedLabel = normalizeCategoryTagLabel(label);
+    const normalizedColor = normalizeCategoryTagColor(color);
+
+    if (normalizedLabel.length < 2) {
+      return { ok: false, message: 'Informe um nome de categoria com pelo menos 2 caracteres.' };
+    }
+
+    if (!normalizedColor) {
+      return { ok: false, message: 'Informe uma cor valida no formato hexadecimal (#RRGGBB).' };
+    }
+
+    let result = { ok: false, message: 'Nao foi possivel adicionar a categoria.' };
+
+    setSettings((current) => {
+      const existsByLabel = current.categoryTags.some(
+        (item) => item.label.toLowerCase() === normalizedLabel.toLowerCase()
+      );
+
+      if (existsByLabel) {
+        result = { ok: false, message: 'Ja existe uma categoria com este nome.' };
+        return current;
+      }
+
+      const usedIds = new Set(current.categoryTags.map((item) => item.id));
+      const baseId = toCategoryTagIdSeed(normalizedLabel) || `categoria-${Date.now()}`;
+      let nextId = baseId;
+      let counter = 2;
+
+      while (usedIds.has(nextId)) {
+        nextId = `${baseId}-${counter}`;
+        counter += 1;
+      }
+
+      result = { ok: true, id: nextId };
+      return {
+        ...current,
+        categoryTags: [...current.categoryTags, { id: nextId, label: normalizedLabel, color: normalizedColor }]
+      };
+    });
+
+    if (result.ok) {
+      setFeedback({ type: 'idle', message: '' });
+    }
+
+    return result;
+  }, []);
+
+  const updateCategoryTag = useCallback((categoryTagId, patch) => {
+    const normalizedId = typeof categoryTagId === 'string' ? categoryTagId.trim() : '';
+
+    if (!normalizedId) {
+      return { ok: false, message: 'Categoria invalida.' };
+    }
+
+    const nextLabel = Object.hasOwn(patch, 'label') ? normalizeCategoryTagLabel(patch.label) : null;
+    const nextColor = Object.hasOwn(patch, 'color') ? normalizeCategoryTagColor(patch.color) : null;
+
+    if (nextLabel !== null && nextLabel.length < 2) {
+      return { ok: false, message: 'Informe um nome de categoria com pelo menos 2 caracteres.' };
+    }
+
+    if (nextColor !== null && !nextColor) {
+      return { ok: false, message: 'Informe uma cor valida no formato hexadecimal (#RRGGBB).' };
+    }
+
+    let result = { ok: false, message: 'Nao foi possivel atualizar a categoria.' };
+
+    setSettings((current) => {
+      const existing = current.categoryTags.find((item) => item.id === normalizedId);
+
+      if (!existing) {
+        result = { ok: false, message: 'Categoria nao encontrada.' };
+        return current;
+      }
+
+      const finalLabel = nextLabel ?? existing.label;
+      const duplicate = current.categoryTags.find(
+        (item) => item.id !== normalizedId && item.label.toLowerCase() === finalLabel.toLowerCase()
+      );
+
+      if (duplicate) {
+        result = { ok: false, message: 'Ja existe outra categoria com este nome.' };
+        return current;
+      }
+
+      result = { ok: true };
+      return {
+        ...current,
+        categoryTags: current.categoryTags.map((item) =>
+          item.id === normalizedId
+            ? {
+              ...item,
+              label: nextLabel ?? item.label,
+              color: nextColor ?? item.color
+            }
+            : item
+        )
+      };
+    });
+
+    if (result.ok) {
+      setFeedback({ type: 'idle', message: '' });
+    }
+
+    return result;
+  }, []);
+
+  const removeCategoryTag = useCallback((categoryTagId) => {
+    const normalizedId = typeof categoryTagId === 'string' ? categoryTagId.trim() : '';
+
+    if (!normalizedId) {
+      return { ok: false, message: 'Categoria invalida.' };
+    }
+
+    let result = { ok: false, message: 'Nao foi possivel remover a categoria.' };
+
+    setSettings((current) => {
+      if (current.categoryTags.length <= 1) {
+        result = { ok: false, message: 'Mantenha ao menos uma categoria.' };
+        return current;
+      }
+
+      if (!current.categoryTags.some((item) => item.id === normalizedId)) {
+        result = { ok: false, message: 'Categoria nao encontrada.' };
+        return current;
+      }
+
+      result = { ok: true };
+      return {
+        ...current,
+        categoryTags: current.categoryTags.filter((item) => item.id !== normalizedId)
+      };
+    });
+
+    if (result.ok) {
+      setFeedback({ type: 'idle', message: '' });
+    }
+
+    return result;
+  }, []);
+
   const saveSettings = useCallback(async () => {
     const currentErrors = validateGroupSettings(settings);
 
@@ -457,6 +664,7 @@ export function GroupSettingsProvider({ children }) {
         currentErrors.name ||
         currentErrors.functionOptions ||
         currentErrors.availableFunctions ||
+        currentErrors.categoryTags ||
         'Corrija os erros antes de salvar.';
       setFeedback({ type: 'error', message });
       return { ok: false, errors: currentErrors };
@@ -471,7 +679,8 @@ export function GroupSettingsProvider({ children }) {
         name: normalized.name,
         functionOptions: normalized.functionOptions,
         availableFunctions: normalized.availableFunctions,
-        themeName: normalized.themeName
+        themeName: normalized.themeName,
+        categoryTags: normalized.categoryTags
       };
 
       if (normalized.photo) {
@@ -531,6 +740,7 @@ export function GroupSettingsProvider({ children }) {
       themeOptions: GROUP_THEME_OPTIONS,
       availableFunctionOptions: settings.functionOptions,
       functionOptions: settings.functionOptions,
+      categoryTags: settings.categoryTags,
       groupThemeOptions: GROUP_THEME_OPTIONS,
       setGroupName,
       setGroupPhoto,
@@ -539,6 +749,9 @@ export function GroupSettingsProvider({ children }) {
       toggleAvailableFunction,
       addFunctionOption,
       removeFunctionOption,
+      addCategoryTag,
+      updateCategoryTag,
+      removeCategoryTag,
       saveSettings,
       resetSettings,
       applyTheme: applyGroupThemeToDocument
@@ -559,6 +772,9 @@ export function GroupSettingsProvider({ children }) {
       toggleAvailableFunction,
       addFunctionOption,
       removeFunctionOption,
+      addCategoryTag,
+      updateCategoryTag,
+      removeCategoryTag,
       saveSettings,
       resetSettings
     ]

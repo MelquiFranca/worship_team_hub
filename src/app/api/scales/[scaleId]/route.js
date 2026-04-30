@@ -6,7 +6,12 @@ import { getTrimmedQueryParam, readJsonBody } from '../../../../lib/api/request.
 import { isPlainObject, normalizeIsoDate, normalizeString } from '../../../../lib/api/validation.js';
 import { getMongoCollections } from '../../../../lib/db/mongodb.js';
 import { parseScaleImageAttachmentInput } from '../../../../lib/scales/imageAttachment.js';
-import { getUnavailableComponentsForDate } from '../../../../lib/scales/componentAvailability.js';
+import { getUnavailableComponentsForDateByCategory } from '../../../../lib/scales/componentAvailability.js';
+import {
+  normalizeCategoryTagIdsInput,
+  normalizeSingleCategoryTagId,
+  resolveCategoryTagIdsFromSettingsDocument
+} from '../../../../lib/categories/tags.js';
 import {
   normalizePermissionComponentIds,
   normalizePlaylist,
@@ -31,7 +36,7 @@ async function getScaleIdFromParams(params) {
   return normalizeString(resolvedParams.scaleId);
 }
 
-function buildScalePatchPayload(body) {
+function buildScalePatchPayload(body, allowedCategoryTagIds) {
   const updates = {};
 
   if (Object.hasOwn(body, 'date')) {
@@ -98,11 +103,26 @@ function buildScalePatchPayload(body) {
     updates.imageAttachment = body.imageAttachment;
   }
 
+  if (Object.hasOwn(body, 'categoryTagId')) {
+    const categoryTagId = normalizeSingleCategoryTagId(body.categoryTagId, { allowedCategoryTagIds });
+
+    if (!categoryTagId) {
+      return { error: 'Informe categoryTagId valido para continuar.' };
+    }
+
+    updates.categoryTagId = categoryTagId;
+  }
+
   if (Object.keys(updates).length === 0) {
     return { error: 'Informe ao menos um campo valido para atualizacao.' };
   }
 
   return { updates };
+}
+
+async function resolveGroupCategoryTagIds(groupSettingsCollection, groupId) {
+  const settings = await groupSettingsCollection.findOne({ groupId }, { projection: { categoryTags: 1 } });
+  return resolveCategoryTagIdsFromSettingsDocument(settings);
 }
 
 function normalizeComparableText(value) {
@@ -238,11 +258,39 @@ export async function GET(request, { params }) {
       return jsonApiError('Informe scaleId valido para continuar.', 400, 'BAD_REQUEST');
     }
 
-    const { scales } = await getMongoCollections();
+    const { scales, components, groupSettings } = await getMongoCollections();
+    const groupCategoryTagIds = await resolveGroupCategoryTagIds(groupSettings, groupId);
+    const defaultCategoryTagId = groupCategoryTagIds[0] || 'louvor';
+    await scales.updateMany(
+      {
+        groupId,
+        $or: [
+          { categoryTagId: { $exists: false } },
+          { categoryTagId: '' },
+          { categoryTagId: null }
+        ]
+      },
+      { $set: { categoryTagId: defaultCategoryTagId } }
+    );
     const scale = await scales.findOne({ _id: scaleId, groupId });
 
     if (!scale) {
       return jsonApiError('Escala nao encontrada para este grupo.', 404, 'NOT_FOUND');
+    }
+
+    if (session.claims.aud === 'group-app' || session.claims.aud === 'component-app') {
+      const sessionComponent = await components.findOne(
+        { _id: session.user.id, groupId, isActive: { $ne: false } },
+        { projection: { categoryTagIds: 1 } }
+      );
+      const sessionCategoryTagIds =
+        normalizeCategoryTagIdsInput(sessionComponent?.categoryTagIds, {
+          allowedCategoryTagIds: groupCategoryTagIds
+        }) || [];
+
+      if (!sessionCategoryTagIds.includes(scale.categoryTagId || defaultCategoryTagId)) {
+        return jsonApiError('Escala nao encontrada para este grupo.', 404, 'NOT_FOUND');
+      }
     }
 
     return NextResponse.json({ item: serializeScale(scale) });
@@ -281,13 +329,14 @@ export async function PATCH(request, { params }) {
       return jsonApiError('Informe scaleId valido para continuar.', 400, 'BAD_REQUEST');
     }
 
-    const parsed = buildScalePatchPayload(body);
+    const { scales, components, groupSettings } = await getMongoCollections();
+    const groupCategoryTagIds = await resolveGroupCategoryTagIds(groupSettings, groupId);
+    const parsed = buildScalePatchPayload(body, groupCategoryTagIds);
 
     if (parsed.error) {
       return jsonApiError(parsed.error, 400, 'BAD_REQUEST');
     }
 
-    const { scales, components } = await getMongoCollections();
     const existingScale = await scales.findOne({ _id: scaleId, groupId });
 
     if (!existingScale) {
@@ -373,7 +422,7 @@ export async function PATCH(request, { params }) {
       const componentIds = parsed.updates.components.map((item) => item.componentId);
       const existingComponents = await components
         .find({ groupId, _id: { $in: componentIds.map((componentId) => componentId) } })
-        .project({ _id: 1 })
+        .project({ _id: 1, categoryTagIds: 1, unavailableDates: 1, unavailabilityByDate: 1, fullName: 1, username: 1 })
         .toArray();
 
       if (existingComponents.length !== componentIds.length) {
@@ -422,9 +471,18 @@ export async function PATCH(request, { params }) {
 
     const nextDate = parsed.updates.date || existingScale.date;
     const nextShift = parsed.updates.shift || existingScale.shift;
+    const nextCategoryTagId = Object.hasOwn(parsed.updates, 'categoryTagId')
+      ? parsed.updates.categoryTagId
+      : normalizeSingleCategoryTagId(existingScale.categoryTagId, { allowedCategoryTagIds: groupCategoryTagIds }) ||
+        groupCategoryTagIds[0] ||
+        'louvor';
     const isDateOrShiftChanging = nextDate !== existingScale.date || nextShift !== existingScale.shift;
 
-    if (Object.hasOwn(parsed.updates, 'components') || Object.hasOwn(parsed.updates, 'date')) {
+    if (
+      Object.hasOwn(parsed.updates, 'components') ||
+      Object.hasOwn(parsed.updates, 'date') ||
+      Object.hasOwn(parsed.updates, 'categoryTagId')
+    ) {
       const nextScaleComponents = parsed.updates.components || existingScale.components || [];
       const nextComponentIds = nextScaleComponents
         .map((item) => normalizeString(item?.componentId))
@@ -433,10 +491,30 @@ export async function PATCH(request, { params }) {
       if (nextComponentIds.length > 0) {
         const componentsForAvailability = await components
           .find({ groupId, _id: { $in: nextComponentIds } })
-          .project({ _id: 1, fullName: 1, username: 1, unavailableDates: 1 })
+          .project({ _id: 1, fullName: 1, username: 1, unavailableDates: 1, unavailabilityByDate: 1, categoryTagIds: 1 })
           .toArray();
 
-        const unavailableComponents = getUnavailableComponentsForDate(componentsForAvailability, nextDate);
+        const allComponentsMatchCategory = componentsForAvailability.every((component) => {
+          const categoryTagIds =
+            normalizeCategoryTagIdsInput(component?.categoryTagIds, {
+              allowedCategoryTagIds: groupCategoryTagIds
+            }) || groupCategoryTagIds;
+          return categoryTagIds.includes(nextCategoryTagId);
+        });
+
+        if (!allComponentsMatchCategory) {
+          return jsonApiError(
+            'Todos os componentes selecionados devem estar vinculados a categoria da escala.',
+            400,
+            'BAD_REQUEST'
+          );
+        }
+
+        const unavailableComponents = getUnavailableComponentsForDateByCategory(
+          componentsForAvailability,
+          nextDate,
+          nextCategoryTagId
+        );
 
         if (unavailableComponents.length > 0) {
           const componentNames = unavailableComponents.map((component) => component.name).join(', ');
@@ -454,7 +532,8 @@ export async function PATCH(request, { params }) {
         _id: { $ne: scaleId },
         groupId,
         date: nextDate,
-        shift: nextShift
+        shift: nextShift,
+        categoryTagId: nextCategoryTagId
       });
 
       if (duplicateScale) {

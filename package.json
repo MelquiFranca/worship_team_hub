@@ -14,7 +14,9 @@
     "test:smoke": "node --test --experimental-default-type=module tests/smoke/*.test.mjs",
     "test:auth": "node --test --experimental-default-type=module tests/auth/*.test.mjs",
     "migrate:components:backup-prd:dry": "node scripts/migrations/migrate-components-backup-prd.cjs --dry-run",
-    "migrate:components:backup-prd": "node scripts/migrations/migrate-components-backup-prd.cjs"
+    "migrate:components:backup-prd": "node scripts/migrations/migrate-components-backup-prd.cjs",
+    "migrate:categories:louvor:dry": "node scripts/migrations/migrate-default-category-louvor.cjs --dry-run",
+    "migrate:categories:louvor": "node scripts/migrations/migrate-default-category-louvor.cjs"
   },
   "engines": {
     "node": "22.14.0"

@@ -1,4 +1,5 @@
 import { normalizeIsoDate } from '../api/validation.js';
+import { normalizeCategoryTagIdsInput } from '../categories/tags.js';
 
 function uniqueSorted(values) {
   return Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
@@ -46,6 +47,48 @@ export function normalizeUnavailableDatesInput(value, options = {}) {
   return uniqueSorted(normalizedDates);
 }
 
+export function normalizeUnavailabilityByDateInput(value, options = {}) {
+  const { futureOnly = false, todayIsoDate, allowedCategoryTagIds = [] } = options;
+
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const referenceToday = normalizeIsoDate(todayIsoDate) || toIsoToday();
+  const byDate = new Map();
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') {
+      return null;
+    }
+
+    const date = normalizeIsoDate(entry.date);
+
+    if (!date) {
+      return null;
+    }
+
+    if (futureOnly && date <= referenceToday) {
+      return null;
+    }
+
+    const categoryTagIds = normalizeCategoryTagIdsInput(entry.categoryTagIds, {
+      allowedCategoryTagIds
+    });
+
+    if (!categoryTagIds || categoryTagIds.length === 0) {
+      return null;
+    }
+
+    const current = byDate.get(date) || [];
+    byDate.set(date, uniqueSorted([...current, ...categoryTagIds]));
+  }
+
+  return Array.from(byDate.entries())
+    .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+    .map(([date, categoryTagIds]) => ({ date, categoryTagIds }));
+}
+
 export function serializeUnavailableDates(document, options = {}) {
   const { futureOnly = false, todayIsoDate } = options;
   const source = document?.unavailableDates;
@@ -62,4 +105,53 @@ export function serializeUnavailableDates(document, options = {}) {
     .filter((date) => (!futureOnly ? true : date > referenceToday));
 
   return uniqueSorted(normalizedDates);
+}
+
+export function serializeUnavailabilityByDate(document, options = {}) {
+  const {
+    futureOnly = false,
+    todayIsoDate,
+    allowedCategoryTagIds = [],
+    fallbackCategoryTagIds = []
+  } = options;
+  const source = document?.unavailabilityByDate;
+  const referenceToday = normalizeIsoDate(todayIsoDate) || toIsoToday();
+
+  if (Array.isArray(source)) {
+    return source
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return null;
+        }
+
+        const date = normalizeIsoDate(entry.date);
+        if (!date || (futureOnly && date <= referenceToday)) {
+          return null;
+        }
+
+        const categoryTagIds = normalizeCategoryTagIdsInput(entry.categoryTagIds, {
+          allowedCategoryTagIds
+        });
+
+        if (!categoryTagIds || categoryTagIds.length === 0) {
+          return null;
+        }
+
+        return { date, categoryTagIds };
+      })
+      .filter(Boolean)
+      .sort((left, right) => left.date.localeCompare(right.date));
+  }
+
+  const legacyDates = serializeUnavailableDates(document, { futureOnly, todayIsoDate: referenceToday });
+  const normalizedFallbackCategoryTagIds = normalizeCategoryTagIdsInput(fallbackCategoryTagIds, {
+    allowedCategoryTagIds
+  });
+
+  return legacyDates
+    .map((date) => ({
+      date,
+      categoryTagIds: normalizedFallbackCategoryTagIds || []
+    }))
+    .filter((entry) => entry.categoryTagIds.length > 0);
 }

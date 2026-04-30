@@ -74,6 +74,10 @@ async function ensureMongoIndexes(db) {
         { groupId: 1, createdAt: -1 },
         { name: 'components_group_created_at' }
       ),
+      db.collection('components').createIndex(
+        { groupId: 1, categoryTagIds: 1 },
+        { name: 'components_group_category_tags' }
+      ),
       db.collection('group_settings').createIndex(
         { groupId: 1 },
         { unique: true, name: 'group_settings_group_unique' }
@@ -81,6 +85,10 @@ async function ensureMongoIndexes(db) {
       db.collection('scales').createIndex(
         { groupId: 1, date: -1, createdAt: -1 },
         { name: 'scales_group_date_created_at' }
+      ),
+      db.collection('scales').createIndex(
+        { groupId: 1, categoryTagId: 1, date: -1 },
+        { name: 'scales_group_category_date' }
       ),
       db.collection('scale_push_notification_dispatches').createIndex(
         { groupId: 1, scaleId: 1, createdAt: -1 },

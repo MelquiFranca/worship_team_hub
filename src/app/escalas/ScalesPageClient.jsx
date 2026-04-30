@@ -142,6 +142,7 @@ function normalizeScales(scaleItems, componentsById) {
 
     const formattedDate = formatScaleDate(scale?.date);
     const shift = normalizeString(scale?.shift) || 'Turno nao informado';
+    const categoryTagId = normalizeString(scale?.categoryTagId) || 'louvor';
     const imageAttachment = normalizeImageAttachment(scale?.imageAttachment, {
       fallbackSourceScaleId: scaleId,
       fallbackSourceScaleLabel: `${formattedDate} - ${shift}`
@@ -151,6 +152,7 @@ function normalizeScales(scaleItems, componentsById) {
       id: scaleId,
       date: formattedDate,
       shift,
+      categoryTagId,
       canEdit: scale?.canEdit !== false,
       members,
       playlist: normalizePlaylist(scale?.playlist),
@@ -168,16 +170,19 @@ export default function ScalesPageClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [timeScope, setTimeScope] = useState(SCALE_TIME_SCOPE_CURRENT_AND_FUTURE);
+  const [categoryTags, setCategoryTags] = useState([]);
+  const [sessionCategoryTagIds, setSessionCategoryTagIds] = useState([]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     setError('');
 
     try {
-      const [componentsPayload, scalesPayload, scaleImagesPayload] = await Promise.all([
+      const [componentsPayload, scalesPayload, scaleImagesPayload, groupSettingsPayload] = await Promise.all([
         requestJson('/api/components?limit=100'),
         requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent(timeScope)}`),
-        requestJson('/api/scales/images')
+        requestJson('/api/scales/images'),
+        requestJson('/api/group-settings')
       ]);
 
       const componentsById = normalizeComponentCatalog(componentsPayload?.items);
@@ -192,6 +197,16 @@ export default function ScalesPageClient() {
         .filter(Boolean);
       setScales(normalizedScales);
       setImageLibrary(normalizedImageLibrary);
+      setCategoryTags(
+        Array.isArray(groupSettingsPayload?.item?.categoryTags)
+          ? groupSettingsPayload.item.categoryTags
+          : []
+      );
+      setSessionCategoryTagIds(
+        Array.isArray(scalesPayload?.sessionCategoryTagIds)
+          ? scalesPayload.sessionCategoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+          : []
+      );
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -200,6 +215,8 @@ export default function ScalesPageClient() {
       );
       setScales([]);
       setImageLibrary([]);
+      setCategoryTags([]);
+      setSessionCategoryTagIds([]);
     } finally {
       setIsLoading(false);
     }
@@ -232,6 +249,8 @@ export default function ScalesPageClient() {
     <ScaleFeed
       scales={scales}
       imageLibrary={imageLibrary}
+      categoryTags={categoryTags}
+      sessionCategoryTagIds={sessionCategoryTagIds}
       timeScope={timeScope}
       onChangeTimeScope={setTimeScope}
       timeScopeOptions={[
