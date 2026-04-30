@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import Calendar from '@/components/molecules/Calendar/Calendar';
+import ComponentActionSheet from '@/components/organisms/ComponentActionSheet/ComponentActionSheet';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
@@ -58,6 +59,7 @@ function normalizeApiComponent(component) {
   return {
     id,
     name,
+    isActive: typeof component.isActive === 'boolean' ? component.isActive : true,
     photo: normalizePhotoUrl(
       (typeof component.photo === 'string' && component.photo) ||
         (typeof component.photoDataUrl === 'string' && component.photoDataUrl) ||
@@ -134,6 +136,7 @@ function normalizeComponentOptions(payload) {
 
   return list
     .map(normalizeApiComponent)
+    .filter((component) => component?.isActive !== false)
     .filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
@@ -384,6 +387,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const [isScaleLoading, setIsScaleLoading] = useState(isEditMode);
   const [scaleLoadError, setScaleLoadError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeComponentMenuId, setActiveComponentMenuId] = useState('');
 
   useEffect(() => {
     if (categoryTagId) {
@@ -574,6 +578,14 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const selectedFunctionsCount = selectedComponents.filter((component) =>
     Boolean(functionsByComponent[component.id]?.trim())
   ).length;
+  const activeComponent = useMemo(
+    () => componentOptions.find((component) => component.id === activeComponentMenuId) || null,
+    [activeComponentMenuId, componentOptions]
+  );
+  const activeComponentIsSelected = Boolean(activeComponent && selectedComponentIds.includes(activeComponent.id));
+  const activeComponentIsUnavailable = Boolean(
+    activeComponent && componentIsUnavailableOnDate(activeComponent, selectedScaleDateIso, categoryTagId)
+  );
   const selectedCategoryTagLabel =
     categoryTags.find((tag) => tag.id === categoryTagId)?.label ||
     'Pendente';
@@ -612,6 +624,14 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
       return nextIds;
     });
+  };
+
+  const openComponentMenu = (componentId) => {
+    setActiveComponentMenuId(componentId);
+  };
+
+  const closeComponentMenu = () => {
+    setActiveComponentMenuId('');
   };
 
   const togglePermissionComponentId = (componentId, setter, options = {}) => {
@@ -1205,9 +1225,10 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                     <button
                       type="button"
                       className={styles.componentToggle}
-                      onClick={() => toggleComponent(component.id)}
+                      onClick={() => openComponentMenu(component.id)}
                       disabled={isEditLocked || isSelectionBlocked || componentLoadState === 'loading'}
                       aria-pressed={isSelected}
+                      aria-label={`Abrir menu de acoes para ${component.name}`}
                     >
                       <span className={styles.componentAvatar} aria-hidden="true">
                         {component.photo ? (
@@ -1243,60 +1264,60 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                       </p>
                     ) : null}
 
-                    {isSelected ? (
-                      <label
-                        className={`${styles.functionField} ${
-                          missingFunctionIds.includes(component.id) ? styles.functionFieldError : ''
-                        }`}
-                      >
-                        <span className={styles.fieldLabel}>Funcao na escala</span>
-                        <select
-                          className={styles.textInput}
-                          value={functionsByComponent[component.id] || ''}
-                          onChange={(event) => updateFunction(component.id, event.target.value)}
-                          disabled={isEditLocked}
-                        >
-                          <option value="">Selecione uma funcao</option>
-                          {functionSelectOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-
-                    <div className={styles.permissionFieldset}>
-                      <span className={styles.permissionLabel}>Permissoes extras</span>
-                      {isLouvorCategory ? (
-                        <label className={styles.permissionToggle}>
-                          <input
-                            type="checkbox"
-                            checked={playlistEditorComponentIds.includes(component.id)}
-                            onChange={() =>
-                              togglePermissionComponentId(component.id, setPlaylistEditorComponentIds, {
-                                requiresSelectedComponent: true
-                              })
-                            }
-                            disabled={isEditLocked || !isSelected}
-                          />
-                          <span>Editar playlist</span>
-                        </label>
-                      ) : null}
-                      <label className={styles.permissionToggle}>
-                        <input
-                          type="checkbox"
-                          checked={imageEditorComponentIds.includes(component.id)}
-                          onChange={() => togglePermissionComponentId(component.id, setImageEditorComponentIds)}
-                          disabled={isEditLocked}
-                        />
-                        <span>Editar imagem</span>
-                      </label>
-                    </div>
                   </article>
                 );
               })}
             </div>
+
+            <ComponentActionSheet
+              open={Boolean(activeComponent)}
+              component={activeComponent}
+              isSelected={activeComponentIsSelected}
+              isUnavailable={activeComponentIsUnavailable && !activeComponentIsSelected}
+              isEditLocked={isEditLocked || componentLoadState === 'loading'}
+              isLouvorCategory={isLouvorCategory}
+              canTogglePlaylistPermission={activeComponentIsSelected}
+              hasPlaylistPermission={Boolean(
+                activeComponent && playlistEditorComponentIds.includes(activeComponent.id)
+              )}
+              hasImagePermission={Boolean(
+                activeComponent && imageEditorComponentIds.includes(activeComponent.id)
+              )}
+              functionValue={activeComponent ? functionsByComponent[activeComponent.id] || '' : ''}
+              functionOptions={functionSelectOptions}
+              showFunctionError={Boolean(
+                activeComponent && missingFunctionIds.includes(activeComponent.id)
+              )}
+              onChangeFunction={(value) => {
+                if (!activeComponent) {
+                  return;
+                }
+                updateFunction(activeComponent.id, value);
+              }}
+              onClose={closeComponentMenu}
+              onToggleSelected={() => {
+                if (!activeComponent) {
+                  return;
+                }
+                toggleComponent(activeComponent.id);
+              }}
+              onTogglePlaylistPermission={() => {
+                if (!activeComponent) {
+                  return;
+                }
+                togglePermissionComponentId(activeComponent.id, setPlaylistEditorComponentIds, {
+                  requiresSelectedComponent: true
+                });
+              }}
+              onToggleImagePermission={() => {
+                if (!activeComponent) {
+                  return;
+                }
+                togglePermissionComponentId(activeComponent.id, setImageEditorComponentIds, {
+                  requiresSelectedComponent: true
+                });
+              }}
+            />
 
             {!filteredComponentOptions.length ? (
               <p className={styles.emptyState}>

@@ -115,6 +115,9 @@
   padding: 12px;
   display: grid;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   text-decoration: none;
   color: inherit;
 }
@@ -142,6 +145,8 @@
 
 .photoWrap {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 14px;
   overflow: hidden;
@@ -183,31 +188,50 @@
 
 .statusBadge {
   justify-self: center;
+  inline-size: min(100%, 98px);
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--app-danger, #b91c1c) 30%, white);
   background: var(--app-danger-soft, #fef2f2);
   color: var(--app-danger, #b91c1c);
-  font-size: 0.74rem;
-  line-height: 1;
+  font-size: 0.68rem;
+  line-height: 1.1;
   font-weight: 700;
   letter-spacing: 0.03em;
-  padding: 6px 9px;
+  padding: 5px 8px;
 }
 
 .tagsWrap {
   display: flex;
   flex-wrap: wrap;
+  max-width: 100%;
+  overflow: hidden;
   gap: 6px;
   justify-content: center;
+  align-items: center;
 }
 
 .categoryTag {
+  inline-size: min(100%, 98px);
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--tag-color, #475569) 35%, white);
   background: color-mix(in srgb, var(--tag-color, #475569) 12%, white);
   color: var(--tag-color, #475569);
-  font-size: 0.72rem;
-  line-height: 1;
+  font-size: 0.68rem;
+  line-height: 1.1;
   font-weight: 700;
   letter-spacing: 0.02em;
   padding: 5px 8px;
@@ -241,7 +265,8 @@
   }
 
   .grid {
+    margin: 0 8px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    gap: 10px;
   }
 }
