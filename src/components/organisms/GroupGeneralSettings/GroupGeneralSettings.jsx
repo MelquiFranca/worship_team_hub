@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
+import { useActionFeedback } from '@/context/ToastContext';
 import styles from './GroupGeneralSettings.module.css';
 
 const ACCEPTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
@@ -77,6 +78,7 @@ export default function GroupGeneralSettings() {
     categoryTags,
     saveSettings
   } = useGroupSettings();
+  const { showActionFeedback } = useActionFeedback();
 
   const fileInputRef = useRef(null);
   const [fileError, setFileError] = useState('');
@@ -145,7 +147,19 @@ export default function GroupGeneralSettings() {
   }
 
   async function handleSave() {
-    await saveSettings();
+    const result = await saveSettings();
+    if (result?.ok) {
+      showActionFeedback({ type: 'success', message: 'Configuracoes salvas com sucesso.' });
+      return;
+    }
+
+    const message =
+      validationErrors.name ||
+      validationErrors.functionOptions ||
+      validationErrors.availableFunctions ||
+      validationErrors.categoryTags ||
+      'Nao foi possivel salvar as configuracoes agora.';
+    showActionFeedback({ type: 'error', message });
   }
 
   function handleAddFunctionType() {
@@ -512,7 +526,7 @@ export default function GroupGeneralSettings() {
 
       <footer className={styles.footer}>
         <div className={styles.feedbackBox} aria-live="polite">
-          {feedback.message ? <p>{feedback.message}</p> : <p>As alteracoes estao prontas para salvar.</p>}
+          <p>As alteracoes estao prontas para salvar.</p>
         </div>
 
         <div className={styles.footerActions}>

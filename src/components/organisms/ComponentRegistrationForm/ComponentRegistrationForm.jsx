@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Calendar from '@/components/molecules/Calendar/Calendar';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useActionFeedback } from '@/context/ToastContext';
 import { requestJson } from '@/lib/api/http';
 import styles from './ComponentRegistrationForm.module.css';
 
@@ -160,10 +161,11 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
   const [isComponentActive, setIsComponentActive] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
-  const [feedback, setFeedback] = useState({ type: 'idle', message: '' });
+  const [, setFeedback] = useState({ type: 'idle', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingComponent, setIsFetchingComponent] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const { showActionFeedback } = useActionFeedback();
 
   const previewFallback = useMemo(() => getInitials(fullName || 'Foto'), [fullName]);
 
@@ -373,6 +375,7 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
             : 'Componente cadastrado com sucesso.';
 
       setFeedback({ type: 'success', message: successMessage });
+      showActionFeedback({ type: 'success', message: successMessage });
 
       const updatedItem = responsePayload?.item && typeof responsePayload.item === 'object' ? responsePayload.item : null;
       const returnedPhotoDataUrl = normalizePhotoValue(updatedItem?.photoDataUrl);
@@ -394,6 +397,15 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
       }
     } catch (error) {
       setFeedback({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : isEditMode
+              ? 'Nao foi possivel atualizar o componente agora. Tente novamente.'
+              : 'Nao foi possivel cadastrar o componente agora. Tente novamente.'
+      });
+      showActionFeedback({
         type: 'error',
         message:
           error instanceof Error
@@ -434,8 +446,13 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
 
       setIsComponentActive(false);
       setFeedback({ type: 'success', message: successMessage });
+      showActionFeedback({ type: 'success', message: successMessage });
     } catch (error) {
       setFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Nao foi possivel inativar o componente agora.'
+      });
+      showActionFeedback({
         type: 'error',
         message: error instanceof Error ? error.message : 'Nao foi possivel inativar o componente agora.'
       });
@@ -468,18 +485,6 @@ export default function ComponentRegistrationForm({ componentId = '' }) {
       aria-label={isEditMode ? 'Formulario de edicao de componente' : 'Formulario de cadastro de componentes'}
       aria-busy={isFetchingComponent || isSubmitting || isDeactivating}
     >
-      {feedback.message ? (
-        <p
-          className={`${styles.feedback} ${
-            feedback.type === 'error' ? styles.feedbackError : styles.feedbackSuccess
-          }`}
-          role={feedback.type === 'error' ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {feedback.message}
-        </p>
-      ) : null}
-
       {isEditMode ? (
         <p className={`${styles.modeBadge} ${isComponentActive ? styles.modeBadgeActive : styles.modeBadgeInactive}`}>
           {isComponentActive ? 'Modo edicao • componente ativo' : 'Modo edicao • componente inativo'}

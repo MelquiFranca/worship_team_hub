@@ -1,8 +1,10 @@
 import './globals.css';
 import { AuthSessionProvider } from '@/context/AuthSessionContext';
 import { GroupSettingsProvider } from '@/context/GroupSettingsContext';
+import { ToastProvider } from '@/context/ToastContext';
 import AppNavigation from '@/components/organisms/AppNavigation/AppNavigation';
 import PwaServiceWorkerRegistration from '@/components/PwaServiceWorkerRegistration';
+import GlobalToastHost from '@/components/molecules/GlobalToastHost/GlobalToastHost';
 
 export const metadata = {
   title: 'Worship Team Hub',
@@ -33,8 +35,11 @@ export default function RootLayout({ children }) {
         <PwaServiceWorkerRegistration />
         <AuthSessionProvider>
           <GroupSettingsProvider>
-            {children}
-            <AppNavigation />
+            <ToastProvider>
+              {children}
+              <AppNavigation />
+              <GlobalToastHost />
+            </ToastProvider>
           </GroupSettingsProvider>
         </AuthSessionProvider>
       </body>

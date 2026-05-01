@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { requestJson } from '@/lib/api/http';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useActionFeedback } from '@/context/ToastContext';
 import styles from './page.module.css';
 
 const PHOTO_UPLOAD_MAX_SIZE_BYTES = 2 * 1024 * 1024;
@@ -115,6 +116,7 @@ function validatePasswordFields({ currentPassword, newPassword, confirmPassword 
 export default function EditProfilePage() {
   const fileInputRef = useRef(null);
   const { isLoading: isAuthLoading, isAuthenticated, user } = useAuthSession();
+  const { showActionFeedback } = useActionFeedback();
   const [profileName, setProfileName] = useState('');
   const [savedPhoto, setSavedPhoto] = useState('');
   const [photoFile, setPhotoFile] = useState(null);
@@ -126,7 +128,7 @@ export default function EditProfilePage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  const [feedback, setFeedback] = useState({ type: 'idle', message: '' });
+  const [, setFeedback] = useState({ type: 'idle', message: '' });
 
   const displayName = profileName || normalizeString(user?.name || user?.fullName || user?.username) || 'Perfil';
   const previewPhoto = photoPreview || (removePhoto ? '' : savedPhoto);
@@ -262,6 +264,7 @@ export default function EditProfilePage() {
 
     if (!hasPasswordChange && !hasPhotoChange) {
       setFeedback({ type: 'error', message: 'Nenhuma alteracao para salvar.' });
+      showActionFeedback({ type: 'error', message: 'Nenhuma alteracao para salvar.' });
       return;
     }
 
@@ -310,12 +313,17 @@ export default function EditProfilePage() {
       setConfirmPassword('');
       setErrors({});
       setFeedback({ type: 'success', message: 'Perfil atualizado com sucesso.' });
+      showActionFeedback({ type: 'success', message: 'Perfil atualizado com sucesso.' });
 
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     } catch (error) {
       setFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Nao foi possivel salvar as alteracoes do perfil.'
+      });
+      showActionFeedback({
         type: 'error',
         message: error instanceof Error ? error.message : 'Nao foi possivel salvar as alteracoes do perfil.'
       });
@@ -424,12 +432,6 @@ export default function EditProfilePage() {
               />
               {errors.confirmPassword ? <p className={styles.fieldError}>{errors.confirmPassword}</p> : null}
             </div>
-
-            {feedback.type !== 'idle' ? (
-              <p className={feedback.type === 'success' ? styles.feedbackSuccess : styles.feedbackError}>
-                {feedback.message}
-              </p>
-            ) : null}
 
             <button type="submit" className={styles.submitButton} disabled={isPageBusy || isSaving}>
               {isPageBusy ? 'Carregando perfil...' : isSaving ? 'Salvando...' : 'Salvar alteracoes'}

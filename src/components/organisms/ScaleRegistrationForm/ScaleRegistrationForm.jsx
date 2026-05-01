@@ -6,6 +6,7 @@ import Calendar from '@/components/molecules/Calendar/Calendar';
 import ComponentActionSheet from '@/components/organisms/ComponentActionSheet/ComponentActionSheet';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
+import { useActionFeedback } from '@/context/ToastContext';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
 import { requestJson } from '@/lib/api/http';
 import styles from './ScaleRegistrationForm.module.css';
@@ -380,8 +381,9 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
   const [previewStatus, setPreviewStatus] = useState('idle');
   const [previewMessage, setPreviewMessage] = useState('');
   const [playlist, setPlaylist] = useState([]);
-  const [submitMessage, setSubmitMessage] = useState('');
-  const [submitError, setSubmitError] = useState('');
+  const [, setSubmitMessage] = useState('');
+  const [, setSubmitError] = useState('');
+  const { showActionFeedback } = useActionFeedback();
   const [missingFunctionIds, setMissingFunctionIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScaleLoading, setIsScaleLoading] = useState(isEditMode);
@@ -992,6 +994,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
             : `Escala cadastrada com sucesso em ${formatDate(scaleDate)}.`;
 
       setSubmitMessage(successMessage);
+      showActionFeedback({ type: 'success', message: successMessage });
     } catch (error) {
       setSubmitError(
         error instanceof Error
@@ -1000,6 +1003,15 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
             ? 'Nao foi possivel atualizar a escala agora. Tente novamente.'
             : 'Nao foi possivel cadastrar a escala agora. Tente novamente.'
       );
+      showActionFeedback({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : isEditMode
+              ? 'Nao foi possivel atualizar a escala agora. Tente novamente.'
+              : 'Nao foi possivel cadastrar a escala agora. Tente novamente.'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -1035,10 +1047,15 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
           : 'Escala excluida com sucesso.';
 
       setSubmitMessage(successMessage);
+      showActionFeedback({ type: 'success', message: successMessage });
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : 'Nao foi possivel excluir a escala agora. Tente novamente.'
       );
+      showActionFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Nao foi possivel excluir a escala agora. Tente novamente.'
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -1079,18 +1096,6 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
           </article>
         </div>
       </header>
-
-      {submitMessage ? (
-        <p className={styles.successMessage} role="status" aria-live="polite">
-          {submitMessage}
-        </p>
-      ) : null}
-
-      {submitError ? (
-        <p className={styles.errorMessage} role="alert">
-          {submitError}
-        </p>
-      ) : null}
 
       {scaleLoadError ? (
         <p className={styles.errorMessage} role="alert">

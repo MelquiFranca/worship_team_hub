@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
+import { useActionFeedback } from '@/context/ToastContext';
 import { requestJson } from '@/lib/api/http';
 import { GROUP_THEME_OPTIONS, resolveGroupTheme } from '@/theme/groupTheme';
 import styles from './AdminGroupForm.module.css';
@@ -116,7 +117,7 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
   const router = useRouter();
   const [state, setState] = useState(normalizeIncomingItem(initialData));
   const [isSaving, setIsSaving] = useState(false);
-  const [feedback, setFeedback] = useState({ type: 'idle', message: '' });
+  const [, setFeedback] = useState({ type: 'idle', message: '' });
   const [fileError, setFileError] = useState('');
   const [newFunctionName, setNewFunctionName] = useState('');
   const [newFunctionHint, setNewFunctionHint] = useState('');
@@ -125,6 +126,7 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
     type: 'idle',
     message: ''
   });
+  const { showActionFeedback } = useActionFeedback();
 
   const title = mode === 'edit' ? 'Editar grupo' : 'Cadastrar novo grupo';
   const submitLabel = mode === 'edit' ? 'Salvar alteracoes' : 'Cadastrar grupo';
@@ -231,6 +233,7 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
 
     if (!label) {
       setFeedback({ type: 'error', message: 'Informe o nome da nova funcao.' });
+      showActionFeedback({ type: 'error', message: 'Informe o nome da nova funcao.' });
       return;
     }
 
@@ -238,6 +241,7 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
 
     if (!idBase) {
       setFeedback({ type: 'error', message: 'Nome da funcao invalido.' });
+      showActionFeedback({ type: 'error', message: 'Nome da funcao invalido.' });
       return;
     }
 
@@ -274,6 +278,7 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
     setNewFunctionName('');
     setNewFunctionHint('');
     setFeedback({ type: 'success', message: 'Funcao personalizada adicionada.' });
+    showActionFeedback({ type: 'success', message: 'Funcao personalizada adicionada.' });
   }
 
   function onFileChange(event) {
@@ -352,12 +357,14 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
       }));
 
       setFeedback({ type: 'success', message: response?.message || 'Operacao concluida com sucesso.' });
+      showActionFeedback({ type: 'success', message: response?.message || 'Operacao concluida com sucesso.' });
 
       if (mode === 'create' && response?.item?.group?.id) {
         router.replace(`/admin/grupos/${response.item.group.id}/editar`);
       }
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Nao foi possivel salvar o grupo.' });
+      showActionFeedback({ type: 'error', message: error.message || 'Nao foi possivel salvar o grupo.' });
     } finally {
       setIsSaving(false);
     }
@@ -396,6 +403,10 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
           ? 'Componente reativado com sucesso.'
           : 'Componente desativado com sucesso.'
       });
+      showActionFeedback({
+        type: 'success',
+        message: nextIsActive ? 'Componente reativado com sucesso.' : 'Componente desativado com sucesso.'
+      });
     } catch (error) {
       setComponentAction({
         loadingId: '',
@@ -405,6 +416,15 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
           : nextIsActive
             ? 'Nao foi possivel reativar o componente.'
             : 'Nao foi possivel desativar o componente.'
+      });
+      showActionFeedback({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : nextIsActive
+              ? 'Nao foi possivel reativar o componente.'
+              : 'Nao foi possivel desativar o componente.'
       });
     }
   }
@@ -637,19 +657,10 @@ export default function AdminGroupForm({ mode = 'create', groupId = '', initialD
               <p className={styles.sectionHint}>Nenhum componente cadastrado neste grupo.</p>
             )}
 
-            {componentAction.message ? (
-              <p className={componentAction.type === 'error' ? styles.errorText : styles.successText}>
-                {componentAction.message}
-              </p>
-            ) : null}
           </section>
         ) : null}
 
         <section className={styles.actions}>
-          {feedback.message ? (
-            <p className={feedback.type === 'error' ? styles.errorText : styles.successText}>{feedback.message}</p>
-          ) : null}
-
           <button className={styles.primaryButton} type="submit" disabled={isSaving}>
             {isSaving ? 'Salvando...' : submitLabel}
           </button>

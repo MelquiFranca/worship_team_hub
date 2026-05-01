@@ -1,0 +1,98 @@
+.shell {
+  position: fixed;
+  inset: auto 0 calc(var(--app-main-nav-space) + 22px);
+  z-index: 46;
+  pointer-events: none;
+  padding: 0 12px;
+}
+
+.stack {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 10px;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
+  background: var(--app-surface, #ffffff);
+  box-shadow: var(--app-shadow-floating);
+  padding: 10px 12px;
+}
+
+.toastInfo {
+  border-color: var(--app-info-strong-soft, #dbeafe);
+  background: linear-gradient(135deg, var(--app-info-soft, #eff6ff), var(--app-surface, #fff));
+}
+
+.toastSuccess {
+  border-color: var(--app-success-border, #bbf7d0);
+  background: linear-gradient(135deg, var(--app-success-soft, #f0fdf4), var(--app-surface, #fff));
+}
+
+.toastWarning {
+  border-color: #fed7aa;
+  background: linear-gradient(135deg, var(--app-warning-soft, #fff7ed), var(--app-surface, #fff));
+}
+
+.toastError {
+  border-color: var(--app-danger-border, #fecaca);
+  background: linear-gradient(135deg, var(--app-danger-soft, #fef2f2), var(--app-surface, #fff));
+}
+
+.content {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--app-text, #0f172a);
+}
+
+.message {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--app-text-muted, #4b5563);
+}
+
+.countdown {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.2;
+  color: var(--app-text-soft, #64748b);
+}
+
+.closeButton {
+  border: 0;
+  background: transparent;
+  color: var(--app-text-soft, #64748b);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  background: var(--app-overlay, rgba(15, 23, 42, 0.04));
+}
+
+@media (max-width: 640px) {
+  .shell {
+    padding: 0 10px;
+    inset: auto 0 calc(var(--app-main-nav-space) + 14px);
+  }
+}

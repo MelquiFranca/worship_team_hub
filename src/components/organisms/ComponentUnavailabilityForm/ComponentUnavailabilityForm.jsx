@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { requestJson } from '@/lib/api/http';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useActionFeedback } from '@/context/ToastContext';
 import styles from './ComponentUnavailabilityForm.module.css';
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -109,7 +110,8 @@ export default function ComponentUnavailabilityForm() {
   const [groupedItems, setGroupedItems] = useState([]);
   const [groupedTotalEntries, setGroupedTotalEntries] = useState(0);
   const [groupedFeedback, setGroupedFeedback] = useState({ type: 'idle', message: '' });
-  const [feedback, setFeedback] = useState({ type: 'idle', message: '' });
+  const [, setFeedback] = useState({ type: 'idle', message: '' });
+  const { showActionFeedback } = useActionFeedback();
   const [isLoading, setIsLoading] = useState(true);
   const [isGroupedLoading, setIsGroupedLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -356,8 +358,19 @@ export default function ComponentUnavailabilityForm() {
             ? payload.message.trim()
             : 'Dias indisponiveis atualizados com sucesso.'
       });
+      showActionFeedback({
+        type: 'success',
+        message:
+          typeof payload?.message === 'string' && payload.message.trim()
+            ? payload.message.trim()
+            : 'Dias indisponiveis atualizados com sucesso.'
+      });
     } catch (error) {
       setFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Nao foi possivel salvar sua indisponibilidade.'
+      });
+      showActionFeedback({
         type: 'error',
         message: error instanceof Error ? error.message : 'Nao foi possivel salvar sua indisponibilidade.'
       });
@@ -379,16 +392,6 @@ export default function ComponentUnavailabilityForm() {
             : 'Toque nos dias futuros em que voce nao pode servir. Dias marcados ficam destacados.'}
         </p>
       </div>
-
-      {feedback.message ? (
-        <p
-          className={`${styles.feedback} ${feedback.type === 'error' ? styles.feedbackError : styles.feedbackSuccess}`}
-          role={feedback.type === 'error' ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {feedback.message}
-        </p>
-      ) : null}
 
       <div className={styles.calendarCard} aria-busy={isLoading || isSaving}>
         <div className={styles.calendarHeader}>
