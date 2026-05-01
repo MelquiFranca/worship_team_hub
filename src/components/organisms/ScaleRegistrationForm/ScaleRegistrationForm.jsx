@@ -1221,6 +1221,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                     className={`${styles.componentCard} ${isSelected ? styles.componentCardSelected : ''} ${
                       isSelectionBlocked ? styles.componentCardUnavailable : ''
                     }`}
+                    title={component.name}
                   >
                     <button
                       type="button"
@@ -1229,6 +1230,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                       disabled={isEditLocked || isSelectionBlocked || componentLoadState === 'loading'}
                       aria-pressed={isSelected}
                       aria-label={`Abrir menu de acoes para ${component.name}`}
+                      title={component.name}
                     >
                       <span className={styles.componentAvatar} aria-hidden="true">
                         {component.photo ? (

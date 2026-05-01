@@ -24,7 +24,9 @@ Executar em trilhas paralelas controladas: (1) base visual e formulario da escal
 | T-08 | Implementar UI de busca/pre-visualizacao e adicao na playlist com deduplicacao | AC-07, AC-08 | Integracao + manual | Evidencia de add/remove/duplicata |
 | T-09 | Implementar fluxo alternativo de colar link valido, validar URL e exibir pre-visualizacao antes de adicionar na playlist | AC-10, AC-11 | Integracao + manual | Evidencia de parser/preview por link |
 | T-10 | Implementar validacoes finais de submit (data, turno, componentes e funcoes) e regras de erro para busca/link | AC-09 | Integracao | Testes de bloqueio e sucesso |
-| T-11 | Executar lint/build e consolidar validacao final | AC-01 a AC-11 | Manual + CI local | `validation.md` atualizado |
+| T-11 | Executar lint/build e consolidar validacao final | AC-01 a AC-13 | Manual + CI local | `validation.md` atualizado |
+| T-12 | Ajustar grid de componentes para 3 colunas no desktop na tela de cadastro de escalas | AC-12 | Manual visual | Diff em `ScaleRegistrationForm.module.css` e validacao em desktop/mobile |
+| T-13 | Aplicar tooltip com nome completo em todos os cards de componentes | AC-13 | Manual visual | Diff em `ScaleRegistrationForm.jsx` com atributo `title` no card |
 
 ## 4) Ordem de Execucao
 
@@ -33,7 +35,7 @@ Executar em trilhas paralelas controladas: (1) base visual e formulario da escal
 3. Integrar calendario e turno (T-05, T-06).
 4. Construir busca YouTube no backend route e UI de playlist (T-07, T-08).
 5. Entregar alternativa de link manual com pre-visualizacao (T-09).
-6. Fechar validacoes de submit e consolidar evidencias (T-10, T-11).
+6. Fechar validacoes de submit e consolidar evidencias (T-10, T-11, T-12, T-13).
 
 ## 5) Riscos e Mitigacoes
 

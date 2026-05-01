@@ -22,6 +22,8 @@ Implementar a tela de cadastro de escalas com identidade visual da tela de escal
 - Permitir definir a funcao individual de cada componente selecionado por meio de `select` com opcoes pre-definidas.
 - Permitir escolha da data com componente de calendario reutilizavel sem biblioteca externa.
 - Permitir escolha do turno da escala.
+- Exibir os cards de componentes em grade com 3 colunas por linha na visao desktop.
+- Exibir tooltip com nome completo em todos os cards de componentes.
 - Implementar busca de musicas no YouTube.
 - Exibir pre-visualizacao do conteudo retornado da busca.
 - Permitir adicionar itens selecionados na playlist da escala.
@@ -61,6 +63,8 @@ Use formato passa/falha.
 | AC-09 | Formulario bloqueia submit sem dados obrigatorios (data, turno e ao menos 1 componente). | Teste de integracao de validacao. | Alta |
 | AC-10 | Usuario pode colar um link valido de video e adicionar na playlist sem usar a busca. | Teste manual + integracao de parser/validacao de URL. | Alta |
 | AC-11 | O link colado apresenta pre-visualizacao (titulo/canal/thumbnail ou fallback) antes da adicao. | Teste manual + integracao de pre-visualizacao. | Alta |
+| AC-12 | Os cards de componentes na tela de cadastro de escalas sao exibidos em 3 colunas por linha na visao desktop. | Teste visual em viewport desktop + verificacao do CSS grid. | Alta |
+| AC-13 | Todos os cards de componentes exibem tooltip com o nome completo do componente ao passar o cursor no desktop. | Teste manual visual em desktop (hover) verificando atributo `title` no card. | Media |
 
 ## 8) Requisitos Nao Funcionais
 
@@ -107,3 +111,5 @@ Use formato passa/falha.
 | AC-09 | T-09 |
 | AC-10 | T-09 |
 | AC-11 | T-09 |
+| AC-12 | T-02, T-11 |
+| AC-13 | T-12 |

@@ -15,6 +15,8 @@
 | AC-09 | Pass | `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Submit bloqueado sem data, turno e componentes com funcao preenchida. |
 | AC-10 | Pass | `src/app/api/youtube/preview/route.js`, `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Fluxo de colagem de link valido com validacao server-side e adicao na playlist a partir do preview. |
 | AC-11 | Pass | `src/app/api/youtube/preview/route.js`, `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Pre-visualizacao de conteudo por link com thumbnail, titulo, canal e fallback quando necessario. |
+| AC-12 | Pass | `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.module.css` | Grid de componentes ajustado para 3 colunas no desktop e 1 coluna no mobile. |
+| AC-13 | Pass | `src/components/organisms/ScaleRegistrationForm/ScaleRegistrationForm.jsx` | Cards de componentes exibem tooltip com nome completo via atributo `title`. |
 
 ## Resultado final
 
@@ -26,3 +28,4 @@
 
 - Configurar `YOUTUBE_API_KEY` em ambiente alvo para busca real em producao.
 - Validacao de preview por link depende de disponibilidade do endpoint oEmbed do YouTube em runtime.
+- Checklist de revisao aplicado: `docs/specs/references/review-checklist.md`.
