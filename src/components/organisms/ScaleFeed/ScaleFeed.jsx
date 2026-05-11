@@ -1238,7 +1238,7 @@ function PlaylistPanel({
         rel="noreferrer noopener"
         className={styles.backgroundPlayLink}
       >
-        Continuar em segundo plano (mobile)
+        Executar playlist no APP de stream (Ex.: Youtube)
       </a>
 
       <div className={styles.carouselDots} aria-label="Seletor de videos">
