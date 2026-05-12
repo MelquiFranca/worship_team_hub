@@ -17,7 +17,7 @@ const CURRENT_USER_SCALES_FILTER_ID = 'scales-only-current-user';
 const COMPONENT_APP_PERMISSION_MESSAGE =
   'Seu perfil de componente pode visualizar os cards e enviar mensagens, mas notificacoes e edicao geral continuam bloqueadas.';
 const CURRENT_USER_BADGE_LABEL = 'Você';
-const SCALE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const SCALE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_SCALE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 const COMBINING_MARKS_PATTERN = /[\u0300-\u036f]/g;
@@ -1724,7 +1724,7 @@ function ScaleCard({
     }
 
     if (file.size > SCALE_IMAGE_MAX_BYTES) {
-      setImageFeedback('A imagem da escala excede o limite de 2 MB.');
+      setImageFeedback('A imagem da escala excede o limite de 8 MB.');
       return;
     }
 

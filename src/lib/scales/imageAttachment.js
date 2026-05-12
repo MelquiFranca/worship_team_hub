@@ -1,6 +1,6 @@
 import { isPlainObject, normalizeString } from '../api/validation.js';
 
-export const SCALE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+export const SCALE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 
 const ALLOWED_SCALE_IMAGE_CONTENT_TYPES = new Set([
   'image/jpeg',
@@ -113,7 +113,7 @@ function parsePhotoDataUrl(value, filename, now) {
   }
 
   if (data.length > SCALE_IMAGE_MAX_BYTES) {
-    return { error: 'A imagem da escala excede o limite de 2 MB.' };
+    return { error: 'A imagem da escala excede o limite de 8 MB.' };
   }
 
   const photo = {
