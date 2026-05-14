@@ -105,6 +105,7 @@ function normalizeImageAttachment(value, { fallbackSourceScaleId = '', fallbackS
     src,
     alt: normalizeString(value?.alt) || 'Imagem da escala',
     label: normalizeString(value?.label) || 'Imagem da escala',
+    description: normalizeString(value?.description),
     sourceScaleId: normalizeString(value?.sourceScaleId) || fallbackSourceScaleId,
     sourceScaleLabel: normalizeString(value?.sourceScaleLabel) || fallbackSourceScaleLabel
   };

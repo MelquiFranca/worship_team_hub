@@ -185,6 +185,7 @@ export function parseScaleImageAttachmentInput(
   const id = normalizeString(rawAttachment.id);
   const label = normalizeString(rawAttachment.label);
   const alt = normalizeString(rawAttachment.alt);
+  const description = normalizeString(rawAttachment.description);
   const sourceScaleId = normalizeString(rawAttachment.sourceScaleId) || normalizeString(defaultSourceScaleId);
   const sourceScaleLabel =
     normalizeString(rawAttachment.sourceScaleLabel) || normalizeString(defaultSourceScaleLabel);
@@ -203,6 +204,7 @@ export function parseScaleImageAttachmentInput(
     id: id || createFallbackImageId(sourceScaleId, imageSource.slice(0, 64)),
     alt: alt || label || 'Imagem da escala',
     label: label || 'Imagem da escala',
+    description,
     sourceScaleId: sourceScaleId || undefined,
     sourceScaleLabel: sourceScaleLabel || undefined,
     updatedAt: now
@@ -255,6 +257,7 @@ export function serializeScaleImageAttachment(value) {
     src,
     alt: normalizeString(value.alt) || 'Imagem da escala',
     label: normalizeString(value.label) || 'Imagem da escala',
+    description: normalizeString(value.description),
     sourceScaleId: normalizeString(value.sourceScaleId) || '',
     sourceScaleLabel: normalizeString(value.sourceScaleLabel) || '',
     isLocalUpload: Boolean(value.isLocalUpload),

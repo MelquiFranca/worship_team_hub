@@ -941,6 +941,48 @@
   line-height: 1.45;
 }
 
+.imageDescriptionPanel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
+}
+
+.imageDescriptionLabel {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--app-text-soft, #64748b);
+}
+
+.imageDescriptionInput {
+  width: 100%;
+  border: 1px solid var(--app-border-strong, #d4d4d8);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--app-text, #0f172a);
+  background: var(--app-surface, #fff);
+  resize: vertical;
+  min-height: 86px;
+}
+
+.imageDescriptionInput:focus-visible {
+  outline: 3px solid var(--app-focus, #93c5fd);
+  outline-offset: 1px;
+}
+
+.imageDescriptionInput:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.imageDescriptionActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .commentsPanel {
   display: grid;
   gap: 10px;

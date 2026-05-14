@@ -123,6 +123,7 @@ function createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift) {
       ? `Imagem enviada do dispositivo: ${file.name}`
       : `Imagem enviada do dispositivo para ${scaleDate} (${scaleShift})`,
     label: file?.name ? file.name : 'Imagem do dispositivo',
+    description: '',
     sourceScaleId: scaleId,
     sourceScaleLabel: `${scaleDate} - ${scaleShift}`,
     isLocalUpload: true
@@ -181,6 +182,7 @@ function normalizeImageAttachment(value) {
     src,
     alt: typeof value.alt === 'string' && value.alt.trim() ? value.alt.trim() : 'Imagem da escala',
     label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : 'Imagem da escala',
+    description: typeof value.description === 'string' ? value.description.trim() : '',
     sourceScaleId: typeof value.sourceScaleId === 'string' ? value.sourceScaleId.trim() : '',
     sourceScaleLabel: typeof value.sourceScaleLabel === 'string' ? value.sourceScaleLabel.trim() : '',
     isLocalUpload: Boolean(value.isLocalUpload)
@@ -762,7 +764,8 @@ function ScaleImagePanel({
   onRestrictedAction,
   onRemoveImage,
   onSelectImage,
-  onUploadImage
+  onUploadImage,
+  onSaveImageDescription
 }) {
   const hasCurrentImage = Boolean(currentImage);
   const [isGalleryVisible, setIsGalleryVisible] = useState(false);
@@ -772,10 +775,16 @@ function ScaleImagePanel({
   const galleryId = `image-gallery-${makeDomId(scaleId)}`;
   const fullscreenTitleId = `image-fullscreen-title-${makeDomId(scaleId)}`;
   const fullscreenDescriptionId = `image-fullscreen-description-${makeDomId(scaleId)}`;
+  const imageDescriptionFieldId = `image-description-${makeDomId(scaleId)}`;
+  const [descriptionDraft, setDescriptionDraft] = useState(() => currentImage?.description || '');
 
   useEffect(() => {
     setIsGalleryVisible(false);
   }, [currentImage]);
+
+  useEffect(() => {
+    setDescriptionDraft(currentImage?.description || '');
+  }, [currentImage?.id, currentImage?.description]);
 
   useEffect(() => {
     if (!hasCurrentImage) {
@@ -847,6 +856,15 @@ function ScaleImagePanel({
     setIsFullscreenOpen(false);
   };
 
+  const handleSaveDescription = () => {
+    if (!canEditImage) {
+      onRestrictedAction?.();
+      return;
+    }
+
+    onSaveImageDescription?.(descriptionDraft);
+  };
+
   return (
     <section className={styles.imagesPanel} aria-label="Bloco de imagens da escala">
       {hasCurrentImage ? (
@@ -896,6 +914,7 @@ function ScaleImagePanel({
                 </h2>
                 <p id={fullscreenDescriptionId} className={styles.imageFullscreenDescription}>
                   {scaleDate} ({scaleShift})
+                  {currentImage?.description ? ` - ${currentImage.description}` : ''}
                 </p>
                 <div className={styles.imageFullscreenMediaWrap}>
                   <Image
@@ -922,6 +941,34 @@ function ScaleImagePanel({
           {!canEditImage ? (
             <p className={styles.imageHint}>Somente componentes autorizados podem editar esta imagem.</p>
           ) : null}
+
+          <div className={styles.imageDescriptionPanel}>
+            <label className={styles.imageDescriptionLabel} htmlFor={imageDescriptionFieldId}>
+              Detalhes da imagem
+            </label>
+            <textarea
+              id={imageDescriptionFieldId}
+              className={styles.imageDescriptionInput}
+              value={descriptionDraft}
+              onChange={(event) => setDescriptionDraft(event.target.value)}
+              placeholder="Descreva orientacoes, observacoes ou contexto desta imagem."
+              disabled={!canEditImage || isSavingImage}
+              rows={3}
+            />
+            <div className={styles.imageDescriptionActions}>
+              {canEditImage ? (
+                <button
+                  type="button"
+                  className={styles.imageSecondaryButton}
+                  onClick={handleSaveDescription}
+                  disabled={isSavingImage}
+                  aria-disabled={isSavingImage}
+                >
+                  {isSavingImage ? 'Salvando...' : 'Salvar detalhes'}
+                </button>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : (
         <div className={styles.imageEmptyState}>
@@ -1737,6 +1784,32 @@ function ScaleCard({
     }
   };
 
+  const handleSaveImageDescription = async (descriptionText) => {
+    if (!canEditImage) {
+      setImageFeedback('Seu perfil nao tem permissao para editar esta imagem.');
+      return;
+    }
+
+    if (!currentImage) {
+      setImageFeedback('Adicione uma imagem antes de salvar os detalhes.');
+      return;
+    }
+
+    try {
+      const savedImage = await persistImageAttachment({
+        ...currentImage,
+        description: typeof descriptionText === 'string' ? descriptionText.trim() : ''
+      });
+      setImageFeedback(
+        savedImage?.description
+          ? `Detalhes salvos para ${scaleDate} (${scaleShift}).`
+          : `Detalhes removidos para ${scaleDate} (${scaleShift}).`
+      );
+    } catch (error) {
+      setImageFeedback(error instanceof Error ? error.message : 'Nao foi possivel salvar os detalhes.');
+    }
+  };
+
   const persistPlaylist = async (nextPlaylist) => {
     if (!canEditPlaylist) {
       throw new Error('Seu perfil nao tem permissao para editar esta playlist.');
@@ -1872,6 +1945,7 @@ function ScaleCard({
               onRemoveImage={handleRemoveImage}
               onSelectImage={handleSelectImage}
               onUploadImage={handleUploadImage}
+              onSaveImageDescription={handleSaveImageDescription}
             />
           ) : null}
         </section>
