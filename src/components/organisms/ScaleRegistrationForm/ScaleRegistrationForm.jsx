@@ -1320,9 +1320,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                 if (!activeComponent) {
                   return;
                 }
-                togglePermissionComponentId(activeComponent.id, setImageEditorComponentIds, {
-                  requiresSelectedComponent: true
-                });
+                togglePermissionComponentId(activeComponent.id, setImageEditorComponentIds);
               }}
             />
 
