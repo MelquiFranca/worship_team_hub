@@ -9,7 +9,7 @@ import {
 } from '@/theme/groupTheme';
 import { GROUP_FUNCTION_OPTIONS } from '@/data/groupFunctions';
 import { CLIENT_AUTH_STORAGE_KEYS } from '@/lib/auth/clientSessionCleanup';
-import { useAuthSession } from '@/context/AuthSessionContext';
+import { useAppDataCache } from '@/context/AppDataCacheContext';
 import { requestJson } from '@/lib/api/http';
 import {
   DEFAULT_GROUP_CATEGORY_TAGS,
@@ -279,7 +279,7 @@ function validateGroupSettings(settings) {
 const GroupSettingsContext = createContext(null);
 
 export function GroupSettingsProvider({ children }) {
-  const { isLoading: isAuthLoading, isAuthenticated } = useAuthSession();
+  const { groupSettings: cachedGroupSettings } = useAppDataCache();
   const [settings, setSettings] = useState(defaultGroupSettings);
   const [savedSettings, setSavedSettings] = useState(defaultGroupSettings);
   const [isReady, setIsReady] = useState(false);
@@ -289,61 +289,15 @@ export function GroupSettingsProvider({ children }) {
 
   useEffect(() => {
     const storedSettings = readStoredSettings();
-    setSettings(storedSettings);
-    setSavedSettings(storedSettings);
+    const nextSettings = cachedGroupSettings ? normalizeStoredGroupSettings(cachedGroupSettings) : storedSettings;
+    setSettings(nextSettings);
+    setSavedSettings(nextSettings);
     setIsReady(true);
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadRemoteGroupSettings() {
-      try {
-        const payload = await requestJson('/api/group-settings', {
-          method: 'GET',
-          cache: 'no-store'
-        });
-        const normalized = normalizeApiGroupSettings(payload);
-
-        if (!isMounted || !normalized) {
-          return;
-        }
-
-        setSettings(normalized);
-        setSavedSettings(normalized);
-
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(GROUP_SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
-        }
-      } catch {
-        // Fallback para storage local quando API nao estiver disponivel.
-      }
-    }
-
-    if (isReady && !isAuthLoading && isAuthenticated) {
-      loadRemoteGroupSettings();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isReady, isAuthLoading, isAuthenticated]);
+  }, [cachedGroupSettings]);
 
   useEffect(() => {
     applyGroupThemeToDocument(settings.themeName);
   }, [settings.themeName]);
-
-  useEffect(() => {
-    if (isAuthLoading || isAuthenticated) {
-      return;
-    }
-
-    setSettings(defaultGroupSettings);
-    setSavedSettings(defaultGroupSettings);
-    setIsSaving(false);
-    setLastSavedAt(null);
-    setFeedback({ type: 'idle', message: '' });
-  }, [isAuthLoading, isAuthenticated]);
 
   const validationErrors = useMemo(() => validateGroupSettings(settings), [settings]);
   const isDirty = useMemo(() => !settingsEqual(settings, savedSettings), [settings, savedSettings]);

@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { requestJson } from '@/lib/api/http';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useAppDataCache } from '@/context/AppDataCacheContext';
 import { useActionFeedback } from '@/context/ToastContext';
+import AppDataRefreshButton from '@/components/molecules/AppDataRefreshButton/AppDataRefreshButton';
 import styles from './ComponentUnavailabilityForm.module.css';
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -99,6 +101,8 @@ function getCategoryTagLabel(categoryTags, categoryTagId) {
 
 export default function ComponentUnavailabilityForm() {
   const { permissions, isLoading: isAuthLoading } = useAuthSession();
+  const { groupSettings, componentUnavailability, myUnavailability, isHydrating, isRefreshing, error, refreshAppData } =
+    useAppDataCache();
   const isGroupApp = Boolean(permissions?.isGroupApp);
   const minSelectableDate = useMemo(() => getTomorrowDate(), []);
   const minSelectableIso = useMemo(() => toIsoDate(minSelectableDate), [minSelectableDate]);
@@ -128,27 +132,12 @@ export default function ComponentUnavailabilityForm() {
   const profileLabel = isGroupApp ? 'Perfil do grupo' : 'Perfil do componente';
 
   useEffect(() => {
-    let active = true;
-
-    if (isAuthLoading) {
-      return () => {
-        active = false;
-      };
+    if (isAuthLoading || isHydrating) {
+      return;
     }
 
-    async function loadGroupedUnavailability() {
-      setIsGroupedLoading(true);
-      setGroupedFeedback({ type: 'idle', message: '' });
-
-      try {
-        const payload = await requestJson('/api/components/unavailability');
-        const items = Array.isArray(payload?.items) ? payload.items : [];
-
-        if (!active) {
-          return;
-        }
-
-        const normalized = items
+    const grouped = Array.isArray(componentUnavailability)
+      ? componentUnavailability
           .map((item) => {
             const date = typeof item?.date === 'string' ? item.date.trim() : '';
             const components = Array.isArray(item?.components) ? item.components : [];
@@ -168,127 +157,60 @@ export default function ComponentUnavailabilityForm() {
                 .filter((component) => component.componentId)
             };
           })
-          .filter(Boolean);
+          .filter(Boolean)
+      : [];
 
-        setGroupedItems(normalized);
-        setGroupedTotalEntries(
-          typeof payload?.totalEntries === 'number'
-            ? payload.totalEntries
-            : normalized.reduce((accumulator, item) => accumulator + item.components.length, 0)
-        );
-      } catch (error) {
-        if (!active) {
+    setGroupedItems(isGroupApp ? grouped : []);
+    setGroupedTotalEntries(isGroupApp ? grouped.reduce((accumulator, item) => accumulator + item.components.length, 0) : 0);
+    setGroupedFeedback({ type: 'idle', message: '' });
+    setIsGroupedLoading(false);
+    setGroupCategoryTags(Array.isArray(groupSettings?.categoryTags) ? groupSettings.categoryTags : []);
+
+    const unavailableDates = Array.isArray(myUnavailability?.unavailableDates) ? myUnavailability.unavailableDates : [];
+    const unavailabilityByDate = Array.isArray(myUnavailability?.unavailabilityByDate)
+      ? myUnavailability.unavailabilityByDate
+      : [];
+    const categoryTagIds = Array.isArray(myUnavailability?.categoryTagIds)
+      ? myUnavailability.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+      : [];
+
+    const normalizedByDateDates = unavailabilityByDate
+      .map((entry) => (typeof entry?.date === 'string' ? entry.date.trim() : ''))
+      .filter((entry) => Boolean(entry) && entry >= minSelectableIso);
+    const normalizedLegacyDates = unavailableDates
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter((entry) => Boolean(entry) && entry >= minSelectableIso);
+    const normalized = Array.from(new Set(normalizedByDateDates.length > 0 ? normalizedByDateDates : normalizedLegacyDates)).sort((left, right) => left.localeCompare(right));
+
+    setSelectedDates(normalized);
+    setUserCategoryTagIds(categoryTagIds);
+    setSelectedCategoryTagIdsByDate(() => {
+      const next = {};
+      unavailabilityByDate.forEach((entry) => {
+        if (!entry || typeof entry !== 'object') {
           return;
         }
 
-        setGroupedFeedback({
-          type: 'error',
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Nao foi possivel carregar as indisponibilidades dos componentes.'
-        });
-      } finally {
-        if (active) {
-          setIsGroupedLoading(false);
-        }
-      }
-    }
-
-    async function loadOwnAvailability() {
-      setIsLoading(true);
-      setFeedback({ type: 'idle', message: '' });
-
-      try {
-        const [payload, groupSettingsPayload] = await Promise.all([
-          requestJson('/api/components/me/unavailability'),
-          requestJson('/api/group-settings')
-        ]);
-        const unavailableDates = Array.isArray(payload?.item?.unavailableDates) ? payload.item.unavailableDates : [];
-        const unavailabilityByDate = Array.isArray(payload?.item?.unavailabilityByDate)
-          ? payload.item.unavailabilityByDate
-          : [];
-        const categoryTagIds = Array.isArray(payload?.item?.categoryTagIds)
-          ? payload.item.categoryTagIds.filter((entry) => typeof entry === 'string' && entry.trim())
+        const date = typeof entry.date === 'string' ? entry.date.trim() : '';
+        const categoryIds = Array.isArray(entry.categoryTagIds)
+          ? entry.categoryTagIds.filter((item) => typeof item === 'string' && item.trim())
           : [];
 
-        if (!active) {
-          return;
+        if (date && categoryIds.length > 0) {
+          next[date] = categoryIds;
         }
+      });
 
-        const normalizedByDateDates = unavailabilityByDate
-          .map((entry) => (typeof entry?.date === 'string' ? entry.date.trim() : ''))
-          .filter((entry) => Boolean(entry) && entry >= minSelectableIso);
-        const normalizedLegacyDates = unavailableDates
-          .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-          .filter((entry) => Boolean(entry) && entry >= minSelectableIso);
-        const normalized = Array.from(
-          new Set(normalizedByDateDates.length > 0 ? normalizedByDateDates : normalizedLegacyDates)
-        ).sort((left, right) => left.localeCompare(right));
-
-        setSelectedDates(normalized);
-        setUserCategoryTagIds(categoryTagIds);
-        setGroupCategoryTags(
-          Array.isArray(groupSettingsPayload?.item?.categoryTags)
-            ? groupSettingsPayload.item.categoryTags
-            : []
-        );
-        setSelectedCategoryTagIdsByDate(() => {
-          const next = {};
-          unavailabilityByDate.forEach((entry) => {
-            if (!entry || typeof entry !== 'object') {
-              return;
-            }
-
-            const date = typeof entry.date === 'string' ? entry.date.trim() : '';
-            const categoryIds = Array.isArray(entry.categoryTagIds)
-              ? entry.categoryTagIds.filter((item) => typeof item === 'string' && item.trim())
-              : [];
-
-            if (date && categoryIds.length > 0) {
-              next[date] = categoryIds;
-            }
-          });
-
-          normalized.forEach((date) => {
-            if (!next[date]) {
-              next[date] = categoryTagIds;
-            }
-          });
-
-          return next;
-        });
-      } catch (error) {
-        if (!active) {
-          return;
+      normalized.forEach((date) => {
+        if (!next[date]) {
+          next[date] = categoryTagIds;
         }
+      });
 
-        setFeedback({
-          type: 'error',
-          message: error instanceof Error ? error.message : 'Nao foi possivel carregar sua indisponibilidade.'
-        });
-      } finally {
-        if (active) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadOwnAvailability();
-
-    if (isGroupApp) {
-      loadGroupedUnavailability();
-    } else {
-      setGroupedItems([]);
-      setGroupedTotalEntries(0);
-      setGroupedFeedback({ type: 'idle', message: '' });
-      setIsGroupedLoading(false);
-    }
-
-    return () => {
-      active = false;
-    };
-  }, [isAuthLoading, isGroupApp, minSelectableIso]);
+      return next;
+    });
+    setIsLoading(false);
+  }, [componentUnavailability, groupSettings, isAuthLoading, isGroupApp, isHydrating, myUnavailability, minSelectableIso]);
 
   function toggleDate(date) {
     const isoDate = toIsoDate(date);
@@ -391,9 +313,15 @@ export default function ComponentUnavailabilityForm() {
             ? 'Marque sua indisponibilidade e acompanhe as indisponibilidades futuras da equipe agrupadas por data.'
             : 'Toque nos dias futuros em que voce nao pode servir. Dias marcados ficam destacados.'}
         </p>
+        {error ? (
+          <div className={styles.headerError} role="status" aria-live="polite">
+            <p className={styles.feedbackError}>{error}</p>
+            <AppDataRefreshButton onClick={refreshAppData} isRefreshing={isRefreshing} label="Atualizar" compact />
+          </div>
+        ) : null}
       </div>
 
-      <div className={styles.calendarCard} aria-busy={isLoading || isSaving}>
+      <div className={styles.calendarCard} aria-busy={isLoading || isSaving || isHydrating}>
         <div className={styles.calendarHeader}>
           <button
             type="button"

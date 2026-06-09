@@ -4,9 +4,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { requestJson } from '@/lib/api/http';
+import { useAppDataCache } from '@/context/AppDataCacheContext';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
+import AppDataRefreshButton from '@/components/molecules/AppDataRefreshButton/AppDataRefreshButton';
 import styles from './MainBottomNav.module.css';
 
 function normalizeString(value) {
@@ -24,23 +25,6 @@ function getInitials(name) {
       .join('')
       .toUpperCase() || 'EA'
   );
-}
-
-function normalizeProfile(payload) {
-  const source =
-    (payload?.profile && typeof payload.profile === 'object' && payload.profile) ||
-    (payload?.item && typeof payload.item === 'object' && payload.item) ||
-    (payload?.user && typeof payload.user === 'object' && payload.user) ||
-    (payload && typeof payload === 'object' ? payload : null);
-
-  if (!source) {
-    return null;
-  }
-
-  const name = normalizeString(source.name || source.fullName || source.displayName || source.username);
-  const photo = normalizeString(source.photoDataUrl || source.photo || source.photoUrl || source.avatarUrl);
-
-  return { name, photo };
 }
 
 function isActiveRoute(pathname, targetPath) {
@@ -88,8 +72,8 @@ export default function MainBottomNav() {
   const router = useRouter();
   const { audience, permissions, isLoading: isAuthSessionLoading, isAuthenticated, user, logout } = useAuthSession();
   const { settings } = useGroupSettings();
+  const { profile, isRefreshing, refreshAppData } = useAppDataCache();
   const [openMenu, setOpenMenu] = useState(null);
-  const [profile, setProfile] = useState(null);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const navRef = useRef(null);
@@ -166,38 +150,6 @@ export default function MainBottomNav() {
   }, [canShowCreateMenu, closeMenus, openMenu]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadProfile() {
-      if (isAuthSessionLoading || !isAuthenticated) {
-        setProfile(null);
-        return;
-      }
-
-      try {
-        const payload = await requestJson('/api/auth/profile');
-        const normalized = normalizeProfile(payload);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setProfile(normalized);
-      } catch {
-        if (isMounted) {
-          setProfile(null);
-        }
-      }
-    }
-
-    loadProfile();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthSessionLoading, isAuthenticated]);
-
-  useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
     }
@@ -256,6 +208,11 @@ export default function MainBottomNav() {
     }
   }, [deferredInstallPrompt]);
 
+  const handleRefresh = useCallback(async () => {
+    closeMenus();
+    await refreshAppData();
+  }, [closeMenus, refreshAppData]);
+
   if (currentPathname === '/login') {
     return null;
   }
@@ -264,7 +221,7 @@ export default function MainBottomNav() {
     <nav ref={navRef} className={styles.shell} aria-label="Menu principal">
       <div
         className={styles.inner}
-        style={{ '--main-bottom-nav-columns': visibleSlotCount }}
+        style={{ '--main-bottom-nav-columns': visibleSlotCount + 1 }}
       >
         <Link
           href="/escalas"
@@ -329,6 +286,10 @@ export default function MainBottomNav() {
             <span className={styles.srOnly}>Configuracoes gerais do grupo</span>
           </Link>
         ) : null}
+
+        <div className={styles.refreshSlot}>
+          <AppDataRefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} label="Atualizar" compact />
+        </div>
 
         <div className={styles.avatarSlot}>
           <button

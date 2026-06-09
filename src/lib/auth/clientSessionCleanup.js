@@ -1,6 +1,7 @@
 const CLIENT_AUTH_STORAGE_KEYS = Object.freeze({
   adminProfile: 'escalas-app:admin-profile',
-  groupSettings: 'escalas-app:group-settings'
+  groupSettings: 'escalas-app:group-settings',
+  appDataCache: 'escalas-app:app-data-cache'
 });
 
 const STORAGE_KEYS_TO_CLEAR = Object.freeze(Object.values(CLIENT_AUTH_STORAGE_KEYS));

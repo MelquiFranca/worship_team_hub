@@ -172,6 +172,7 @@ export function AuthSessionProvider({ children }) {
     const { clearClientData = false } = options;
 
     if (clearClientData) {
+      // Inclui o snapshot central de cache do app autenticado.
       clearClientSessionData();
     }
 

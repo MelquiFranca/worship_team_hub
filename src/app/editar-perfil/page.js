@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
-import { requestJson } from '@/lib/api/http';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useAppDataCache } from '@/context/AppDataCacheContext';
 import { useActionFeedback } from '@/context/ToastContext';
+import AppDataRefreshButton from '@/components/molecules/AppDataRefreshButton/AppDataRefreshButton';
 import styles from './page.module.css';
 
 const PHOTO_UPLOAD_MAX_SIZE_BYTES = 2 * 1024 * 1024;
@@ -25,6 +26,23 @@ function getInitials(name) {
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeProfile(payload) {
+  const source =
+    (payload?.profile && typeof payload.profile === 'object' && payload.profile) ||
+    (payload?.item && typeof payload.item === 'object' && payload.item) ||
+    (payload?.user && typeof payload.user === 'object' && payload.user) ||
+    (payload && typeof payload === 'object' ? payload : null);
+
+  if (!source) {
+    return null;
+  }
+
+  const name = normalizeString(source.name || source.fullName || source.displayName || source.username);
+  const photo = normalizeString(source.photoDataUrl || source.photo || source.photoUrl || source.avatarUrl);
+
+  return { name, photo };
 }
 
 function validatePhotoFile(file) {
@@ -60,23 +78,6 @@ function readFileAsDataUrl(file) {
     reader.onerror = () => reject(new Error('Nao foi possivel ler o arquivo selecionado.'));
     reader.readAsDataURL(file);
   });
-}
-
-function normalizeProfile(payload) {
-  const source =
-    (payload?.profile && typeof payload.profile === 'object' && payload.profile) ||
-    (payload?.item && typeof payload.item === 'object' && payload.item) ||
-    (payload?.user && typeof payload.user === 'object' && payload.user) ||
-    (payload && typeof payload === 'object' ? payload : null);
-
-  if (!source) {
-    return null;
-  }
-
-  const name = normalizeString(source.name || source.fullName || source.displayName || source.username);
-  const photo = normalizeString(source.photoDataUrl || source.photo || source.photoUrl || source.avatarUrl);
-
-  return { name, photo };
 }
 
 function validatePasswordFields({ currentPassword, newPassword, confirmPassword }) {
@@ -116,6 +117,7 @@ function validatePasswordFields({ currentPassword, newPassword, confirmPassword 
 export default function EditProfilePage() {
   const fileInputRef = useRef(null);
   const { isLoading: isAuthLoading, isAuthenticated, user } = useAuthSession();
+  const { profile: cachedProfile, isHydrating, isRefreshing, error, refreshAppData } = useAppDataCache();
   const { showActionFeedback } = useActionFeedback();
   const [profileName, setProfileName] = useState('');
   const [savedPhoto, setSavedPhoto] = useState('');
@@ -146,59 +148,23 @@ export default function EditProfilePage() {
   }, [photoFile]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadProfile() {
-      if (isAuthLoading) {
-        return;
-      }
-
-      if (!isAuthenticated) {
-        if (isMounted) {
-          setFeedback({ type: 'error', message: 'Voce precisa estar logado para editar seu perfil.' });
-          setIsLoadingProfile(false);
-        }
-        return;
-      }
-
-      setIsLoadingProfile(true);
-      setFeedback({ type: 'idle', message: '' });
-
-      try {
-        const payload = await requestJson('/api/auth/profile');
-        const normalized = normalizeProfile(payload);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setProfileName(normalized?.name || '');
-        setSavedPhoto(normalized?.photo || '');
-        setPhotoFile(null);
-        setRemovePhoto(false);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        setFeedback({
-          type: 'error',
-          message:
-            error instanceof Error ? error.message : 'Nao foi possivel carregar os dados do seu perfil no momento.'
-        });
-      } finally {
-        if (isMounted) {
-          setIsLoadingProfile(false);
-        }
-      }
+    if (isAuthLoading || isHydrating) {
+      return;
     }
 
-    loadProfile();
+    if (!isAuthenticated) {
+      setFeedback({ type: 'error', message: 'Voce precisa estar logado para editar seu perfil.' });
+      setIsLoadingProfile(false);
+      return;
+    }
 
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthLoading, isAuthenticated]);
+    setProfileName(cachedProfile?.name || normalizeString(user?.name || user?.fullName || user?.username) || '');
+    setSavedPhoto(cachedProfile?.photo || '');
+    setPhotoFile(null);
+    setRemovePhoto(false);
+    setFeedback({ type: 'idle', message: '' });
+    setIsLoadingProfile(false);
+  }, [cachedProfile?.name, cachedProfile?.photo, isAuthLoading, isAuthenticated, isHydrating, user]);
 
   function handlePhotoSelection(event) {
     const file = event.target.files?.[0];
@@ -332,7 +298,7 @@ export default function EditProfilePage() {
     }
   }
 
-  const isPageBusy = isAuthLoading || isLoadingProfile;
+  const isPageBusy = isAuthLoading || isLoadingProfile || isHydrating;
 
   return (
     <main className={styles.page}>
@@ -343,6 +309,12 @@ export default function EditProfilePage() {
             Editar perfil
           </h1>
           <p className={styles.description}>Atualize sua foto de perfil e altere sua senha com seguranca.</p>
+          {error ? (
+            <div className={styles.loadingNote} role="status" aria-live="polite">
+              <p className={styles.feedbackError}>{error}</p>
+              <AppDataRefreshButton onClick={refreshAppData} isRefreshing={isRefreshing} label="Atualizar" compact />
+            </div>
+          ) : null}
         </header>
 
         <form className={styles.form} onSubmit={handleSubmit} noValidate>

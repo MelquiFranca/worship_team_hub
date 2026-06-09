@@ -1,5 +1,6 @@
 import './globals.css';
 import { AuthSessionProvider } from '@/context/AuthSessionContext';
+import { AppDataCacheProvider } from '@/context/AppDataCacheContext';
 import { GroupSettingsProvider } from '@/context/GroupSettingsContext';
 import { ToastProvider } from '@/context/ToastContext';
 import AppNavigation from '@/components/organisms/AppNavigation/AppNavigation';
@@ -34,13 +35,15 @@ export default function RootLayout({ children }) {
       <body>
         <PwaServiceWorkerRegistration />
         <AuthSessionProvider>
-          <GroupSettingsProvider>
-            <ToastProvider>
-              {children}
-              <AppNavigation />
-              <GlobalToastHost />
-            </ToastProvider>
-          </GroupSettingsProvider>
+          <AppDataCacheProvider>
+            <GroupSettingsProvider>
+              <ToastProvider>
+                {children}
+                <AppNavigation />
+                <GlobalToastHost />
+              </ToastProvider>
+            </GroupSettingsProvider>
+          </AppDataCacheProvider>
         </AuthSessionProvider>
       </body>
     </html>
