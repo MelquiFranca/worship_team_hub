@@ -2,9 +2,7 @@
 
 import { useState } from 'react';
 import ScaleFeed from '@/components/organisms/ScaleFeed/ScaleFeed';
-import AppDataRefreshButton from '@/components/molecules/AppDataRefreshButton/AppDataRefreshButton';
 import { useAppDataCache } from '@/context/AppDataCacheContext';
-import styles from './page.module.css';
 
 const SCALE_TIME_SCOPE_CURRENT_AND_FUTURE = 'current-and-future';
 const SCALE_TIME_SCOPE_ALL = 'all';
@@ -17,23 +15,6 @@ export default function ScalesPageClient() {
   const categoryTags = Array.isArray(groupSettings?.categoryTags) ? groupSettings.categoryTags : [];
   const sessionCategoryTagIds = [];
 
-  if (isHydrating) {
-    return (
-      <section className={styles.statusCard} aria-live="polite">
-        <p className={styles.statusText}>Carregando escalas...</p>
-      </section>
-    );
-  }
-
-  if (error) {
-    return (
-      <section className={styles.statusCard} aria-live="polite">
-        <p className={styles.statusText}>{error}</p>
-        <AppDataRefreshButton onClick={refreshAppData} isRefreshing={isRefreshing} label="Atualizar" compact />
-      </section>
-    );
-  }
-
   return (
     <ScaleFeed
       scales={scales}
@@ -42,6 +23,10 @@ export default function ScalesPageClient() {
       sessionCategoryTagIds={sessionCategoryTagIds}
       timeScope={timeScope}
       onChangeTimeScope={setTimeScope}
+      onRefresh={refreshAppData}
+      isRefreshing={isRefreshing}
+      isHydrating={isHydrating}
+      error={error}
       timeScopeOptions={[
         {
           value: SCALE_TIME_SCOPE_CURRENT_AND_FUTURE,

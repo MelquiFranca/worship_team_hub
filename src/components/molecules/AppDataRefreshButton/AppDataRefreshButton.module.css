@@ -55,6 +55,30 @@
   padding-inline: 12px;
 }
 
+.buttonAccent {
+  border-color: rgba(124, 58, 237, 0.28);
+  background:
+    linear-gradient(135deg, rgba(124, 58, 237, 0.98), rgba(37, 99, 235, 0.96)),
+    var(--app-accent-gradient-compact);
+  color: #fff;
+  box-shadow:
+    0 12px 26px rgba(79, 70, 229, 0.24),
+    0 2px 0 rgba(255, 255, 255, 0.16) inset;
+}
+
+.buttonAccent:hover {
+  border-color: rgba(124, 58, 237, 0.42);
+  box-shadow:
+    0 16px 32px rgba(79, 70, 229, 0.28),
+    0 2px 0 rgba(255, 255, 255, 0.18) inset;
+}
+
+.buttonAccent:active {
+  box-shadow:
+    0 10px 22px rgba(79, 70, 229, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.12) inset;
+}
+
 .icon {
   width: 19px;
   height: 19px;

@@ -63,7 +63,11 @@ function ComponentBlock({ member, canEdit, categoryById }) {
   );
 }
 
-export default function ComponentsGallery({ components = [], categoryTags = [], canEdit = false }) {
+export default function ComponentsGallery({
+  components = [],
+  categoryTags = [],
+  canEdit = false
+}) {
   const [selectedCategoryTagId, setSelectedCategoryTagId] = useState('all');
   const categoryById = useMemo(
     () => new Map(categoryTags.map((tag) => [tag.id, tag])),
@@ -80,53 +84,24 @@ export default function ComponentsGallery({ components = [], categoryTags = [], 
         ),
     [components, selectedCategoryTagId]
   );
-  const activeComponentsCount = components.filter((member) => member.isActive !== false).length;
-  const inactiveComponentsCount = components.length - activeComponentsCount;
 
   return (
     <section className={styles.galleryPage} aria-label="Lista de componentes">
-      <header className={styles.galleryHeader}>
-        <div className={styles.galleryHeaderCopy}>
-          <p className={styles.galleryHeaderKicker}>Componentes</p>
-          <h1>Base de componentes</h1>
-          <p className={styles.galleryHeaderDescription}>
-            Visualize todos os componentes em blocos com foto e nome.
-          </p>
-        </div>
-
-        <div className={styles.galleryHeaderStats} aria-label="Resumo dos componentes">
-          <article>
-            <span>Contexto</span>
-            <strong>
-              {components.length} componente{components.length === 1 ? '' : 's'}
-            </strong>
-          </article>
-          <article>
-            <span>Status</span>
-            <strong>{activeComponentsCount} ativos</strong>
-          </article>
-          <article>
-            <span>Detalhe</span>
-            <strong>{inactiveComponentsCount} inativos</strong>
-          </article>
-        </div>
-
-        <div className={styles.filterRow}>
-          <label htmlFor="components-category-filter">Filtrar por categoria</label>
-          <select
-            id="components-category-filter"
-            value={selectedCategoryTagId}
-            onChange={(event) => setSelectedCategoryTagId(event.target.value)}
-          >
-            <option value="all">Todas as categorias</option>
-            {categoryTags.map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </header>
+      <div className={styles.filterRow}>
+        <label htmlFor="components-category-filter">Filtrar por categoria</label>
+        <select
+          id="components-category-filter"
+          value={selectedCategoryTagId}
+          onChange={(event) => setSelectedCategoryTagId(event.target.value)}
+        >
+          <option value="all">Todas as categorias</option>
+          {categoryTags.map((tag) => (
+            <option key={tag.id} value={tag.id}>
+              {tag.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {filteredComponents.length ? (
         <div className={styles.grid}>

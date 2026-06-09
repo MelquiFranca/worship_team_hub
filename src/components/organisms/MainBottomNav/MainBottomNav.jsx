@@ -7,7 +7,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAppDataCache } from '@/context/AppDataCacheContext';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useGroupSettings } from '@/context/GroupSettingsContext';
-import AppDataRefreshButton from '@/components/molecules/AppDataRefreshButton/AppDataRefreshButton';
 import styles from './MainBottomNav.module.css';
 
 function normalizeString(value) {
@@ -72,7 +71,7 @@ export default function MainBottomNav() {
   const router = useRouter();
   const { audience, permissions, isLoading: isAuthSessionLoading, isAuthenticated, user, logout } = useAuthSession();
   const { settings } = useGroupSettings();
-  const { profile, isRefreshing, refreshAppData } = useAppDataCache();
+  const { profile } = useAppDataCache();
   const [openMenu, setOpenMenu] = useState(null);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
@@ -208,11 +207,6 @@ export default function MainBottomNav() {
     }
   }, [deferredInstallPrompt]);
 
-  const handleRefresh = useCallback(async () => {
-    closeMenus();
-    await refreshAppData();
-  }, [closeMenus, refreshAppData]);
-
   if (currentPathname === '/login') {
     return null;
   }
@@ -221,7 +215,7 @@ export default function MainBottomNav() {
     <nav ref={navRef} className={styles.shell} aria-label="Menu principal">
       <div
         className={styles.inner}
-        style={{ '--main-bottom-nav-columns': visibleSlotCount + 1 }}
+        style={{ '--main-bottom-nav-columns': visibleSlotCount }}
       >
         <Link
           href="/escalas"
@@ -286,10 +280,6 @@ export default function MainBottomNav() {
             <span className={styles.srOnly}>Configuracoes gerais do grupo</span>
           </Link>
         ) : null}
-
-        <div className={styles.refreshSlot}>
-          <AppDataRefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} label="Atualizar" compact />
-        </div>
 
         <div className={styles.avatarSlot}>
           <button

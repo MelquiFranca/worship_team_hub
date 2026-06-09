@@ -14,14 +14,22 @@ export default function AppDataRefreshButton({
   onClick,
   isRefreshing = false,
   label = 'Atualizar',
-  compact = false
+  compact = false,
+  variant = 'default'
 }) {
   const visibleLabel = label;
+  const buttonClassName = [
+    styles.button,
+    compact ? styles.buttonCompact : '',
+    variant === 'accent' ? styles.buttonAccent : ''
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <button
       type="button"
-      className={`${styles.button} ${compact ? styles.buttonCompact : ''}`}
+      className={buttonClassName}
       onClick={onClick}
       disabled={isRefreshing}
       aria-label={isRefreshing ? 'Atualizando dados' : 'Atualizar dados'}

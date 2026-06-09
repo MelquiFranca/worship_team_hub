@@ -16,6 +16,14 @@
   box-shadow: var(--app-shadow);
 }
 
+.feedHeaderTopRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .feedHeaderCopy {
   display: grid;
   gap: 10px;
@@ -127,6 +135,28 @@
   background: var(--app-info-soft, #eff6ff);
   color: var(--app-info, #1d4ed8);
   font-size: 0.92rem;
+}
+
+.statusCard {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--app-border-subtle, #e5e7eb);
+  background: var(--app-surface, #fff);
+  box-shadow: var(--app-shadow-soft);
+}
+
+.statusText {
+  margin: 0;
+  color: var(--app-text, #0f172a);
+  font-weight: 600;
+}
+
+.statusHint {
+  margin: 0;
+  color: var(--app-text-soft, #64748b);
+  font-size: 0.9rem;
 }
 
 .feedList {
@@ -1210,6 +1240,10 @@
     margin: 0 8px;
     padding: 20px;
     border-radius: 20px;
+  }
+
+  .feedHeaderTopRow {
+    flex-direction: column;
   }
 
   .feedHeaderStats {
