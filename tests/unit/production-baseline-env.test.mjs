@@ -17,6 +17,7 @@ test('inventario de env de producao classifica required/optional e sensitive/pub
   const jwtSecretEntry = inventory.find((item) => item.name === 'AUTH_JWT_SECRET');
   const youtubeApiKeyEntry = inventory.find((item) => item.name === 'YOUTUBE_API_KEY');
   const dbNameEntry = inventory.find((item) => item.name === 'MONGODB_DB_NAME');
+  const componentImagesResponseEntry = inventory.find((item) => item.name === 'COMPONENT_IMAGES_RESPONSE_ENABLED');
 
   assert.ok(jwtSecretEntry);
   assert.equal(jwtSecretEntry.requiredInProduction, true);
@@ -29,6 +30,10 @@ test('inventario de env de producao classifica required/optional e sensitive/pub
   assert.ok(dbNameEntry);
   assert.equal(dbNameEntry.requiredInProduction, false);
   assert.equal(dbNameEntry.sensitivity, 'public');
+
+  assert.ok(componentImagesResponseEntry);
+  assert.equal(componentImagesResponseEntry.requiredInProduction, false);
+  assert.equal(componentImagesResponseEntry.sensitivity, 'public');
 });
 
 test('baseline de producao aceita ambiente valido', () => {

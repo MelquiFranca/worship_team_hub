@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import AppDataRefreshHeaderCard from '@/components/molecules/AppDataRefreshHeaderCard/AppDataRefreshHeaderCard';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { requestJson } from '@/lib/api/http';
 import styles from './ScaleFeed.module.css';
@@ -113,6 +114,26 @@ function isCurrentUserMember(member, authUser) {
 
 function getCurrentUserMemberId(members, authUser) {
   return (Array.isArray(members) ? members : []).find((member) => isCurrentUserMember(member, authUser))?.id || null;
+}
+
+function getInitials(value) {
+  if (typeof value !== 'string') {
+    return '?';
+  }
+
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return '?';
+  }
+
+  const parts = normalized.split(/\s+/).filter(Boolean);
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 1).toUpperCase();
+  }
+
+  return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
 }
 
 function createUploadedImageAttachment(file, scaleId, scaleDate, scaleShift) {
@@ -1044,14 +1065,22 @@ function MemberRow({ member, leader = false, isCurrentUser = false }) {
         isCurrentUser ? styles.memberCurrentUser : ''
       }`}
     >
-      <Image
-        className={styles.memberPhoto}
-        src={member.photo}
-        alt={`Foto de ${member.name}`}
-        width={40}
-        height={40}
-        unoptimized
-      />
+      {member.photo ? (
+        <Image
+          className={styles.memberPhoto}
+          src={member.photo}
+          alt={`Foto de ${member.name}`}
+          width={40}
+          height={40}
+          unoptimized
+        />
+      ) : (
+        <div className={`${styles.memberPhoto} ${styles.memberPhotoFallback}`} aria-hidden="true">
+          <span className={styles.memberPhotoFallbackText}>
+            {member.initials || getInitials(member.name)}
+          </span>
+        </div>
+      )}
       <div className={styles.memberInfo}>
         <strong>{member.name}</strong>
         <span>{member.role}</span>
@@ -2065,7 +2094,11 @@ export default function ScaleFeed({
   sessionCategoryTagIds = [],
   timeScope = 'current-and-future',
   onChangeTimeScope,
-  timeScopeOptions = []
+  timeScopeOptions = [],
+  isHydrating = false,
+  error = '',
+  onRefresh,
+  isRefreshing = false
 }) {
   const router = useRouter();
   const [feedback, setFeedback] = useState('');
@@ -2221,12 +2254,23 @@ export default function ScaleFeed({
   return (
     <section className={styles.feedPage} aria-label="Feed de escalas">
       <header className={styles.feedHeader}>
-        <div className={styles.feedHeaderCopy}>
-          <p className={styles.feedHeaderKicker}>Escalas</p>
-          <h1>Escalas do grupo</h1>
-          <p className={styles.feedHeaderDescription}>
-            Por padrao, exibindo escalas de hoje e datas futuras.
-          </p>
+        <div className={styles.feedHeaderTopRow}>
+          <div className={styles.feedHeaderCopy}>
+            <p className={styles.feedHeaderKicker}>Escalas</p>
+            <h1>Escalas do grupo</h1>
+            <p className={styles.feedHeaderDescription}>
+              Por padrao, exibindo escalas de hoje e datas futuras.
+            </p>
+          </div>
+          {typeof onRefresh === 'function' ? (
+            <div className={styles.feedHeaderActions}>
+              <AppDataRefreshHeaderCard
+                onRefresh={onRefresh}
+                isRefreshing={isRefreshing}
+                buttonLabel="Atualizar dados"
+              />
+            </div>
+          ) : null}
         </div>
 
         <div className={styles.feedHeaderStats} aria-label="Resumo das escalas">
@@ -2293,36 +2337,49 @@ export default function ScaleFeed({
         </p>
       ) : null}
 
-      {!visibleScales.length ? (
-        <p className={styles.emptyState}>Nenhuma escala encontrada.</p>
-      ) : null}
+      {isHydrating ? (
+        <section className={styles.statusCard} aria-live="polite">
+          <p className={styles.statusText}>Carregando escalas...</p>
+        </section>
+      ) : error ? (
+        <section className={styles.statusCard} aria-live="polite">
+          <p className={styles.statusText}>{error}</p>
+          <p className={styles.statusHint}>Use a atualizacao no cabecalho para tentar novamente.</p>
+        </section>
+      ) : (
+        <>
+          {!visibleScales.length ? (
+            <p className={styles.emptyState}>Nenhuma escala encontrada.</p>
+          ) : null}
 
-      <div className={styles.feedList}>
-        {visibleScales.map(({ scale, includesCurrentUser }, index) => {
-          const scaleId = scale?.id || `${scale?.date || 'sem-data'}-${scale?.shift || 'sem-turno'}-${index}`;
-          return (
-            <ScaleCard
-              key={scaleId}
-              scale={scale}
-              scaleId={scaleId}
-              imageLibrary={imageLibrary}
-              onPersistScaleImage={handlePersistScaleImage}
-              isComponentApp={isComponentApp}
-              isExpanded={Boolean(expandedScaleIds[scaleId])}
-              onToggleExpand={() =>
-                setExpandedScaleIds((current) => ({
-                  ...current,
-                  [scaleId]: !current[scaleId]
-                }))
-              }
-              onEdit={handleEdit}
-              currentUser={authUser}
-              categoryTags={categoryTags}
-              shouldHighlightParticipation={includesCurrentUser && !onlyCurrentUserScales}
-            />
-          );
-        })}
-      </div>
+          <div className={styles.feedList}>
+            {visibleScales.map(({ scale, includesCurrentUser }, index) => {
+              const scaleId = scale?.id || `${scale?.date || 'sem-data'}-${scale?.shift || 'sem-turno'}-${index}`;
+              return (
+                <ScaleCard
+                  key={scaleId}
+                  scale={scale}
+                  scaleId={scaleId}
+                  imageLibrary={imageLibrary}
+                  onPersistScaleImage={handlePersistScaleImage}
+                  isComponentApp={isComponentApp}
+                  isExpanded={Boolean(expandedScaleIds[scaleId])}
+                  onToggleExpand={() =>
+                    setExpandedScaleIds((current) => ({
+                      ...current,
+                      [scaleId]: !current[scaleId]
+                    }))
+                  }
+                  onEdit={handleEdit}
+                  currentUser={authUser}
+                  categoryTags={categoryTags}
+                  shouldHighlightParticipation={includesCurrentUser && !onlyCurrentUserScales}
+                />
+              );
+            })}
+          </div>
+        </>
+      )}
     </section>
   );
 }

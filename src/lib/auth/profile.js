@@ -1,6 +1,7 @@
 import { readJsonBody } from '../api/request.js';
 import { isPlainObject, normalizeString } from '../api/validation.js';
 import { parseComponentPhotoInput, serializeComponentPhoto } from '../components/photo.js';
+import { getComponentPhotoMongoProjection } from '../components/apiResponsePhoto.js';
 import { getMongoCollections } from '../db/mongodb.js';
 import { createPasswordHash, verifyPassword } from './password.js';
 import { AUTH_AUDIENCES, AUTH_COOKIE_NAMES } from './constants.js';
@@ -141,7 +142,14 @@ async function getComponentProfileDocument(components, user, claims) {
     filter.groupId = normalizeString(claims.groupId);
   }
 
-  return components.findOne(filter);
+  return components.findOne(filter, {
+    projection: {
+      _id: 1,
+      groupId: 1,
+      passwordHash: 1,
+      ...getComponentPhotoMongoProjection()
+    }
+  });
 }
 
 export async function requireProfileAccessSession(request) {

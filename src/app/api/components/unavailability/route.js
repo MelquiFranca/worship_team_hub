@@ -3,7 +3,10 @@ import { isAuthError, toAuthErrorResponse } from '../../../../lib/auth/index.js'
 import { requireApiAccessSession, resolveRequestGroupId } from '../../../../lib/api/auth.js';
 import { jsonApiError } from '../../../../lib/api/errors.js';
 import { getTrimmedQueryParam } from '../../../../lib/api/request.js';
-import { serializeComponentPhoto } from '../../../../lib/components/photo.js';
+import {
+  getComponentPhotoMongoProjection,
+  serializeComponentPhotoValueForApi
+} from '../../../../lib/components/apiResponsePhoto.js';
 import { serializeUnavailableDates, serializeUnavailabilityByDate } from '../../../../lib/components/unavailability.js';
 import { getMongoCollections } from '../../../../lib/db/mongodb.js';
 
@@ -26,7 +29,7 @@ function toGroupedResponse(groupId, components) {
     const componentItem = {
       componentId: component._id.toString(),
       fullName: typeof component.fullName === 'string' ? component.fullName : '',
-      photoUrl: serializeComponentPhoto(component)
+      photoUrl: serializeComponentPhotoValueForApi(component)
     };
 
     for (const date of unavailableDates) {
@@ -83,7 +86,13 @@ export async function GET(request) {
           { unavailableDates: { $exists: true, $ne: [] } }
         ]
       })
-      .project({ _id: 1, fullName: 1, unavailabilityByDate: 1, unavailableDates: 1, photo: 1, photoUrl: 1 })
+      .project({
+        _id: 1,
+        fullName: 1,
+        unavailabilityByDate: 1,
+        unavailableDates: 1,
+        ...getComponentPhotoMongoProjection()
+      })
       .toArray();
 
     return NextResponse.json(toGroupedResponse(groupId, documents));

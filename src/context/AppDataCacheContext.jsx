@@ -31,6 +31,22 @@ function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function getInitials(value) {
+  const normalized = normalizeString(value);
+
+  if (!normalized) {
+    return '?';
+  }
+
+  const parts = normalized.split(/\s+/).filter(Boolean);
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 1).toUpperCase();
+  }
+
+  return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
+}
+
 function normalizeNamespacePart(value) {
   return normalizeString(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'default';
 }
@@ -147,7 +163,8 @@ function normalizeScales(scaleItems, componentsById) {
         id: componentId,
         name: componentData?.name || 'Componente nao encontrado',
         role,
-        photo: componentData?.photo || `https://i.pravatar.cc/120?u=${encodeURIComponent(componentId)}`,
+        photo: componentData?.photo || '',
+        initials: getInitials(componentData?.name || 'Componente'),
         isLeader
       };
     });

@@ -16,10 +16,11 @@ import {
   normalizeLowercaseString,
   normalizeString
 } from '../../../lib/api/validation.js';
+import { parseComponentPhotoInput } from '../../../lib/components/photo.js';
 import {
-  parseComponentPhotoInput,
-  serializeComponentPhoto
-} from '../../../lib/components/photo.js';
+  getComponentPhotoMongoProjection,
+  serializeComponentPhotoFieldsForApi
+} from '../../../lib/components/apiResponsePhoto.js';
 import {
   normalizeUnavailabilityByDateInput,
   serializeUnavailableDates,
@@ -52,7 +53,7 @@ function serializeComponent(document) {
     : LEGACY_PERMISSION_TYPE_FALLBACK;
   const pushTargets = serializeComponentPushTargets(document);
   const pushSubscriptions = serializePushSubscriptions(document.pushSubscriptions);
-  const photoDataUrl = serializeComponentPhoto(document);
+  const photoFields = serializeComponentPhotoFieldsForApi(document);
   const unavailableDates = serializeUnavailableDates(document, { futureOnly: true });
   const categoryTagIds = normalizeCategoryTagIdsInput(document?.categoryTagIds) || [];
   const unavailabilityByDate = serializeUnavailabilityByDate(document, {
@@ -68,9 +69,9 @@ function serializeComponent(document) {
     username: document.username,
     permissionType,
     isActive: typeof document.isActive === 'boolean' ? document.isActive : true,
-    photoUrl: document.photoUrl || '',
-    photoDataUrl,
-    photoProvided: Boolean(document.photoProvided || photoDataUrl),
+    photoUrl: photoFields.photoUrl,
+    photoDataUrl: photoFields.photoDataUrl,
+    photoProvided: photoFields.photoProvided,
     pushTargets,
     pushTargetCount: pushTargets.length,
     hasPushTargets: pushTargets.length > 0,
@@ -156,7 +157,27 @@ export async function GET(request) {
     const { components, groupSettings } = await getMongoCollections();
     const allowedCategoryTagIds = await resolveGroupCategoryTagIds(groupSettings, groupId);
     const filter = { groupId };
-    const query = components.find(filter).sort({ createdAt: -1 });
+    const query = components
+      .find(filter, {
+        projection: {
+          _id: 1,
+          groupId: 1,
+          fullName: 1,
+          birthDate: 1,
+          username: 1,
+          permissionType: 1,
+          isActive: 1,
+          pushTargets: 1,
+          pushSubscriptions: 1,
+          unavailableDates: 1,
+          categoryTagIds: 1,
+          unavailabilityByDate: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          ...getComponentPhotoMongoProjection()
+        }
+      })
+      .sort({ createdAt: -1 });
 
     if (limit) {
       query.limit(limit);

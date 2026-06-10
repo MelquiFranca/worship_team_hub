@@ -51,6 +51,7 @@ const PRODUCTION_ENV_INVENTORY = Object.freeze([
   { name: 'RATE_LIMIT_ENABLED', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'RATE_LIMIT_AUTH_ENABLED', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'RATE_LIMIT_INTEGRATIONS_ENABLED', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
+  { name: 'COMPONENT_IMAGES_RESPONSE_ENABLED', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'RATE_LIMIT_AUTH_LOGIN_MAX', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'RATE_LIMIT_AUTH_LOGIN_WINDOW_SECONDS', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
   { name: 'RATE_LIMIT_AUTH_REFRESH_MAX', sensitivity: 'public', visibility: 'server', ...OPTIONAL_ENV },
