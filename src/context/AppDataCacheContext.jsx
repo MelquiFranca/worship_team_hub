@@ -5,6 +5,7 @@ import { useAuthSession } from '@/context/AuthSessionContext';
 import { CLIENT_AUTH_STORAGE_KEYS, clearClientSessionData } from '@/lib/auth/clientSessionCleanup';
 import { APP_DATA_CACHE_STORAGE_MODES, buildPersistableAppDataSnapshot, writeAppDataCacheWithFallback } from '@/context/appDataCacheStorage';
 import { requestJson } from '@/lib/api/http';
+import { canHydrateGroupedComponentUnavailability } from '@/context/appDataHydrationPolicy';
 
 const APP_DATA_CACHE_VERSION = 1;
 const APP_DATA_CACHE_STORAGE_KEY = CLIENT_AUTH_STORAGE_KEYS.appDataCache;
@@ -337,6 +338,7 @@ export function AppDataCacheProvider({ children }) {
       return null;
     }
 
+    const shouldLoadGroupedComponentUnavailability = canHydrateGroupedComponentUnavailability(audience);
     const [profilePayload, groupSettingsPayload, componentsPayload, scalesPayload, scaleImagesPayload, componentUnavailabilityPayload, myUnavailabilityPayload] =
       await Promise.all([
         requestJson('/api/auth/profile', { cache: 'no-store' }),
@@ -344,7 +346,9 @@ export function AppDataCacheProvider({ children }) {
         requestJson('/api/components?limit=100', { cache: 'no-store' }),
         requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent('all')}`, { cache: 'no-store' }),
         requestJson('/api/scales/images', { cache: 'no-store' }),
-        requestJson('/api/components/unavailability', { cache: 'no-store' }),
+        shouldLoadGroupedComponentUnavailability
+          ? requestJson('/api/components/unavailability', { cache: 'no-store' })
+          : Promise.resolve({ items: [] }),
         requestJson('/api/components/me/unavailability', { cache: 'no-store' })
       ]);
 
@@ -375,7 +379,7 @@ export function AppDataCacheProvider({ children }) {
         lastSyncStatus: 'success'
       }
     }, namespace);
-  }, [persistSnapshot]);
+  }, [audience, persistSnapshot]);
 
   const refreshAppData = useCallback(async () => {
     if (!namespaceRef.current || !isAuthenticated) {
