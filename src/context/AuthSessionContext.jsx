@@ -3,13 +3,39 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { clearClientSessionData } from '@/lib/auth/clientSessionCleanup';
 import { requestJson } from '@/lib/api/http';
-import {
-  isRetryablePushRegistrationReason,
-  registerClientPushSubscription
-} from '@/lib/notifications/registerClientPushSubscription';
 
 const AUTH_ME_ENDPOINT = '/api/auth/me';
 const PUSH_REGISTRATION_RETRY_DELAY_MS = 30000;
+const PUSH_REGISTRATION_FALLBACK = Object.freeze({
+  registerClientPushSubscription: async () => ({
+    ok: false,
+    supported: false,
+    permission: 'unsupported',
+    reason: 'module-load-failed'
+  }),
+  isRetryablePushRegistrationReason: () => false
+});
+
+let pushRegistrationModulePromise = null;
+
+async function loadPushRegistrationModule() {
+  if (!pushRegistrationModulePromise) {
+    pushRegistrationModulePromise = import('@/lib/notifications/registerClientPushSubscription')
+      .then((module) => ({
+        registerClientPushSubscription:
+          typeof module?.registerClientPushSubscription === 'function'
+            ? module.registerClientPushSubscription
+            : PUSH_REGISTRATION_FALLBACK.registerClientPushSubscription,
+        isRetryablePushRegistrationReason:
+          typeof module?.isRetryablePushRegistrationReason === 'function'
+            ? module.isRetryablePushRegistrationReason
+            : PUSH_REGISTRATION_FALLBACK.isRetryablePushRegistrationReason
+      }))
+      .catch(() => PUSH_REGISTRATION_FALLBACK);
+  }
+
+  return pushRegistrationModulePromise;
+}
 
 const defaultPermissions = Object.freeze({
   isAdminPanel: false,
@@ -282,6 +308,7 @@ export function AuthSessionProvider({ children }) {
       }));
 
       try {
+        const { registerClientPushSubscription } = await loadPushRegistrationModule();
         const result = await registerClientPushSubscription({ requestPermissionIfDefault });
         const supported = result?.supported !== false;
         const permission = supported ? normalizePushPermission(result?.permission) : 'unsupported';
@@ -345,17 +372,29 @@ export function AuthSessionProvider({ children }) {
       pushNotifications.permission !== 'granted' ||
       pushNotifications.isReady ||
       pushNotifications.isRegistering ||
-      !isRetryablePushRegistrationReason(pushNotifications.lastReason)
+      !pushNotifications.lastReason
     ) {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      attemptPushRegistration({ requestPermissionIfDefault: false });
-    }, PUSH_REGISTRATION_RETRY_DELAY_MS);
+    let cancelled = false;
+    let timer = null;
+
+    loadPushRegistrationModule().then(({ isRetryablePushRegistrationReason }) => {
+      if (cancelled || !isRetryablePushRegistrationReason(pushNotifications.lastReason)) {
+        return;
+      }
+
+      timer = window.setTimeout(() => {
+        attemptPushRegistration({ requestPermissionIfDefault: false });
+      }, PUSH_REGISTRATION_RETRY_DELAY_MS);
+    });
 
     return () => {
-      window.clearTimeout(timer);
+      cancelled = true;
+      if (timer) {
+        window.clearTimeout(timer);
+      }
     };
   }, [
     attemptPushRegistration,
