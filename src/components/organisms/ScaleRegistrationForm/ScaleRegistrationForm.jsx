@@ -1232,7 +1232,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
                       type="button"
                       className={styles.componentToggle}
                       onClick={() => openComponentMenu(component.id)}
-                      disabled={isEditLocked || isSelectionBlocked || componentLoadState === 'loading'}
+                      disabled={isEditLocked || componentLoadState === 'loading'}
                       aria-pressed={isSelected}
                       aria-label={`Abrir menu de acoes para ${component.name}`}
                       title={component.name}
@@ -1267,7 +1267,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
                     {isUnavailableForDate ? (
                       <p className={styles.unavailabilityHint}>
-                        Indisponivel na data selecionada.
+                        Indisponivel para escala; permissoes de imagem podem ser ajustadas.
                       </p>
                     ) : null}
 
