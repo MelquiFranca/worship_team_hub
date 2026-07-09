@@ -1267,7 +1267,7 @@ export default function ScaleRegistrationForm({ scaleId = '' }) {
 
                     {isUnavailableForDate ? (
                       <p className={styles.unavailabilityHint}>
-                        Indisponivel para escala; permissoes de imagem podem ser ajustadas.
+                        Indisponivel para escala;
                       </p>
                     ) : null}
 
