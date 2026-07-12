@@ -291,7 +291,7 @@ export async function GET(request) {
       ? { groupId }
       : { groupId, date: { $gte: currentLocalIsoDate } };
 
-    const query = scales.find(mongoFilter).sort({ date: -1, createdAt: -1 });
+    const query = scales.find(mongoFilter).sort({ date: 1, createdAt: 1 });
 
     if (limit) {
       query.limit(limit);

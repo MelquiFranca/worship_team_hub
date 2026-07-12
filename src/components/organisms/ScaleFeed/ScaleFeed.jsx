@@ -2127,14 +2127,22 @@ export default function ScaleFeed({
       : Array.from(
         new Set(hydratedScales.map((scale) => (typeof scale?.categoryTagId === 'string' ? scale.categoryTagId : '')).filter(Boolean))
       ).map((id) => ({ id, label: id, color: '#475569' }));
-    return source;
-  }, [categoryTags, hydratedScales]);
+    const scopedCategoryTagIds = Array.isArray(sessionCategoryTagIds)
+      ? new Set(sessionCategoryTagIds.filter((value) => typeof value === 'string' && value.trim()))
+      : null;
+
+    if (!scopedCategoryTagIds?.size) {
+      return source;
+    }
+
+    return source.filter((tag) => scopedCategoryTagIds.has(tag.id));
+  }, [categoryTags, hydratedScales, sessionCategoryTagIds]);
 
   useEffect(() => {
     const defaults = Array.isArray(sessionCategoryTagIds) && sessionCategoryTagIds.length
       ? sessionCategoryTagIds
       : filterCategoryTags.map((tag) => tag.id);
-    setSelectedCategoryTagIds(defaults);
+    setSelectedCategoryTagIds(defaults[0] ? [defaults[0]] : []);
   }, [sessionCategoryTagIds, filterCategoryTags]);
 
   const visibleScales = useMemo(
@@ -2306,20 +2314,19 @@ export default function ScaleFeed({
                 Exibir somente escalas em que estou escalado
               </label>
             </div>
-            <div className={styles.feedFilterChips}>
+            <div
+              className={styles.categoryFilterGroup}
+              role="group"
+              aria-label="Categorias das escalas"
+            >
               {filterCategoryTags.map((tag) => {
                 const active = selectedCategoryTagIds.includes(tag.id);
                 return (
                   <button
                     key={tag.id}
                     type="button"
-                    className={`${styles.categoryFilterChip} ${active ? styles.categoryFilterChipActive : ''}`}
-                    style={{ '--scale-category-color': tag.color }}
-                    onClick={() =>
-                      setSelectedCategoryTagIds((current) =>
-                        current.includes(tag.id) ? current.filter((id) => id !== tag.id) : [...current, tag.id]
-                      )
-                    }
+                    className={`${styles.categoryFilterButton} ${active ? styles.categoryFilterButtonActive : ''}`}
+                    onClick={() => setSelectedCategoryTagIds([tag.id])}
                     aria-pressed={active}
                   >
                     {tag.label}
