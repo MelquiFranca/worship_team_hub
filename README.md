@@ -98,7 +98,7 @@ Aplicacao base em Next.js com App Router.
 - O player da aba de playlist no feed (`/escalas`) suporta execucao sequencial automatica para links do YouTube.
 - Ao finalizar um video, o proximo da escala e executado automaticamente quando a opcao de autoplay estiver ativa.
 - O usuario pode ativar/desativar essa automacao por card usando o controle `Executar playlist automaticamente em sequencia`.
-- Para evitar falhas de reproducao na fila automatica, entram apenas IDs validos de video do YouTube extraidos da URL.
+- A sequencia automatica e sincronizada pelo estado do card, evitando que a fila interna do YouTube repita ou pule itens ao usar `Proximo`, `Anterior` ou dots.
 - Links nao-YouTube (ex.: Vimeo) continuam suportados no player, mas sem fila sequencial automatica.
 
 ## Listagem administrativa de grupos

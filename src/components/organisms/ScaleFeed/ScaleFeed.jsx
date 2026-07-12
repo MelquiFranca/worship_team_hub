@@ -5,6 +5,13 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { requestJson } from '@/lib/api/http';
+import {
+  buildYouTubeExternalPlaybackUrl,
+  extractYoutubeVideoId,
+  getNextSequentialPlaylistIndex,
+  resolvePlaylistYouTubeIds,
+  toEmbedUrl
+} from './playlistAutoplay';
 import styles from './ScaleFeed.module.css';
 
 const COMPONENTS_VIEW = 'components';
@@ -21,6 +28,45 @@ const SCALE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_SCALE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 const COMBINING_MARKS_PATTERN = /[\u0300-\u036f]/g;
+const YOUTUBE_IFRAME_API_SRC = 'https://www.youtube.com/iframe_api';
+let youtubeIframeApiPromise = null;
+
+function loadYouTubeIframeApi() {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('YouTube IFrame API requires a browser environment.'));
+  }
+
+  if (window.YT?.Player) {
+    return Promise.resolve(window.YT);
+  }
+
+  if (youtubeIframeApiPromise) {
+    return youtubeIframeApiPromise;
+  }
+
+  youtubeIframeApiPromise = new Promise((resolve) => {
+    const previousReadyCallback = window.onYouTubeIframeAPIReady;
+
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof previousReadyCallback === 'function') {
+        previousReadyCallback();
+      }
+
+      resolve(window.YT);
+    };
+
+    const existingScript = document.querySelector(`script[src="${YOUTUBE_IFRAME_API_SRC}"]`);
+
+    if (!existingScript) {
+      const script = document.createElement('script');
+      script.src = YOUTUBE_IFRAME_API_SRC;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  });
+
+  return youtubeIframeApiPromise;
+}
 
 function normalizeComparableText(value) {
   if (typeof value !== 'string') {
@@ -479,166 +525,6 @@ async function createPlaylistItemFromLink(rawUrl, currentLength) {
     videoUrl: resolvedUrl,
     thumbnailUrl: ''
   };
-}
-
-function normalizeYouTubeVideoId(value) {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  const candidate = value.trim();
-
-  if (!candidate || candidate.startsWith('playlist:')) {
-    return '';
-  }
-
-  // YouTube video IDs are expected to be 11 chars.
-  return /^[a-zA-Z0-9_-]{11}$/.test(candidate) ? candidate : '';
-}
-
-function extractYoutubeVideoId(videoUrl) {
-  try {
-    const parsedUrl = new URL(videoUrl);
-    const host = parsedUrl.hostname.toLowerCase();
-
-    if (host.includes('youtube.com')) {
-      if (parsedUrl.pathname.startsWith('/embed/')) {
-        return normalizeYouTubeVideoId(parsedUrl.pathname.split('/')[2] || '');
-      }
-
-      if (parsedUrl.pathname.startsWith('/shorts/')) {
-        return normalizeYouTubeVideoId(parsedUrl.pathname.split('/')[2] || '');
-      }
-
-      return normalizeYouTubeVideoId(parsedUrl.searchParams.get('v') || '');
-    }
-
-    if (host.includes('youtu.be')) {
-      return normalizeYouTubeVideoId(parsedUrl.pathname.replace('/', ''));
-    }
-
-    return '';
-  } catch {
-    return '';
-  }
-}
-
-function resolvePlaylistYouTubeIds(playlist, startIndex) {
-  const safePlaylist = Array.isArray(playlist) ? playlist : [];
-  const queue = [];
-
-  for (let index = startIndex; index < safePlaylist.length; index += 1) {
-    const item = safePlaylist[index];
-    const fromUrlId = extractYoutubeVideoId(item?.videoUrl || item?.url || '');
-
-    // For autoplay queue, trust URL extraction first and avoid internal/non-YouTube IDs.
-    if (fromUrlId) {
-      queue.push(fromUrlId);
-    }
-  }
-
-  return queue;
-}
-
-function buildYouTubeEmbedUrl(videoId, options = {}) {
-  const params = new URLSearchParams();
-  const safeVideoId = normalizeYouTubeVideoId(videoId);
-
-  if (!safeVideoId) {
-    return null;
-  }
-
-  params.set('autoplay', options.autoplay ? '1' : '0');
-  params.set('playsinline', '1');
-  params.set('rel', '0');
-
-  const queue = Array.isArray(options.queueVideoIds) ? options.queueVideoIds : [];
-  const normalizedQueue = queue
-    .map((entry) => normalizeYouTubeVideoId(entry))
-    .filter(Boolean);
-  const queueTail = normalizedQueue[0] === safeVideoId ? normalizedQueue.slice(1) : normalizedQueue;
-
-  if (queueTail.length) {
-    params.set('playlist', queueTail.join(','));
-  }
-
-  return `https://www.youtube.com/embed/${safeVideoId}?${params.toString()}`;
-}
-
-function buildYouTubeExternalPlaybackUrl(queueVideoIds = [], fallbackUrl = '') {
-  const normalizedQueue = (Array.isArray(queueVideoIds) ? queueVideoIds : [])
-    .map((entry) => normalizeYouTubeVideoId(entry))
-    .filter(Boolean);
-
-  if (normalizedQueue.length >= 2) {
-    return `https://www.youtube.com/watch_videos?video_ids=${normalizedQueue.join(',')}`;
-  }
-
-  if (normalizedQueue.length === 1) {
-    return `https://www.youtube.com/watch?v=${normalizedQueue[0]}`;
-  }
-
-  if (typeof fallbackUrl === 'string' && fallbackUrl.trim()) {
-    return fallbackUrl.trim();
-  }
-
-  return '';
-}
-
-function toEmbedUrl(videoUrl, options = {}) {
-  try {
-    const parsedUrl = new URL(videoUrl);
-    const host = parsedUrl.hostname.toLowerCase();
-
-    if (host.includes('youtube.com')) {
-      if (parsedUrl.pathname.startsWith('/embed/')) {
-        const embeddedVideoId = normalizeYouTubeVideoId(parsedUrl.pathname.split('/')[2] || '');
-
-        if (!embeddedVideoId) {
-          return videoUrl;
-        }
-
-        return buildYouTubeEmbedUrl(embeddedVideoId, options);
-      }
-
-      if (parsedUrl.pathname.startsWith('/shorts/')) {
-        const shortId = normalizeYouTubeVideoId(parsedUrl.pathname.split('/')[2] || '');
-        return shortId ? buildYouTubeEmbedUrl(shortId, options) : null;
-      }
-
-      const videoId = normalizeYouTubeVideoId(parsedUrl.searchParams.get('v') || '');
-      const playlistId = parsedUrl.searchParams.get('list');
-
-      if (videoId) {
-        return buildYouTubeEmbedUrl(videoId, options);
-      }
-
-      if (playlistId) {
-        const params = new URLSearchParams();
-        params.set('list', playlistId);
-        params.set('autoplay', options.autoplay ? '1' : '0');
-        params.set('playsinline', '1');
-        params.set('rel', '0');
-        return `https://www.youtube.com/embed/videoseries?${params.toString()}`;
-      }
-
-      return null;
-    }
-
-    if (host.includes('youtu.be')) {
-      const shortId = normalizeYouTubeVideoId(parsedUrl.pathname.replace('/', ''));
-      return shortId ? buildYouTubeEmbedUrl(shortId, options) : null;
-    }
-
-    if (host.includes('vimeo.com')) {
-      const vimeoId = parsedUrl.pathname.split('/').filter(Boolean)[0];
-      return vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : null;
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 function groupMembers(members) {
@@ -1138,12 +1024,92 @@ function PlaylistPanel({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
+  const [playbackOrigin, setPlaybackOrigin] = useState('');
+  const iframeRef = useRef(null);
+  const playerRef = useRef(null);
+  const playlistRef = useRef(playlist);
+  const autoPlayEnabledRef = useRef(autoPlayEnabled);
 
   useEffect(() => {
     setCurrentIndex((prevIndex) => (playlist.length ? Math.min(prevIndex, playlist.length - 1) : 0));
     setFeedback('');
   }, [playlist]);
+
+  useEffect(() => {
+    playlistRef.current = playlist;
+  }, [playlist]);
+
+  useEffect(() => {
+    autoPlayEnabledRef.current = autoPlayEnabled;
+  }, [autoPlayEnabled]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setPlaybackOrigin(window.location.origin);
+    }
+  }, []);
+
   const sequenceQueueIds = useMemo(() => resolvePlaylistYouTubeIds(playlist, currentIndex), [currentIndex, playlist]);
+  const currentVideo = playlist[currentIndex] || null;
+  const embedUrl = currentVideo
+    ? toEmbedUrl(currentVideo.videoUrl, {
+      autoplay: autoPlayEnabled,
+      origin: playbackOrigin
+    })
+    : null;
+  const currentYouTubeVideoId = currentVideo
+    ? extractYoutubeVideoId(currentVideo.videoUrl || currentVideo.url || '')
+    : '';
+  const backgroundPlaybackUrl = buildYouTubeExternalPlaybackUrl(
+    autoPlayEnabled ? sequenceQueueIds : sequenceQueueIds.slice(0, 1),
+    currentVideo?.videoUrl || ''
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (playerRef.current?.destroy) {
+      playerRef.current.destroy();
+      playerRef.current = null;
+    }
+
+    if (!embedUrl || !currentYouTubeVideoId || !iframeRef.current) {
+      return undefined;
+    }
+
+    loadYouTubeIframeApi()
+      .then((YT) => {
+        if (cancelled || !iframeRef.current || playerRef.current) {
+          return;
+        }
+
+        playerRef.current = new YT.Player(iframeRef.current, {
+          events: {
+            onStateChange: (event) => {
+              if (event.data !== YT.PlayerState.ENDED || !autoPlayEnabledRef.current) {
+                return;
+              }
+
+              setCurrentIndex((prevIndex) =>
+                getNextSequentialPlaylistIndex(prevIndex, playlistRef.current.length)
+              );
+            }
+          }
+        });
+      })
+      .catch(() => {
+        playerRef.current = null;
+      });
+
+    return () => {
+      cancelled = true;
+
+      if (playerRef.current?.destroy) {
+        playerRef.current.destroy();
+        playerRef.current = null;
+      }
+    };
+  }, [currentYouTubeVideoId, embedUrl]);
 
   const addVideoLink = async (event) => {
     event.preventDefault();
@@ -1246,16 +1212,6 @@ function PlaylistPanel({
     );
   }
 
-  const currentVideo = playlist[currentIndex];
-  const embedUrl = toEmbedUrl(currentVideo.videoUrl, {
-    autoplay: autoPlayEnabled,
-    queueVideoIds: autoPlayEnabled ? sequenceQueueIds : []
-  });
-  const backgroundPlaybackUrl = buildYouTubeExternalPlaybackUrl(
-    autoPlayEnabled ? sequenceQueueIds : sequenceQueueIds.slice(0, 1),
-    currentVideo.videoUrl
-  );
-
   const goToPrevious = () => {
     setCurrentIndex((prev) => (prev === 0 ? playlist.length - 1 : prev - 1));
   };
@@ -1269,6 +1225,8 @@ function PlaylistPanel({
       <div className={styles.videoFrameWrap}>
         {embedUrl ? (
           <iframe
+            ref={iframeRef}
+            key={embedUrl}
             className={styles.videoFrame}
             src={embedUrl}
             title={currentVideo.title}
