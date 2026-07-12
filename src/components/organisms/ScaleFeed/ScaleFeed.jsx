@@ -2261,7 +2261,6 @@ export default function ScaleFeed({
       <header className={styles.feedHeader}>
         <div className={styles.feedHeaderTopRow}>
           <div className={styles.feedHeaderCopy}>
-            <p className={styles.feedHeaderKicker}>Escalas</p>
             <h1>Escalas do grupo</h1>
             <p className={styles.feedHeaderDescription}>
               Por padrao, exibindo escalas de hoje e datas futuras.

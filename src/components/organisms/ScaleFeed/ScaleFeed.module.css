@@ -30,20 +30,6 @@
   max-width: 760px;
 }
 
-.feedHeaderKicker {
-  margin: 0;
-  display: inline-flex;
-  width: fit-content;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--app-accent-soft);
-  color: var(--app-warning, #c2410c);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .feedHeader h1 {
   margin: 0;
   font-size: clamp(2rem, 4vw, 3.6rem);

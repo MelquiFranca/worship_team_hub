@@ -27,7 +27,7 @@ function ComponentBlock({ member, canEdit, categoryById }) {
           </div>
         )}
       </div>
-      <strong className={styles.name}>{member.name}</strong>
+      <p className={styles.name}>{member.name}</p>
       {Array.isArray(member.categoryTagIds) && member.categoryTagIds.length > 0 ? (
         <div className={styles.tagsWrap}>
           {member.categoryTagIds.map((tagId) => {

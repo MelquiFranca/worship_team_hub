@@ -16,7 +16,6 @@ export default function ComponentsPageClient() {
     <div className={styles.pageContent}>
       <header className={styles.pageHeader}>
         <div className={styles.pageHeaderCopy}>
-          <p className={styles.pageHeaderKicker}>Componentes</p>
           <h1 className={styles.pageHeaderTitle}>Base de componentes</h1>
           <p className={styles.pageHeaderDescription}>
             Visualize todos os componentes em blocos com foto e nome.
