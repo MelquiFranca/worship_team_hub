@@ -6,10 +6,13 @@ import { CLIENT_AUTH_STORAGE_KEYS, clearClientSessionData } from '@/lib/auth/cli
 import { APP_DATA_CACHE_STORAGE_MODES, buildPersistableAppDataSnapshot, writeAppDataCacheWithFallback } from '@/context/appDataCacheStorage';
 import { requestJson } from '@/lib/api/http';
 import { canHydrateGroupedComponentUnavailability } from '@/context/appDataHydrationPolicy';
+import { isAppDataSnapshotFresh } from '@/context/appDataCacheFreshness';
 
 const APP_DATA_CACHE_VERSION = 1;
 const APP_DATA_CACHE_STORAGE_KEY = CLIENT_AUTH_STORAGE_KEYS.appDataCache;
 const CURRENT_AND_FUTURE_TIME_SCOPE = 'current-and-future';
+const APP_DATA_REMOTE_FETCH_OPTIONS = Object.freeze({});
+const APP_DATA_REMOTE_REFRESH_FETCH_OPTIONS = Object.freeze({ cache: 'no-store' });
 
 const defaultSnapshot = Object.freeze({
   profile: null,
@@ -333,23 +336,24 @@ export function AppDataCacheProvider({ children }) {
   }, []);
 
   const hydrateRemoteData = useCallback(async (namespace, options = {}) => {
-    const { silent = false } = options;
+    const { bypassFetchCache = false } = options;
     if (!namespace) {
       return null;
     }
 
+    const requestOptions = bypassFetchCache ? APP_DATA_REMOTE_REFRESH_FETCH_OPTIONS : APP_DATA_REMOTE_FETCH_OPTIONS;
     const shouldLoadGroupedComponentUnavailability = canHydrateGroupedComponentUnavailability(audience);
     const [profilePayload, groupSettingsPayload, componentsPayload, scalesPayload, scaleImagesPayload, componentUnavailabilityPayload, myUnavailabilityPayload] =
       await Promise.all([
-        requestJson('/api/auth/profile', { cache: 'no-store' }),
-        requestJson('/api/group-settings', { cache: 'no-store' }),
-        requestJson('/api/components?limit=100', { cache: 'no-store' }),
-        requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent('all')}`, { cache: 'no-store' }),
-        requestJson('/api/scales/images', { cache: 'no-store' }),
+        requestJson('/api/auth/profile', requestOptions),
+        requestJson('/api/group-settings', requestOptions),
+        requestJson('/api/components?limit=100', requestOptions),
+        requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent('all')}`, requestOptions),
+        requestJson('/api/scales/images', requestOptions),
         shouldLoadGroupedComponentUnavailability
-          ? requestJson('/api/components/unavailability', { cache: 'no-store' })
+          ? requestJson('/api/components/unavailability', requestOptions)
           : Promise.resolve({ items: [] }),
-        requestJson('/api/components/me/unavailability', { cache: 'no-store' })
+        requestJson('/api/components/me/unavailability', requestOptions)
       ]);
 
     const componentsById = normalizeComponentCatalog(componentsPayload?.items);
@@ -393,7 +397,7 @@ export function AppDataCacheProvider({ children }) {
     setIsRefreshing(true);
     setError('');
 
-    const refreshPromise = hydrateRemoteData(namespaceRef.current)
+    const refreshPromise = hydrateRemoteData(namespaceRef.current, { bypassFetchCache: true })
       .then((nextSnapshot) => {
         setIsRefreshing(false);
         return { ok: true, snapshot: nextSnapshot };
@@ -430,6 +434,11 @@ export function AppDataCacheProvider({ children }) {
 
     const storedSnapshot = readStoredSnapshot(namespace);
     setSnapshot(storedSnapshot);
+
+    if (isAppDataSnapshotFresh(storedSnapshot, namespace)) {
+      setIsHydrating(false);
+      return;
+    }
 
     let cancelled = false;
     hydrateRemoteData(namespace)

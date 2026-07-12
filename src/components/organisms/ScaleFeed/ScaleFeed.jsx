@@ -3,7 +3,6 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import AppDataRefreshHeaderCard from '@/components/molecules/AppDataRefreshHeaderCard/AppDataRefreshHeaderCard';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { requestJson } from '@/lib/api/http';
 import styles from './ScaleFeed.module.css';
@@ -2096,9 +2095,7 @@ export default function ScaleFeed({
   onChangeTimeScope,
   timeScopeOptions = [],
   isHydrating = false,
-  error = '',
-  onRefresh,
-  isRefreshing = false
+  error = ''
 }) {
   const router = useRouter();
   const [feedback, setFeedback] = useState('');
@@ -2270,15 +2267,6 @@ export default function ScaleFeed({
               Por padrao, exibindo escalas de hoje e datas futuras.
             </p>
           </div>
-          {typeof onRefresh === 'function' ? (
-            <div className={styles.feedHeaderActions}>
-              <AppDataRefreshHeaderCard
-                onRefresh={onRefresh}
-                isRefreshing={isRefreshing}
-                buttonLabel="Atualizar dados"
-              />
-            </div>
-          ) : null}
         </div>
 
         <div className={styles.feedHeaderStats} aria-label="Resumo das escalas">

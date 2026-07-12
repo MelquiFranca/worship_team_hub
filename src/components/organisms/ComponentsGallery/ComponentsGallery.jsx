@@ -88,19 +88,36 @@ export default function ComponentsGallery({
   return (
     <section className={styles.galleryPage} aria-label="Lista de componentes">
       <div className={styles.filterRow}>
-        <label htmlFor="components-category-filter">Filtrar por categoria</label>
-        <select
-          id="components-category-filter"
-          value={selectedCategoryTagId}
-          onChange={(event) => setSelectedCategoryTagId(event.target.value)}
+        <span className={styles.filterLabel}>Filtrar por categoria</span>
+        <div
+          className={styles.categoryFilterGroup}
+          role="group"
+          aria-label="Filtrar componentes por categoria"
         >
-          <option value="all">Todas as categorias</option>
+          <button
+            type="button"
+            className={`${styles.categoryFilterButton} ${
+              selectedCategoryTagId === 'all' ? styles.categoryFilterButtonActive : ''
+            }`}
+            onClick={() => setSelectedCategoryTagId('all')}
+            aria-pressed={selectedCategoryTagId === 'all'}
+          >
+            Todas
+          </button>
           {categoryTags.map((tag) => (
-            <option key={tag.id} value={tag.id}>
+            <button
+              key={tag.id}
+              type="button"
+              className={`${styles.categoryFilterButton} ${
+                selectedCategoryTagId === tag.id ? styles.categoryFilterButtonActive : ''
+              }`}
+              onClick={() => setSelectedCategoryTagId(tag.id)}
+              aria-pressed={selectedCategoryTagId === tag.id}
+            >
               {tag.label}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
       </div>
 
       {filteredComponents.length ? (

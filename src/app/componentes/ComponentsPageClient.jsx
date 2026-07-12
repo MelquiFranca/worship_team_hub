@@ -1,14 +1,13 @@
 'use client';
 
 import ComponentsGallery from '@/components/organisms/ComponentsGallery/ComponentsGallery';
-import AppDataRefreshHeaderCard from '@/components/molecules/AppDataRefreshHeaderCard/AppDataRefreshHeaderCard';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useAppDataCache } from '@/context/AppDataCacheContext';
 import styles from './page.module.css';
 
 export default function ComponentsPageClient() {
   const { audience, isLoading: isAuthLoading } = useAuthSession();
-  const { components, groupSettings, isHydrating, isRefreshing, error, refreshAppData } = useAppDataCache();
+  const { components, groupSettings, isHydrating, error } = useAppDataCache();
   const categoryTags = Array.isArray(groupSettings?.categoryTags) ? groupSettings.categoryTags : [];
   const activeComponentsCount = components.filter((member) => member.isActive !== false).length;
   const inactiveComponentsCount = components.length - activeComponentsCount;
@@ -41,15 +40,6 @@ export default function ComponentsPageClient() {
               <strong>{inactiveComponentsCount} inativos</strong>
             </article>
           </div>
-
-          <AppDataRefreshHeaderCard
-            kicker="Sincronizacao"
-            title="Atualize a base de componentes"
-            description="Mantenha a lista refletindo cadastros e edicoes recentes."
-            buttonLabel="Atualizar componentes"
-            onRefresh={refreshAppData}
-            isRefreshing={isRefreshing}
-          />
         </div>
       </header>
 

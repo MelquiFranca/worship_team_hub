@@ -9,7 +9,7 @@ const SCALE_TIME_SCOPE_CURRENT_AND_FUTURE = 'current-and-future';
 const SCALE_TIME_SCOPE_ALL = 'all';
 
 export default function ScalesPageClient() {
-  const { getScalesByTimeScope, scaleImages, groupSettings, components, isHydrating, isRefreshing, error, refreshAppData } = useAppDataCache();
+  const { getScalesByTimeScope, scaleImages, groupSettings, components, isHydrating, error } = useAppDataCache();
   const { user: authUser, permissions } = useAuthSession();
   const [timeScope, setTimeScope] = useState(SCALE_TIME_SCOPE_CURRENT_AND_FUTURE);
   const scales = getScalesByTimeScope(timeScope);
@@ -42,8 +42,6 @@ export default function ScalesPageClient() {
       sessionCategoryTagIds={sessionCategoryTagIds}
       timeScope={timeScope}
       onChangeTimeScope={setTimeScope}
-      onRefresh={refreshAppData}
-      isRefreshing={isRefreshing}
       isHydrating={isHydrating}
       error={error}
       timeScopeOptions={[
