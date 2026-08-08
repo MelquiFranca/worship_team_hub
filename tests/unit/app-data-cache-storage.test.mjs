@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   APP_DATA_CACHE_STORAGE_MODES,
   buildPersistableAppDataSnapshot,
+  removeScaleImageDataFromSnapshot,
   writeAppDataCacheWithFallback
 } from '../../src/context/appDataCacheStorage.js';
 
@@ -65,12 +66,22 @@ function createSnapshot() {
   };
 }
 
-test('buildPersistableAppDataSnapshot removes inline media in compact mode', () => {
+test('buildPersistableAppDataSnapshot never persists scale image information', () => {
+  const fullResult = buildPersistableAppDataSnapshot(createSnapshot(), 'group-app:member:user-1:session-1', {
+    version: 1,
+    mode: APP_DATA_CACHE_STORAGE_MODES.full
+  });
   const result = buildPersistableAppDataSnapshot(createSnapshot(), 'group-app:member:user-1:session-1', {
     version: 1,
     mode: APP_DATA_CACHE_STORAGE_MODES.compact
   });
+  const minimalResult = buildPersistableAppDataSnapshot(createSnapshot(), 'group-app:member:user-1:session-1', {
+    version: 1,
+    mode: APP_DATA_CACHE_STORAGE_MODES.minimal
+  });
 
+  assert.equal(fullResult.scales[0].imageAttachment, null);
+  assert.deepEqual(fullResult.scaleImages, []);
   assert.equal(result.meta.storageMode, APP_DATA_CACHE_STORAGE_MODES.compact);
   assert.equal(result.profile.photo, '');
   assert.equal(result.groupSettings.photo, '');
@@ -78,9 +89,22 @@ test('buildPersistableAppDataSnapshot removes inline media in compact mode', () 
   assert.equal(result.components[1].photo, 'https://cdn.exemplo.com/bia.png');
   assert.equal(result.scales[0].members[0].photo, '');
   assert.equal(result.scales[0].imageAttachment, null);
-  assert.equal(result.scaleImages.length, 1);
-  assert.equal(result.scaleImages[0].src, 'https://cdn.exemplo.com/escala.png');
+  assert.deepEqual(result.scaleImages, []);
+  assert.equal(minimalResult.scales[0].imageAttachment, null);
+  assert.deepEqual(minimalResult.scaleImages, []);
   assert.deepEqual(result.componentUnavailability, [{ componentId: 'component-1' }]);
+});
+
+test('removeScaleImageDataFromSnapshot sanitizes legacy cache without changing its metadata', () => {
+  const snapshot = createSnapshot();
+  const result = removeScaleImageDataFromSnapshot(snapshot);
+
+  assert.equal(result.scales[0].imageAttachment, null);
+  assert.deepEqual(result.scaleImages, []);
+  assert.deepEqual(result.meta, snapshot.meta);
+  assert.notEqual(result, snapshot);
+  assert.notEqual(result.scales[0], snapshot.scales[0]);
+  assert.equal(snapshot.scales[0].imageAttachment.id, 'image-1');
 });
 
 test('writeAppDataCacheWithFallback retries with compact snapshot after quota failure', () => {
@@ -110,6 +134,10 @@ test('writeAppDataCacheWithFallback retries with compact snapshot after quota fa
   assert.equal(writes.length, 2);
   assert.equal(writes[0].meta.storageMode, APP_DATA_CACHE_STORAGE_MODES.full);
   assert.equal(writes[1].meta.storageMode, APP_DATA_CACHE_STORAGE_MODES.compact);
+  assert.equal(writes[0].scales[0].imageAttachment, null);
+  assert.deepEqual(writes[0].scaleImages, []);
+  assert.equal(writes[1].scales[0].imageAttachment, null);
+  assert.deepEqual(writes[1].scaleImages, []);
   assert.equal(persisted?.meta.storageMode, APP_DATA_CACHE_STORAGE_MODES.compact);
   assert.equal(storage.savedKey, 'escalas-app:app-data-cache');
   assert.equal(storage.removed, undefined);

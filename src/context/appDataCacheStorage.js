@@ -16,49 +16,32 @@ function stripInlineImage(value) {
   return isInlineImage(value) ? '' : normalizeString(value);
 }
 
-function compactScaleAttachment(imageAttachment, { removeAllImages = false } = {}) {
-  if (!imageAttachment || typeof imageAttachment !== 'object') {
-    return null;
-  }
-
-  if (removeAllImages) {
-    return null;
-  }
-
-  const src = stripInlineImage(imageAttachment.src);
-  if (!src) {
-    return null;
-  }
+export function removeScaleImageDataFromSnapshot(snapshot) {
+  const source = snapshot && typeof snapshot === 'object' ? snapshot : {};
 
   return {
-    ...imageAttachment,
-    src
+    ...source,
+    scales: (Array.isArray(source.scales) ? source.scales : []).map((scale) => ({
+      ...scale,
+      imageAttachment: null
+    })),
+    scaleImages: []
   };
 }
 
-function compactScales(scales, { minimal = false } = {}) {
+function buildPersistableScales(scales, { compact = false, minimal = false } = {}) {
   return (Array.isArray(scales) ? scales : []).map((scale) => ({
     ...scale,
     members: Array.isArray(scale?.members)
       ? scale.members.map((member) => ({
         ...member,
-        photo: stripInlineImage(member?.photo)
+        photo: compact || minimal ? stripInlineImage(member?.photo) : normalizeString(member?.photo)
       }))
       : [],
     playlist: minimal ? [] : Array.isArray(scale?.playlist) ? scale.playlist : [],
     messages: minimal ? [] : Array.isArray(scale?.messages) ? scale.messages : [],
-    imageAttachment: compactScaleAttachment(scale?.imageAttachment, { removeAllImages: minimal })
+    imageAttachment: null
   }));
-}
-
-function compactScaleImages(scaleImages, { minimal = false } = {}) {
-  if (minimal) {
-    return [];
-  }
-
-  return (Array.isArray(scaleImages) ? scaleImages : [])
-    .map((image) => compactScaleAttachment(image))
-    .filter(Boolean);
 }
 
 export function buildPersistableAppDataSnapshot(snapshot, namespace, { version, mode = APP_DATA_CACHE_STORAGE_MODES.full } = {}) {
@@ -67,7 +50,7 @@ export function buildPersistableAppDataSnapshot(snapshot, namespace, { version, 
   const compact = mode === APP_DATA_CACHE_STORAGE_MODES.compact;
   const minimal = mode === APP_DATA_CACHE_STORAGE_MODES.minimal;
 
-  return {
+  return removeScaleImageDataFromSnapshot({
     ...baseSnapshot,
     profile: baseSnapshot.profile
       ? {
@@ -87,10 +70,8 @@ export function buildPersistableAppDataSnapshot(snapshot, namespace, { version, 
       ...component,
       photo: compact || minimal ? stripInlineImage(component?.photo) : normalizeString(component?.photo)
     })),
-    scales: compact || minimal ? compactScales(baseSnapshot.scales, { minimal }) : Array.isArray(baseSnapshot.scales) ? baseSnapshot.scales : [],
-    scaleImages: compact || minimal
-      ? compactScaleImages(baseSnapshot.scaleImages, { minimal })
-      : Array.isArray(baseSnapshot.scaleImages) ? baseSnapshot.scaleImages : [],
+    scales: buildPersistableScales(baseSnapshot.scales, { compact, minimal }),
+    scaleImages: [],
     componentUnavailability: minimal ? null : baseSnapshot.componentUnavailability ?? null,
     myUnavailability: minimal ? null : baseSnapshot.myUnavailability ?? null,
     meta: {
@@ -101,7 +82,7 @@ export function buildPersistableAppDataSnapshot(snapshot, namespace, { version, 
       lastSyncStatus: 'success',
       storageMode: mode
     }
-  };
+  });
 }
 
 export function writeAppDataCacheWithFallback(storage, storageKey, snapshot, namespace, { version } = {}) {

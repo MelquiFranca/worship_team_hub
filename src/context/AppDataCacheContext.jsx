@@ -3,7 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { CLIENT_AUTH_STORAGE_KEYS, clearClientSessionData } from '@/lib/auth/clientSessionCleanup';
-import { APP_DATA_CACHE_STORAGE_MODES, buildPersistableAppDataSnapshot, writeAppDataCacheWithFallback } from '@/context/appDataCacheStorage';
+import {
+  APP_DATA_CACHE_STORAGE_MODES,
+  removeScaleImageDataFromSnapshot,
+  writeAppDataCacheWithFallback
+} from '@/context/appDataCacheStorage';
 import { requestJson } from '@/lib/api/http';
 import { canHydrateGroupedComponentUnavailability } from '@/context/appDataHydrationPolicy';
 import { isAppDataSnapshotFresh } from '@/context/appDataCacheFreshness';
@@ -251,7 +255,15 @@ function readStoredSnapshot(namespace) {
       return { ...defaultSnapshot, meta: { ...defaultSnapshot.meta, namespace } };
     }
 
-    return parsed;
+    const sanitizedSnapshot = removeScaleImageDataFromSnapshot(parsed);
+
+    try {
+      window.localStorage.setItem(APP_DATA_CACHE_STORAGE_KEY, JSON.stringify(sanitizedSnapshot));
+    } catch {
+      // A copia em memoria segue sanitizada mesmo se o navegador recusar a migracao do cache legado.
+    }
+
+    return sanitizedSnapshot;
   } catch {
     return { ...defaultSnapshot, meta: { ...defaultSnapshot.meta, namespace } };
   }
@@ -292,13 +304,6 @@ function filterScalesByTimeScope(scales, timeScope) {
   return scales;
 }
 
-function buildStorageSnapshot(nextSnapshot, namespace) {
-  return buildPersistableAppDataSnapshot(normalizeStoredSnapshot(nextSnapshot), namespace, {
-    version: APP_DATA_CACHE_VERSION,
-    mode: APP_DATA_CACHE_STORAGE_MODES.full
-  });
-}
-
 const AppDataCacheContext = createContext(null);
 
 export function AppDataCacheProvider({ children }) {
@@ -311,16 +316,16 @@ export function AppDataCacheProvider({ children }) {
   const inFlightRefreshRef = useRef(null);
 
   const persistSnapshot = useCallback((nextSnapshot, namespace) => {
-    const storageSnapshot = buildStorageSnapshot(nextSnapshot, namespace);
-    setSnapshot(storageSnapshot);
+    const runtimeSnapshot = normalizeStoredSnapshot(nextSnapshot);
+    setSnapshot(runtimeSnapshot);
 
     if (typeof window !== 'undefined') {
-      writeAppDataCacheWithFallback(window.localStorage, APP_DATA_CACHE_STORAGE_KEY, storageSnapshot, namespace, {
+      writeAppDataCacheWithFallback(window.localStorage, APP_DATA_CACHE_STORAGE_KEY, runtimeSnapshot, namespace, {
         version: APP_DATA_CACHE_VERSION
       });
     }
 
-    return storageSnapshot;
+    return runtimeSnapshot;
   }, []);
 
   const clearCache = useCallback(() => {
@@ -348,8 +353,8 @@ export function AppDataCacheProvider({ children }) {
         requestJson('/api/auth/profile', requestOptions),
         requestJson('/api/group-settings', requestOptions),
         requestJson('/api/components?limit=100', requestOptions),
-        requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent('all')}`, requestOptions),
-        requestJson('/api/scales/images', requestOptions),
+        requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent('all')}`, APP_DATA_REMOTE_REFRESH_FETCH_OPTIONS),
+        requestJson('/api/scales/images', APP_DATA_REMOTE_REFRESH_FETCH_OPTIONS),
         shouldLoadGroupedComponentUnavailability
           ? requestJson('/api/components/unavailability', requestOptions)
           : Promise.resolve({ items: [] }),
@@ -384,6 +389,20 @@ export function AppDataCacheProvider({ children }) {
       }
     }, namespace);
   }, [audience, persistSnapshot]);
+
+  const hydrateRemoteScaleData = useCallback(async (baseSnapshot) => {
+    const [scalesPayload, scaleImagesPayload] = await Promise.all([
+      requestJson(`/api/scales?limit=100&timeScope=${encodeURIComponent('all')}`, APP_DATA_REMOTE_REFRESH_FETCH_OPTIONS),
+      requestJson('/api/scales/images', APP_DATA_REMOTE_REFRESH_FETCH_OPTIONS)
+    ]);
+    const componentsById = normalizeComponentCatalog(baseSnapshot?.components);
+
+    return normalizeStoredSnapshot({
+      ...baseSnapshot,
+      scales: normalizeScales(Array.isArray(scalesPayload?.items) ? scalesPayload.items : [], componentsById),
+      scaleImages: normalizeScaleImages(scaleImagesPayload?.items)
+    });
+  }, []);
 
   const refreshAppData = useCallback(async () => {
     if (!namespaceRef.current || !isAuthenticated) {
@@ -436,8 +455,29 @@ export function AppDataCacheProvider({ children }) {
     setSnapshot(storedSnapshot);
 
     if (isAppDataSnapshotFresh(storedSnapshot, namespace)) {
-      setIsHydrating(false);
-      return;
+      let cancelled = false;
+
+      hydrateRemoteScaleData(storedSnapshot)
+        .then((nextSnapshot) => {
+          if (!cancelled) {
+            setSnapshot(nextSnapshot);
+          }
+        })
+        .catch((hydrateError) => {
+          if (!cancelled) {
+            const message = hydrateError instanceof Error ? hydrateError.message : 'Nao foi possivel sincronizar as escalas.';
+            setError(message);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setIsHydrating(false);
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     let cancelled = false;
@@ -464,7 +504,7 @@ export function AppDataCacheProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [audience, claims, clearCache, hydrateRemoteData, isAuthLoading, isAuthenticated, role, session, user]);
+  }, [audience, claims, clearCache, hydrateRemoteData, hydrateRemoteScaleData, isAuthLoading, isAuthenticated, role, session, user]);
 
   useEffect(() => {
     if (isAuthenticated || isAuthLoading) {
@@ -506,6 +546,7 @@ export function AppDataCacheProvider({ children }) {
     isRefreshing,
     refreshAppData,
     snapshot.componentUnavailability,
+    snapshot.components,
     snapshot.groupSettings,
     snapshot.meta.lastSyncStatus,
     snapshot.meta.lastSyncedAt,
